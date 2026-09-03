@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block content %}
+<div class="page-head" style="margin-bottom:4px">
+  <div>
+    <div class="greeting">{{ month_label }}</div>
+    <h1>Hi, {{ user.username }} ♡</h1>
+  </div>
+</div>
+
+<div class="balance-card">
+  <small>Total balance</small>
+  <div class="amount">Rp {{ total_balance|floatformat:0|intcomma }}</div>
+  <div class="balance-trend {% if balance_change >= 0 %}trend-up{% else %}trend-down{% endif %}">
+    <span class="material-symbols-rounded" style="font-size:15px">{% if balance_change >= 0 %}trending_up{% else %}trending_down{% endif %}</span>
+    {% if balance_change >= 0 %}+{% endif %}Rp {{ balance_change|floatformat:0|intcomma }}
+    <span class="muted" style="color:#B9B9BE;font-weight:600">this month</span>
+  </div>
+  <div class="balance-chips">
+    <div class="b-chip"><small>Income</small><strong style="color:#8FE3B4">+{{ income_month|floatformat:0|intcomma }}</strong></div>
+    <div class="b-chip"><small>Expense</small><strong style="color:#FFB199">-{{ expense_month|floatformat:0|intcomma }}</strong></div>
+  </div>
+</div>
+
+<div class="section-title"><h3>Wallets</h3><a href="{% url 'wallet_list' %}">See all</a></div>
+<div class="wallet-strip">
+  {% for w in wallets %}
+    <div class="w-card">
+      <div class="w-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><span class="material-symbols-rounded">{{ w.icon }}</span></div>
+      <strong>{{ w.name }}</strong>
+      <small>{{ w.get_type_display }}</small>
+      <div class="w-bal">Rp {{ w.current_balance|floatformat:0|intcomma }}</div>
+    </div>
+  {% empty %}
+    <div class="muted">No wallets yet.</div>
+  {% endfor %}
+</div>
+
+<div class="section-title"><h3>Recent transactions</h3><a href="{% url 'transaction_list' %}">See all</a></div>
+<div class="tx-list">
+  {% for t in recent %}
+    <div class="list-item">
+      {% if t.kind == 'transfer' %}
+        <div class="li-icon" style="background:#EDEDFB;color:#6C6CE0"><span class="material-symbols-rounded">swap_horiz</span></div>
+        <div class="li-main">
+          <div class="li-title">{{ t.from_wallet.name }} → {{ t.to_wallet.name }}</div>
+          <div class="li-sub">{{ t.date|date:"M j" }} · transfer</div>
+        </div>
+      {% else %}
+        <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><span class="material-symbols-rounded">{{ t.category.icon }}</span></div>
+        <div class="li-main">
+          <div class="li-title">{{ t.category.name }}{% if t.note %} · {{ t.note }}{% endif %}</div>
+          <div class="li-sub">{{ t.date|date:"M j" }} · {{ t.wallet.name }}</div>
+        </div>
+      {% endif %}
+      <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
+        {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp {{ t.amount|floatformat:0|intcomma }}
+      </div>
+    </div>
+  {% empty %}
+    <div class="card muted center">No transactions yet — tap + to add your first one!</div>
+  {% endfor %}
+</div>
+
+<div class="section-title"><h3>Last 6 months</h3></div>
+<div class="card">
+  <div class="chart-wrap"><canvas id="monthChart"></canvas></div>
+</div>
+
+<div class="section-title"><h3>Spending by category</h3></div>
+<div class="card">
+  <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+  <div class="divider"></div>
+  <div style="display:grid;gap:8px" id="cat-legend"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ months_json|json_script:"months-data" }}
+{{ expense_cat_json|json_script:"cat-data" }}
+<script>
+const months = JSON.parse(document.getElementById('months-data').textContent);
+const cats = JSON.parse(document.getElementById('cat-data').textContent);
+new Chart(document.getElementById('monthChart'), {
+  type: 'bar',
+  data: {
+    labels: months.map(m=>m.label),
+    datasets: [
+      {label:'Income', data: months.map(m=>m.income), backgroundColor:'#7BD3A4', borderRadius:6, barPercentage:.65, categoryPercentage:.65},
+      {label:'Expense', data: months.map(m=>m.expense), backgroundColor:'#FF8A65', borderRadius:6, barPercentage:.65, categoryPercentage:.65},
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom', labels:{usePointStyle:true, pointStyle:'circle', boxWidth:8, font:{family:'Plus Jakarta Sans', size:11, weight:'600'}}}},
+    scales:{x:{grid:{display:false}, ticks:{font:{family:'Plus Jakarta Sans', size:11}}}, y:{grid:{color:'#F3E9E2'}, ticks:{font:{family:'Plus Jakarta Sans', size:11}}}}
+  }
+});
+const cctx = document.getElementById('catChart');
+if (cats.length){
+  new Chart(cctx, {
+    type: 'doughnut',
+    data: {labels: cats.map(c=>c.label), datasets: [{data: cats.map(c=>c.value), backgroundColor: cats.map(c=>c.color), borderWidth: 3, borderColor: '#fff'}]},
+    options: {
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{legend:{display:false}}
+    }
+  });
+  const legend = document.getElementById('cat-legend');
+  cats.forEach(c => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;font-size:13px';
+    row.innerHTML = '<span style="width:10px;height:10px;border-radius:3px;background:' + c.color + '"></span><span style="flex:1;font-weight:600">' + c.label + '</span><strong>Rp ' + Math.round(c.value).toLocaleString('en-US') + '</strong>';
+    legend.appendChild(row);
+  });
+} else {
+  cctx.parentElement.style.display = 'none';
+  const l = document.getElementById('cat-legend');
+  l.innerHTML = '<div class="muted center" style="padding:8px 0">No expenses this month.</div>';
+}
+</script>
+{% endblock %}

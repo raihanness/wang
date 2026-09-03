@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h2>Confirm delete</h2>
+</div>
+<div class="card">
+  <p>Delete <strong>{{ obj }}</strong>?</p>
+  <div class="form-actions">
+    <form method="post" style="display:contents">{% csrf_token %}<button class="btn btn-primary">Yes, delete</button></form>
+    <a class="btn" href="{% url back %}">Cancel</a>
+  </div>
+</div>
+{% endblock %}

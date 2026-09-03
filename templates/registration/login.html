@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card auth-card">
+  <div class="center" style="margin-bottom:14px">
+    <span class="brand-badge" style="width:46px;height:46px;font-size:26px;display:inline-grid"><span class="material-symbols-rounded">payments</span></span>
+    <h2>Welcome back ♡</h2>
+    <p class="muted" style="margin:0;font-size:13px">Log in to your Wang account</p>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      {% for field in form %}
+        <div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}</div>
+      {% endfor %}
+      {% if form.errors %}<div class="msg">{{ form.errors }}</div>{% endif %}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary">Log in</button>
+    </div>
+  </form>
+  <div class="center" style="margin-top:16px;font-size:13.5px">
+    <span class="muted">New here?</span> <a href="{% url 'signup' %}" style="font-weight:800">Create account</a>
+  </div>
+</div>
+{% endblock %}

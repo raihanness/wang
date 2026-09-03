@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h2>Categories</h2>
+  <a class="btn btn-sm" href="{% url 'category_create' %}">+ New</a>
+</div>
+{% regroup cats by get_kind_display as kind_groups %}
+{% for group in kind_groups %}
+  <div class="section-title"><h3>{{ group.grouper }}</h3></div>
+  <div class="cat-grid" style="grid-template-columns:repeat(3,1fr)">
+    {% for c in group.list %}
+      <a class="cat-cell" href="{% url 'category_edit' c.pk %}" style="text-decoration:none">
+        <span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><span class="material-symbols-rounded">{{ c.icon }}</span></span>
+        <span>{{ c.name }}</span>
+      </a>
+    {% endfor %}
+  </div>
+{% empty %}
+  <div class="card muted center">No categories yet.</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block content %}
+<div class="page-head">
+  <h2>Wallets</h2>
+  <a class="btn btn-sm" href="{% url 'wallet_create' %}">+ New</a>
+</div>
+<div class="stacked-list">
+  {% for w in wallets %}
+    <div class="cat-tile">
+      <div class="cat-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><span class="material-symbols-rounded">{{ w.icon }}</span></div>
+      <div style="flex:1;min-width:0">
+        <strong>{{ w.name }}</strong>
+        <div>
+          <small>{{ w.get_type_display }}{% if w.archived %} · archived{% endif %}</small>
+          <span class="badge badge-transfer" style="margin-left:6px">Rp {{ w.current_balance|floatformat:0|intcomma }}</span>
+        </div>
+      </div>
+      <a class="btn btn-ghost btn-sm" href="{% url 'wallet_edit' w.pk %}">Edit</a>
+      <a class="icon-btn" style="width:34px;height:34px" href="{% url 'wallet_toggle_archive' w.pk %}" aria-label="Archive toggle"><span class="material-symbols-rounded" style="font-size:19px">{% if w.archived %}unarchive{% else %}archive{% endif %}</span></a>
+    </div>
+  {% empty %}
+    <div class="card muted center">No wallets yet — create your first one!</div>
+  {% endfor %}
+</div>
+{% endblock %}

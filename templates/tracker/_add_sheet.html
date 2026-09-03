@@ -1,0 +1,413 @@
+{% load humanize %}
+<div class="sheet-overlay" id="sheet-overlay"></div>
+<div class="sheet" id="add-sheet" role="dialog" aria-label="Add transaction">
+  <div class="sheet-head">
+    <div class="sheet-tabs">
+      <button type="button" class="sheet-tab active" data-kind="expense">Expenses</button>
+      <button type="button" class="sheet-tab" data-kind="income">Income</button>
+      <button type="button" class="sheet-tab" data-kind="transfer">Transfer</button>
+    </div>
+  </div>
+
+  <form method="post" action="{% url 'transaction_create' %}" id="add-form" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="kind" id="id_kind" value="expense">
+    <input type="hidden" name="amount" id="id_amount" value="0">
+    <input type="hidden" name="note" id="id_note" value="">
+    <input type="hidden" name="date" id="id_date" value="">
+
+    <div class="sheet-scroll">
+      <div id="grid-expense" class="cat-grid">
+        {% for c in expense_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><span class="material-symbols-rounded">{{ c.icon }}</span></span><span>{{ c.name }}</span></button>{% endfor %}
+      </div>
+      <div id="grid-income" class="cat-grid" hidden>
+        {% for c in income_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><span class="material-symbols-rounded">{{ c.icon }}</span></span><span>{{ c.name }}</span></button>{% endfor %}
+      </div>
+
+      <div id="grid-transfer" hidden>
+        <div class="transfer-pick">
+          <button type="button" class="wallet-block" id="from-block">
+            <span class="wallet-block-icon" id="from-block-icon">?</span>
+            <div class="wallet-block-txt">
+              <small>From</small>
+              <strong id="from-block-name">Select wallet</strong>
+            </div>
+          </button>
+          <button type="button" class="swap-btn" id="swap-wallets"><span class="material-symbols-rounded">swap_horiz</span></button>
+          <button type="button" class="wallet-block" id="to-block">
+            <span class="wallet-block-icon" id="to-block-icon">?</span>
+            <div class="wallet-block-txt">
+              <small>To</small>
+              <strong id="to-block-name">Select wallet</strong>
+            </div>
+          </button>
+        </div>
+        <div class="transfer-note muted" id="transfer-error" hidden>From and To must be different.</div>
+      </div>
+      <div class="sheet-scroll-spacer"></div>
+    </div>
+
+    <div class="sheet-input">
+      <button type="button" class="wallet-chip" id="wallet-chip">
+        <span class="wallet-chip-icon" id="wallet-chip-icon"><span class="material-symbols-rounded">account_balance_wallet</span></span>
+        <span class="wallet-chip-name" id="wallet-chip-name">{{ wallets.0.name|default:"Select account" }}</span>
+        <span class="material-symbols-rounded" style="font-size:18px;color:var(--muted)">expand_more</span>
+      </button>
+      <input class="note-input" id="sheet-note" placeholder="Note" maxlength="200">
+      <div class="amount-edit-box">
+        <span class="amount-currency">Rp</span>
+        <span class="amount-value" id="amount-value">0</span>
+      </div>
+    </div>
+  </form>
+
+  <div class="sheet-bottom">
+    <div class="keypad" id="keypad">
+      <div class="keypad-fn">
+        <!-- <button type="button" class="key-fn"><span class="material-symbols-rounded">emoji_emotions</span></button> -->
+        <button type="button" class="key-fn today" id="key-today">TODAY</button>
+        <!-- <button type="button" class="key-fn"><span class="material-symbols-rounded">add</span></button> -->
+        <!-- <button type="button" class="key-fn"><span class="material-symbols-rounded">calculate</span></button> -->
+      </div>
+      <input type="datetime-local" id="datetime-picker" hidden>
+      <div class="keypad-grid">
+        <button type="button" class="key-op">x</button>
+        <button type="button" class="key">7</button>
+        <button type="button" class="key">8</button>
+        <button type="button" class="key">9</button>
+        <button type="button" class="key-op">/</button>
+        <button type="button" class="key">4</button>
+        <button type="button" class="key">5</button>
+        <button type="button" class="key">6</button>
+        <button type="button" class="key-op">-</button>
+        <button type="button" class="key">1</button>
+        <button type="button" class="key">2</button>
+        <button type="button" class="key">3</button>
+        <button type="button" class="key-op">+</button>
+        <button type="button" class="key key-dot">.</button>
+        <button type="button" class="key">0</button>
+        <button type="button" class="key key-clear"><span class="material-symbols-rounded">backspace</span></button>
+      </div>
+    </div>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" id="sheet-cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" form="add-form" id="sheet-save-big">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="picker-overlay"></div>
+<div class="sheet picker" id="picker-sheet" role="dialog" aria-label="Select account" style="height: 600px;">
+  <div class="sheet-head">
+    <button type="button" class="sheet-head-btn" id="picker-close"><span class="material-symbols-rounded">close</span></button>
+    <div class="picker-title">Select account</div>
+    <a class="sheet-head-btn" href="{% url 'wallet_create' %}" aria-label="Add wallet"><span class="material-symbols-rounded">add</span></a>
+  </div>
+  <div class="picker-list">
+    {% for w in wallets %}
+      <button type="button" class="picker-item" data-wallet="{{ w.id }}" data-icon="{{ w.icon }}" data-color="{{ w.color }}">
+        <span class="picker-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><span class="material-symbols-rounded">{{ w.icon }}</span></span>
+        <span class="picker-name">{{ w.name }}</span>
+        <span class="picker-bal">Rp {{ w.current_balance|floatformat:0|intcomma }}</span>
+        <span class="picker-check material-symbols-rounded">check</span>
+      </button>
+    {% empty %}
+      <div class="muted center" style="padding:20px">No wallets yet — add one first.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="sheet-overlay" id="date-overlay"></div>
+<div class="sheet picker date-picker" id="date-sheet" role="dialog" aria-label="Pick date and time">
+  <div class="sheet-head">
+    <div class="picker-title">Date &amp; time</div>
+  </div>
+
+  <div class="date-picker-head">
+    <div class="date-picker-selected" id="date-selected">—</div>
+  </div>
+
+  <div class="date-nav">
+    <button type="button" class="date-nav-btn" id="date-prev"><span class="material-symbols-rounded">chevron_left</span></button>
+    <div class="date-nav-title" id="date-month-title">Month YYYY</div>
+    <button type="button" class="date-nav-btn" id="date-next"><span class="material-symbols-rounded">chevron_right</span></button>
+  </div>
+
+  <div class="date-weekdays">
+    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+  </div>
+  <div class="date-grid" id="date-grid"></div>
+
+  <div class="time-row">
+    <label>Time</label>
+    <div class="time-spinners">
+      <select id="time-h" class="input"></select>
+      <span class="time-colon">:</span>
+      <select id="time-m" class="input"></select>
+    </div>
+  </div>
+
+  <div class="sheet-actions">
+    <button type="button" class="btn btn-ghost" id="date-close">Cancel</button>
+    <button type="button" class="btn btn-primary" id="date-done">Done</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const form = document.getElementById('add-form');
+  const tabs = document.querySelectorAll('.sheet-tab');
+  const kindInput = document.getElementById('id_kind');
+  const gridExpense = document.getElementById('grid-expense');
+  const gridIncome = document.getElementById('grid-income');
+  const gridTransfer = document.getElementById('grid-transfer');
+  const amountValue = document.getElementById('amount-value');
+  const amountHidden = document.getElementById('id_amount');
+  const noteInput = document.getElementById('sheet-note');
+  const dateHidden = document.getElementById('id_date');
+  const walletChip = document.getElementById('wallet-chip');
+  const walletChipIcon = document.getElementById('wallet-chip-icon');
+  const walletChipName = document.getElementById('wallet-chip-name');
+  const pickerOverlay = document.getElementById('picker-overlay');
+  const pickerSheet = document.getElementById('picker-sheet');
+  const pickerItems = document.querySelectorAll('.picker-item');
+  const fromBlock = document.getElementById('from-block');
+  const toBlock = document.getElementById('to-block');
+  const fromName = document.getElementById('from-block-name');
+  const toName = document.getElementById('to-block-name');
+  const fromIcon = document.getElementById('from-block-icon');
+  const toIcon = document.getElementById('to-block-icon');
+  const transferError = document.getElementById('transfer-error');
+  let selectedCat = null;
+  let walletId = pickerItems.length ? pickerItems[0].dataset.wallet : null;
+
+  const fmt = n => n.toLocaleString('en-US');
+
+  /* tabs */
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const k = t.dataset.kind;
+    kindInput.value = k;
+    gridExpense.hidden = k !== 'expense';
+    gridIncome.hidden = k !== 'income';
+    gridTransfer.hidden = k !== 'transfer';
+    walletChip.hidden = k === 'transfer';
+    selectedCat = null;
+    document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('selected'));
+  }));
+
+  /* categories */
+  document.querySelectorAll('.cat-cell').forEach(c => c.addEventListener('click', () => {
+    document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
+    c.classList.add('selected');
+    selectedCat = c;
+  }));
+
+  /* wallet picker (mode: 'chip' | 'from' | 'to') */
+  let pickerMode = 'chip';
+  function openPicker(mode){
+    pickerMode = mode;
+    pickerSheet.classList.add('open'); pickerOverlay.classList.add('show');
+  }
+  function closePicker(){
+    pickerSheet.classList.remove('open'); pickerOverlay.classList.remove('show');
+  }
+  walletChip.addEventListener('click', () => openPicker('chip'));
+  document.getElementById('picker-close').addEventListener('click', closePicker);
+  pickerOverlay.addEventListener('click', closePicker);
+  pickerItems.forEach(item => item.addEventListener('click', () => {
+    const id = item.dataset.wallet;
+    if (pickerMode === 'chip'){
+      walletId = id;
+      walletChipIcon.innerHTML = '<span class="material-symbols-rounded">' + item.dataset.icon + '</span>';
+      walletChipIcon.style.background = item.dataset.color + '20';
+      walletChipIcon.style.color = item.dataset.color;
+      walletChipName.textContent = item.querySelector('.picker-name').textContent;
+    } else {
+      const nameEl = pickerMode === 'from' ? fromName : toName;
+      const iconEl = pickerMode === 'from' ? fromIcon : toIcon;
+      const block = pickerMode === 'from' ? fromBlock : toBlock;
+      nameEl.textContent = item.querySelector('.picker-name').textContent;
+      nameEl.dataset.id = id;
+      iconEl.textContent = item.dataset.icon;
+      iconEl.style.background = item.dataset.color + '20';
+      iconEl.style.color = item.dataset.color;
+      block.classList.add('selected');
+    }
+    pickerItems.forEach(i => i.classList.remove('selected'));
+    item.classList.add('selected');
+    checkTransfer();
+    closePicker();
+  }));
+
+  /* transfer from/to */
+  fromBlock.addEventListener('click', () => openPicker('from'));
+  toBlock.addEventListener('click', () => openPicker('to'));
+  document.getElementById('swap-wallets').addEventListener('click', () => {
+    const tmpName = fromName.textContent, tmpIcon = fromIcon.textContent, tmpBg = fromIcon.style.background, tmpColor = fromIcon.style.color, tmpId = fromName.dataset.id;
+    fromName.textContent = toName.textContent; fromIcon.textContent = toIcon.textContent;
+    fromIcon.style.background = toIcon.style.background; fromIcon.style.color = toIcon.style.color; fromName.dataset.id = toName.dataset.id;
+    toName.textContent = tmpName; toIcon.textContent = tmpIcon;
+    toIcon.style.background = tmpBg; toIcon.style.color = tmpColor; toName.dataset.id = tmpId;
+    checkTransfer();
+  });
+  function checkTransfer(){
+    const f = fromName.dataset.id, t = toName.dataset.id;
+    transferError.hidden = !(f && t && f === t);
+  }
+
+  /* keypad */
+  const keypad = document.getElementById('keypad');
+  keypad.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.classList.contains('key-fn')) return;
+    let cur = amountHidden.value;
+    if (b.classList.contains('key-clear')){ amountHidden.value = '0'; }
+    else if (b.classList.contains('key-op')){ /* ignore operators for now */ }
+    else {
+      const ch = b.textContent;
+      if (ch === '.' && cur.includes('.')) return;
+      if (cur === '0' && ch !== '.') cur = '';
+      const nxt = cur + ch;
+      if (nxt.replace('.','').length > 12) return;
+      amountHidden.value = nxt;
+    }
+    amountValue.textContent = fmt(Math.round(parseFloat(amountHidden.value) || 0));
+  });
+
+  /* note -> hidden */
+  noteInput.addEventListener('input', () => { document.getElementById('id_note').value = noteInput.value; });
+
+  /* ── date & time picker (custom bottom sheet) ── */
+  const todayBtn = document.getElementById('key-today');
+  const dateOverlay = document.getElementById('date-overlay');
+  const dateSheet = document.getElementById('date-sheet');
+  const dateGrid = document.getElementById('date-grid');
+  const dateMonthTitle = document.getElementById('date-month-title');
+  const dateSelected = document.getElementById('date-selected');
+  const timeH = document.getElementById('time-h');
+  const timeM = document.getElementById('time-m');
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  let selDate = new Date();            // working date in the picker
+  let viewDate = new Date();           // month being viewed
+  let tzOffsetMs = new Date().getTimezoneOffset() * 60000;
+
+  function openDatePicker(){
+    if (dateHidden.value){
+      const d = new Date(dateHidden.value + 'T12:00:00');
+      if (!isNaN(d)) selDate = d;
+    }
+    viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
+    timeH.value = pad2(selDate.getHours());
+    timeM.value = pad2(selDate.getMinutes());
+    dateSheet.classList.add('open'); dateOverlay.classList.add('show');
+    renderCalendar();
+  }
+  function closeDatePicker(){ dateSheet.classList.remove('open'); dateOverlay.classList.remove('show'); }
+  todayBtn.addEventListener('click', openDatePicker);
+  document.getElementById('date-close').addEventListener('click', closeDatePicker);
+  dateOverlay.addEventListener('click', closeDatePicker);
+
+  function renderCalendar(){
+    dateMonthTitle.textContent = MONTHS[viewDate.getMonth()] + ' ' + viewDate.getFullYear();
+    const first = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    const startPad = first.getDay();
+    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 0).getDate();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const sel = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate());
+    let html = '';
+    for (let i=0;i<startPad;i++) html += '<span class="date-cell empty"></span>';
+    for (let d=1; d<=daysInMonth; d++){
+      const cellDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
+      const cls = ['date-cell'];
+      if (cellDate.getTime() === sel.getTime()) cls.push('selected');
+      if (cellDate.getTime() === today.getTime()) cls.push('today');
+      html += '<button type="button" class="' + cls.join(' ') + '" data-day="' + d + '">' + d + '</button>';
+    }
+    dateGrid.innerHTML = html;
+    dateSelected.textContent = DAYS[selDate.getDay()] + ', ' + pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()] + ' ' + selDate.getFullYear() + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
+  }
+  dateGrid.addEventListener('click', e => {
+    const b = e.target.closest('button[data-day]');
+    if (!b) return;
+    selDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), +b.dataset.day, selDate.getHours(), selDate.getMinutes());
+    renderCalendar();
+  });
+  document.getElementById('date-prev').addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1); renderCalendar(); });
+  document.getElementById('date-next').addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1); renderCalendar(); });
+
+  /* time spinners */
+  (function(){
+    for (let h=0; h<24; h++) timeH.add(new Option(pad2(h), pad2(h)));
+    for (let m=0; m<60; m+=5) timeM.add(new Option(pad2(m), pad2(m)));
+  })();
+  timeH.addEventListener('change', () => { selDate.setHours(+timeH.value); dateSelected.textContent = fmtSelected(); });
+  timeM.addEventListener('change', () => { selDate.setMinutes(+timeM.value); dateSelected.textContent = fmtSelected(); });
+
+  function fmtSelected(){
+    return DAYS[selDate.getDay()] + ', ' + pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()] + ' ' + selDate.getFullYear() + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
+  }
+
+  /* confirm / shortcuts */
+  document.getElementById('date-done').addEventListener('click', commitDate);
+  document.getElementById('date-today').addEventListener('click', () => {
+    selDate = new Date();
+    viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
+    timeH.value = pad2(selDate.getHours()); timeM.value = pad2(selDate.getMinutes());
+    renderCalendar(); commitDate();
+  });
+  document.getElementById('date-clear').addEventListener('click', () => {
+    dateHidden.value = '';
+    todayBtn.textContent = 'TODAY';
+    todayBtn.classList.remove('picked');
+    closeDatePicker();
+  });
+
+  function commitDate(){
+    const local = new Date(selDate.getTime() - tzOffsetMs);
+    dateHidden.value = local.toISOString().slice(0,16);
+    const now = new Date();
+    const isToday = selDate.getFullYear()===now.getFullYear() && selDate.getMonth()===now.getMonth() && selDate.getDate()===now.getDate();
+    todayBtn.classList.toggle('picked', !isToday);
+    todayBtn.textContent = isToday ? 'TODAY' : pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()].slice(0,3) + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
+    closeDatePicker();
+  }
+
+  /* init: default to now */
+  (function(){
+    const d = new Date();
+    selDate = d;
+    dateHidden.value = new Date(d.getTime() - tzOffsetMs).toISOString().slice(0,16);
+  })();
+
+  /* submit */
+  form.addEventListener('submit', function(e){
+    const kind = kindInput.value;
+    const amt = parseFloat(amountHidden.value);
+    if (!amt || amt <= 0){ e.preventDefault(); return; }
+    if (kind !== 'transfer'){
+      if (!selectedCat){ e.preventDefault(); return; }
+      form.appendChild(createHidden('category', selectedCat.dataset.cat));
+      if (!walletId){ e.preventDefault(); return; }
+      form.appendChild(createHidden('wallet', walletId));
+    } else {
+      const fromId = fromName.dataset.id, toId = toName.dataset.id;
+      if (!fromId || !toId || fromId === toId){ e.preventDefault(); return; }
+      form.appendChild(createHidden('from_wallet', fromId));
+      form.appendChild(createHidden('to_wallet', toId));
+      form.appendChild(createHidden('wallet', ''));
+      form.appendChild(createHidden('category', ''));
+    }
+  });
+  function createHidden(name, value){
+    const i = document.createElement('input');
+    i.type = 'hidden'; i.name = name; i.value = value;
+    return i;
+  }
+  document.getElementById('sheet-cancel').addEventListener('click', () => { form.reset(); amountHidden.value = '0'; amountValue.textContent = '0'; closeSheet(); });
+})();
+</script>

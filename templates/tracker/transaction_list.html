@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block content %}
+<div class="page-head">
+  <h2>History</h2>
+</div>
+
+<div class="filter-bar">
+  <input class="input" name="q" value="{{ request.GET.q }}" placeholder="Search note / category" form="filter-form">
+  <select class="input" name="kind" form="filter-form">
+    <option value="">All kinds</option>
+    <option value="income" {% if request.GET.kind == 'income' %}selected{% endif %}>Income</option>
+    <option value="expense" {% if request.GET.kind == 'expense' %}selected{% endif %}>Expense</option>
+    <option value="transfer" {% if request.GET.kind == 'transfer' %}selected{% endif %}>Transfer</option>
+  </select>
+  <select class="input" name="wallet" form="filter-form">
+    <option value="">All wallets</option>
+    {% for w in wallets %}<option value="{{ w.id }}" {% if request.GET.wallet == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+  </select>
+  <input class="input" type="date" name="from" value="{{ request.GET.from }}" form="filter-form">
+  <input class="input" type="date" name="to" value="{{ request.GET.to }}" form="filter-form">
+  <button class="btn btn-primary" form="filter-form" style="grid-column:1/2">Filter</button>
+  <a class="btn" href="{% url 'transaction_list' %}" style="grid-column:2/3">Clear</a>
+</div>
+<form id="filter-form" method="get" style="display:none"></form>
+
+<div class="tx-list">
+  {% for t in transactions %}
+    <div class="list-item">
+      {% if t.kind == 'transfer' %}
+        <div class="li-icon" style="background:#EDEDFB;color:#6C6CE0"><span class="material-symbols-rounded">swap_horiz</span></div>
+        <div class="li-main">
+          <div class="li-title">{{ t.from_wallet.name }} → {{ t.to_wallet.name }}</div>
+          <div class="li-sub">{{ t.date|date:"M j, Y · H:i" }} · transfer</div>
+        </div>
+      {% else %}
+        <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><span class="material-symbols-rounded">{{ t.category.icon }}</span></div>
+        <div class="li-main">
+          <div class="li-title">{{ t.category.name }}{% if t.note %} · {{ t.note }}{% endif %}</div>
+          <div class="li-sub">{{ t.date|date:"M j, Y · H:i" }} · {{ t.wallet.name }}</div>
+        </div>
+      {% endif %}
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
+          {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp {{ t.amount|floatformat:0|intcomma }}
+        </div>
+        <div style="display:flex;gap:2px">
+          <a class="icon-btn" style="width:30px;height:30px" href="{% url 'transaction_edit' t.pk %}" aria-label="Edit"><span class="material-symbols-rounded" style="font-size:17px">edit</span></a>
+          <a class="icon-btn" style="width:30px;height:30px" href="{% url 'transaction_delete' t.pk %}" aria-label="Delete"><span class="material-symbols-rounded" style="font-size:17px">delete</span></a>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="card muted center">No transactions match.</div>
+  {% endfor %}
+</div>
+{% endblock %}

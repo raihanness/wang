@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h2>{{ title }}</h2>
+</div>
+<div class="card">
+  <form method="post" id="tx-form">
+    {% csrf_token %}
+    <div class="form-row">
+      <div><label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>{{ form.kind }}</div>
+      <div id="row-wallet"><label for="{{ form.wallet.id_for_label }}">{{ form.wallet.label }}</label>{{ form.wallet }}</div>
+      <div id="row-category"><label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>{{ form.category }}</div>
+      <div id="row-from" style="display:none"><label for="{{ form.from_wallet.id_for_label }}">{{ form.from_wallet.label }}</label>{{ form.from_wallet }}</div>
+      <div id="row-to" style="display:none"><label for="{{ form.to_wallet.id_for_label }}">{{ form.to_wallet.label }}</label>{{ form.to_wallet }}</div>
+      <div><label for="{{ form.amount.id_for_label }}">{{ form.amount.label }}</label>{{ form.amount }}</div>
+      <div><label for="{{ form.date.id_for_label }}">{{ form.date.label }}</label>{{ form.date }}</div>
+      <div><label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>{{ form.note }}</div>
+    </div>
+    {% if form.non_field_errors %}<div class="msg" style="margin-top:12px">{{ form.non_field_errors }}</div>{% endif %}
+    {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
+    <div class="form-actions">
+      <button class="btn btn-primary">Save</button>
+      <a class="btn" href="{% url 'transaction_list' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+<script>
+(function(){
+  const kind = document.getElementById('id_kind');
+  function sync(){
+    const isTransfer = kind.value === 'transfer';
+    document.getElementById('row-wallet').style.display = isTransfer ? 'none' : '';
+    document.getElementById('row-category').style.display = isTransfer ? 'none' : '';
+    document.getElementById('row-from').style.display = isTransfer ? '' : 'none';
+    document.getElementById('row-to').style.display = isTransfer ? '' : 'none';
+  }
+  kind.addEventListener('change', sync); sync();
+})();
+</script>
+{% endblock %}
