@@ -1,25 +1,55 @@
 {% extends "base.html" %}
+{% load static %}
+{% block page_name %}login{% endblock %}
 {% block content %}
-<div class="card auth-card">
-  <div class="center" style="margin-bottom:14px">
-    <span class="brand-badge" style="width:46px;height:46px;font-size:26px;display:inline-grid"><span class="material-symbols-rounded">payments</span></span>
-    <h2>Welcome back ♡</h2>
-    <p class="muted" style="margin:0;font-size:13px">Log in to your Wang account</p>
-  </div>
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-row">
-      {% for field in form %}
-        <div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}</div>
-      {% endfor %}
-      {% if form.errors %}<div class="msg">{{ form.errors }}</div>{% endif %}
+<div class="auth-wrap">
+  <div class="auth-ambient-glow"></div>
+  <div class="card auth-card">
+    <div class="center" style="margin-bottom:20px">
+      <div class="auth-badge-wrap">
+        <img src="{% static 'img/logo-fix.png' %}" alt="Wang" class="brand-badge brand-logo-img">
+      </div>
+      <h2>Welcome back</h2>
+      <p class="muted" style="margin:4px 0 0;font-size:13.5px">Sign in to your Wang dashboard</p>
     </div>
-    <div class="form-actions">
-      <button class="btn btn-primary">Log in</button>
-    </div>
-  </form>
-  <div class="center" style="margin-top:16px;font-size:13.5px">
-    <span class="muted">New here?</span> <a href="{% url 'signup' %}" style="font-weight:800">Create account</a>
+
+    {% if form.errors %}
+      <div class="auth-error-box" style="margin-bottom:16px">
+        <svg class="icon"><use href="#icon-error"></use></svg>
+        <span>Invalid username or password. Please try again.</span>
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="form-row" style="gap:16px">
+        <div>
+          <label for="id_username">Username</label>
+          <div class="input-icon-wrap">
+            <svg class="icon input-icon-left"><use href="#icon-person"></use></svg>
+            <input type="text" name="username" autofocus autocapitalize="none" autocomplete="username" maxlength="150" required id="id_username" placeholder="Enter your username" value="{{ form.username.value|default:'' }}">
+          </div>
+        </div>
+
+        <div>
+          <label for="id_password">Password</label>
+          <div class="input-icon-wrap">
+            <svg class="icon input-icon-left"><use href="#icon-lock"></use></svg>
+            <input type="password" name="password" autocomplete="current-password" required id="id_password" placeholder="Enter your password">
+            <button type="button" class="input-reveal-btn" id="toggle-password" aria-label="Show password" title="Show password">
+              <svg class="icon"><use href="#icon-visibility"></use></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions" style="margin-top:24px">
+        <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px">
+          <span>Log in</span>
+          <svg class="icon" style="font-size:18px"><use href="#icon-arrow_forward"></use></svg>
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}

@@ -1,0 +1,30 @@
+<div class="sheet-overlay confirm-overlay" id="confirm-sheet-overlay"></div>
+<div class="sheet confirm-sheet" id="confirm-sheet" role="dialog" aria-modal="true" aria-label="Confirm Action">
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="confirm-sheet-close" aria-label="Close">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div style="width:36px"></div>
+  </div>
+
+  <div class="confirm-sheet-body">
+    <div class="confirm-icon-badge">
+      <svg class="icon" id="confirm-sheet-icon"><use href="#icon-delete"></use></svg>
+    </div>
+    <h3 class="confirm-sheet-title" id="confirm-sheet-title">Delete Transaction?</h3>
+    <p class="confirm-sheet-desc" id="confirm-sheet-desc">
+      Are you sure you want to delete this transaction? This action cannot be undone.
+    </p>
+  </div>
+
+  <form id="confirm-sheet-form" method="post" action="" style="margin:0;">
+    {% csrf_token %}
+    <div class="sheet-actions" style="margin: 14px 0 10px;">
+      <button type="button" class="btn btn-ghost" id="confirm-sheet-cancel-btn" style="flex:1;">Cancel</button>
+      <button type="submit" class="btn btn-delete" id="confirm-sheet-submit-btn" style="flex:1; justify-content:center; gap:6px;">
+        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+        <span id="confirm-sheet-submit-text">Delete</span>
+      </button>
+    </div>
+  </form>
+</div>

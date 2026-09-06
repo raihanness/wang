@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block page_name %}transaction_form{% endblock %}
 {% block content %}
 <div class="page-head">
   <h2>{{ title }}</h2>
@@ -18,9 +19,9 @@
     </div>
     {% if form.non_field_errors %}<div class="msg" style="margin-top:12px">{{ form.non_field_errors }}</div>{% endif %}
     {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
-    <div class="form-actions">
+    <div class="sheet-actions">
       <button class="btn btn-primary">Save</button>
-      <a class="btn" href="{% url 'transaction_list' %}">Cancel</a>
+      <a class="btn btn-ghost" href="{% url 'transaction_list' %}">Cancel</a>
     </div>
   </form>
 </div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block page_name %}category_form{% endblock %}
 {% block content %}
 <div class="page-head">
   <h2>{{ title }}</h2>
@@ -6,19 +7,18 @@
 <div class="card">
   <form method="post">
     {% csrf_token %}
-    <div class="form-row">
+    {% include "tracker/_icon_color_picker.html" %}
+    <div class="form-row" style="margin-top:16px">
       <div><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}</div>
       <div><label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>{{ form.kind }}</div>
-      <div><label for="{{ form.icon.id_for_label }}">{{ form.icon.label }} <span class="muted">(Material icon name)</span></label>{{ form.icon }}
-        <div class="icon-helper">e.g. <b>restaurant</b>, <b>directions_bus</b>, <b>shopping_bag</b>, <b>bolt</b>, <b>work</b>, <b>redeem</b>. Find more at fonts.google.com/icons.</div>
-      </div>
-      <div><label for="{{ form.color.id_for_label }}">{{ form.color.label }}</label>{{ form.color }}</div>
     </div>
     {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
-    <div class="form-actions">
+    <div class="sheet-actions">
       <button class="btn btn-primary">Save</button>
-      {% if category_pk %}<a class="btn" href="{% url 'category_delete' category_pk %}">Delete</a>{% endif %}
-      <a class="btn" href="{% url 'category_list' %}" style="text-align: center;">Cancel</a>
+      <a class="btn btn-ghost" href="{% url 'category_list' %}" style="text-align: center;">Cancel</a>
+      {% if category_pk %}<a class="btn btn-delete" style="text-align: center;" href="{% url 'category_delete' category_pk %}">
+        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+      </a>{% endif %}
     </div>
   </form>
 </div>

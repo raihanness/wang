@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Wang</string>
+    <!-- Change this URL to your live hosted DOM Cloud URL, e.g. https://wang.yourdomain.dev -->
+    <string name="app_web_url">https://wang.baihkki.my.id/</string>
+</resources>

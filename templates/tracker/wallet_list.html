@@ -1,26 +1,279 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% block page_name %}wallet_list{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h2>Wallets</h2>
+  <h2><span class="title-script">W</span>allets</h2>
   <a class="btn btn-sm" href="{% url 'wallet_create' %}">+ New</a>
 </div>
-<div class="stacked-list">
+
+<div class="balance-card">
+  <small>Total balance</small>
+  <div class="amount">Rp{{ total_balance|floatformat:0|intcomma }}</div>
+  <div class="balance-trend {% if balance_change >= 0 %}trend-up{% else %}trend-down{% endif %}">
+    <svg class="icon" style="font-size:15px"><use href="#icon-{% if balance_change >= 0 %}trending_up{% else %}trending_down{% endif %}"></use></svg>
+    {% if balance_change >= 0 %}+{% endif %}Rp{{ balance_change|floatformat:0|intcomma }}
+    <span class="muted" style="font-weight:600">this month</span>
+  </div>
+  <div class="balance-chips">
+    <div class="b-chip">
+      <div class="b-chip-icon b-chip-icon-income"><svg class="icon"><use href="#icon-trending_up"></use></svg></div>
+      <div class="b-chip-content">
+        <small>Income</small>
+        <strong style="color:var(--green)">+{{ income_month|floatformat:0|intcomma }}</strong>
+      </div>
+    </div>
+    <div class="b-chip">
+      <div class="b-chip-icon b-chip-icon-expense"><svg class="icon"><use href="#icon-trending_down"></use></svg></div>
+      <div class="b-chip-content">
+        <small>Expense</small>
+        <strong style="color:var(--red)">-{{ expense_month|floatformat:0|intcomma }}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">
+  <h3>Accounts & Wallets</h3>
+  {% if wallets|length > 1 %}
+    <button type="button" class="btn-reorder-toggle" id="btn-reorder-wallets" aria-label="Reorder wallets">
+      <svg class="icon"><use href="#icon-swap_vert"></use></svg>
+      <span id="reorder-btn-label">Reorder</span>
+    </button>
+  {% endif %}
+</div>
+
+{% csrf_token %}
+<div class="wallet-grid">
   {% for w in wallets %}
-    <div class="cat-tile">
-      <div class="cat-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><span class="material-symbols-rounded">{{ w.icon }}</span></div>
-      <div style="flex:1;min-width:0">
-        <strong>{{ w.name }}</strong>
-        <div>
-          <small>{{ w.get_type_display }}{% if w.archived %} · archived{% endif %}</small>
-          <span class="badge badge-transfer" style="margin-left:6px">Rp {{ w.current_balance|floatformat:0|intcomma }}</span>
+    <div class="w-grid-card {% if not w.include_in_total %}w-excluded{% endif %} {% if w.archived %}w-archived{% endif %}"
+         data-id="{{ w.id }}"
+         draggable="false">
+      <a class="w-card-link" href="{% url 'wallet_edit' w.pk %}" aria-label="Edit {{ w.name }}" title="Edit {{ w.name }}"></a>
+      <div class="w-grid-head">
+        <div class="w-grid-icon" style="background:{{ w.color }}20;color:{{ w.color }}">
+          <svg class="icon"><use href="#icon-{{ w.icon }}"></use></svg>
+        </div>
+        <div class="w-reorder-handle" title="Drag to reorder">
+          <svg class="icon"><use href="#icon-drag_indicator"></use></svg>
+        </div>
+        <div class="w-grid-actions">
+          <a class="icon-btn w-action-btn {% if w.include_in_total %}included{% else %}excluded{% endif %}"
+             href="{% url 'wallet_toggle_total' w.pk %}"
+             title="{% if w.include_in_total %}Included in total balance (tap to exclude){% else %}Excluded from total balance (tap to include){% endif %}"
+             aria-label="{% if w.include_in_total %}Exclude from total balance{% else %}Include in total balance{% endif %}">
+            <svg class="icon" style="font-size:16px"><use href="#icon-{% if w.include_in_total %}visibility{% else %}visibility_off{% endif %}"></use></svg>
+          </a>
+          <a class="icon-btn w-action-btn w-action-delete" href="{% url 'wallet_delete' w.pk %}" aria-label="Delete {{ w.name }}" title="Delete {{ w.name }}">
+            <svg class="icon" style="font-size:16px"><use href="#icon-delete"></use></svg>
+          </a>
         </div>
       </div>
-      <a class="btn btn-ghost btn-sm" href="{% url 'wallet_edit' w.pk %}">Edit</a>
-      <a class="icon-btn" style="width:34px;height:34px" href="{% url 'wallet_toggle_archive' w.pk %}" aria-label="Archive toggle"><span class="material-symbols-rounded" style="font-size:19px">{% if w.archived %}unarchive{% else %}archive{% endif %}</span></a>
+
+      <div class="w-grid-body">
+        <strong class="w-grid-name">{{ w.name }}</strong>
+        <div class="w-grid-type">
+          {{ w.get_type_display }}
+          {% if not w.include_in_total %}<span class="w-status-tag">Excluded</span>{% endif %}
+          {% if w.archived %}<span class="w-status-tag">Archived</span>{% endif %}
+        </div>
+      </div>
+
+      <div class="w-grid-footer">
+        <!-- <small class="muted">Balance</small> -->
+        <div class="w-grid-bal">Rp{{ w.current_balance|floatformat:0|intcomma }}</div>
+      </div>
+
+      <div class="w-reorder-arrows">
+        <button type="button" class="w-arrow-btn w-arrow-prev" title="Move earlier" aria-label="Move {{ w.name }} earlier">
+          <svg class="icon"><use href="#icon-arrow_back"></use></svg>
+        </button>
+        <span class="w-order-badge">#{{ forloop.counter }}</span>
+        <button type="button" class="w-arrow-btn w-arrow-next" title="Move later" aria-label="Move {{ w.name }} later">
+          <svg class="icon"><use href="#icon-arrow_forward"></use></svg>
+        </button>
+      </div>
     </div>
   {% empty %}
-    <div class="card muted center">No wallets yet — create your first one!</div>
+    <div class="card muted center" style="grid-column:span 2;padding:32px 16px">
+      No wallets yet — create your first one!
+    </div>
   {% endfor %}
 </div>
+
+<script>
+(function() {
+  function initWalletReordering() {
+    const toggleBtn = document.getElementById('btn-reorder-wallets');
+    const grid = document.querySelector('.wallet-grid');
+    if (!toggleBtn || !grid) return;
+
+    let isReordering = false;
+
+    function getCards() {
+      return Array.from(grid.querySelectorAll('.w-grid-card[data-id]'));
+    }
+
+    function updateCardBadges() {
+      const cards = getCards();
+      cards.forEach((card, idx) => {
+        const badge = card.querySelector('.w-order-badge');
+        if (badge) badge.textContent = '#' + (idx + 1);
+        const prevBtn = card.querySelector('.w-arrow-prev');
+        const nextBtn = card.querySelector('.w-arrow-next');
+        if (prevBtn) prevBtn.disabled = (idx === 0);
+        if (nextBtn) nextBtn.disabled = (idx === cards.length - 1);
+      });
+    }
+
+    function saveOrder() {
+      const cards = getCards();
+      const ids = cards.map(c => c.dataset.id);
+      const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+      // Immediately sync the persistent bottom sheet account picker to match the new order
+      const pickerList = document.querySelector('#picker-sheet .picker-list');
+      if (pickerList) {
+        ids.forEach(id => {
+          const item = pickerList.querySelector(`.picker-item[data-wallet="${id}"]`);
+          if (item) pickerList.appendChild(item);
+        });
+      }
+
+      fetch("{% url 'wallet_reorder' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrf,
+        },
+        body: JSON.stringify({ order: ids })
+      }).then(r => r.json()).catch(err => console.error("Error saving wallet order:", err));
+    }
+
+    // Toggle button handler
+    toggleBtn.addEventListener('click', () => {
+      isReordering = !isReordering;
+      grid.classList.toggle('is-reordering', isReordering);
+      toggleBtn.classList.toggle('active', isReordering);
+      const label = document.getElementById('reorder-btn-label');
+      const icon = toggleBtn.querySelector('.icon, .material-symbols-rounded');
+
+      const cards = getCards();
+      cards.forEach(card => {
+        card.setAttribute('draggable', isReordering ? 'true' : 'false');
+      });
+
+      if (isReordering) {
+        if (label) label.textContent = 'Done';
+        if (icon) {
+          const use = icon.querySelector('use');
+          if (use) use.setAttribute('href', '#icon-check');
+        }
+        updateCardBadges();
+      } else {
+        if (label) label.textContent = 'Reorder';
+        if (icon) {
+          const use = icon.querySelector('use');
+          if (use) use.setAttribute('href', '#icon-swap_vert');
+        }
+        saveOrder();
+      }
+    });
+
+    // Arrow buttons handlers (Event delegation on grid)
+    grid.addEventListener('click', (e) => {
+      if (!isReordering) return;
+      const prevBtn = e.target.closest('.w-arrow-prev');
+      const nextBtn = e.target.closest('.w-arrow-next');
+      if (!prevBtn && !nextBtn) return;
+
+      const card = e.target.closest('.w-grid-card');
+      if (!card) return;
+
+      if (prevBtn) {
+        const prevCard = card.previousElementSibling;
+        if (prevCard && prevCard.classList.contains('w-grid-card')) {
+          grid.insertBefore(card, prevCard);
+          updateCardBadges();
+          saveOrder();
+        }
+      } else if (nextBtn) {
+        const nextCard = card.nextElementSibling;
+        if (nextCard && nextCard.classList.contains('w-grid-card')) {
+          grid.insertBefore(nextCard, card);
+          updateCardBadges();
+          saveOrder();
+        }
+      }
+    });
+
+    // Drag and drop handlers
+    let draggedCard = null;
+
+    grid.addEventListener('dragstart', (e) => {
+      if (!isReordering) {
+        e.preventDefault();
+        return;
+      }
+      const card = e.target.closest('.w-grid-card');
+      if (!card) return;
+      draggedCard = card;
+      card.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.id);
+      }
+    });
+
+    grid.addEventListener('dragend', () => {
+      if (draggedCard) {
+        draggedCard.classList.remove('dragging');
+        draggedCard = null;
+      }
+      grid.querySelectorAll('.w-grid-card').forEach(c => c.classList.remove('drag-over'));
+      updateCardBadges();
+      saveOrder();
+    });
+
+    grid.addEventListener('dragover', (e) => {
+      if (!isReordering || !draggedCard) return;
+      e.preventDefault();
+      const targetCard = e.target.closest('.w-grid-card');
+      if (targetCard && targetCard !== draggedCard) {
+        targetCard.classList.add('drag-over');
+      }
+    });
+
+    grid.addEventListener('dragleave', (e) => {
+      const targetCard = e.target.closest('.w-grid-card');
+      if (targetCard) {
+        targetCard.classList.remove('drag-over');
+      }
+    });
+
+    grid.addEventListener('drop', (e) => {
+      if (!isReordering || !draggedCard) return;
+      e.preventDefault();
+      const targetCard = e.target.closest('.w-grid-card');
+      if (targetCard && targetCard !== draggedCard) {
+        targetCard.classList.remove('drag-over');
+        const cards = getCards();
+        const draggedIndex = cards.indexOf(draggedCard);
+        const targetIndex = cards.indexOf(targetCard);
+        if (draggedIndex < targetIndex) {
+          grid.insertBefore(draggedCard, targetCard.nextSibling);
+        } else {
+          grid.insertBefore(draggedCard, targetCard);
+        }
+        updateCardBadges();
+        saveOrder();
+      }
+    });
+  }
+
+  initWalletReordering();
+  document.addEventListener('turbo:render', initWalletReordering);
+  document.addEventListener('turbo:load', initWalletReordering);
+})();
+</script>
 {% endblock %}

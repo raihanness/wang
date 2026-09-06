@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% block page_name %}transaction_list{% endblock %}
 {% block content %}
 <div class="page-head">
   <h2>History</h2>
@@ -26,30 +27,49 @@
 
 <div class="tx-list">
   {% for t in transactions %}
-    <div class="list-item">
-      {% if t.kind == 'transfer' %}
-        <div class="li-icon" style="background:#EDEDFB;color:#6C6CE0"><span class="material-symbols-rounded">swap_horiz</span></div>
-        <div class="li-main">
-          <div class="li-title">{{ t.from_wallet.name }} → {{ t.to_wallet.name }}</div>
-          <div class="li-sub">{{ t.date|date:"M j, Y · H:i" }} · transfer</div>
-        </div>
-      {% else %}
-        <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><span class="material-symbols-rounded">{{ t.category.icon }}</span></div>
-        <div class="li-main">
-          <div class="li-title">{{ t.category.name }}{% if t.note %} · {{ t.note }}{% endif %}</div>
-          <div class="li-sub">{{ t.date|date:"M j, Y · H:i" }} · {{ t.wallet.name }}</div>
-        </div>
-      {% endif %}
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-        <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
-          {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp {{ t.amount|floatformat:0|intcomma }}
-        </div>
-        <div style="display:flex;gap:2px">
-          <a class="icon-btn" style="width:30px;height:30px" href="{% url 'transaction_edit' t.pk %}" aria-label="Edit"><span class="material-symbols-rounded" style="font-size:17px">edit</span></a>
-          <a class="icon-btn" style="width:30px;height:30px" href="{% url 'transaction_delete' t.pk %}" aria-label="Delete"><span class="material-symbols-rounded" style="font-size:17px">delete</span></a>
+      <div class="list-item js-edit-tx" style="cursor:pointer"
+           data-id="{{ t.pk }}"
+           data-url="{% url 'transaction_edit' t.pk %}"
+           data-delete-url="{% url 'transaction_delete' t.pk %}"
+           data-kind="{{ t.kind }}"
+           data-amount="{{ t.amount|floatformat:0 }}"
+           data-note="{{ t.note }}"
+           data-date="{{ t.date|date:'Y-m-d\TH:i' }}"
+           data-cat="{{ t.category.id|default:'' }}"
+           data-wallet="{{ t.wallet.id|default:'' }}"
+           data-from="{{ t.from_wallet.id|default:'' }}"
+           data-to="{{ t.to_wallet.id|default:'' }}"
+           data-image="{% if t.image %}{{ t.image.url }}{% endif %}">
+        {% if t.kind == 'transfer' %}
+          <div class="li-icon li-icon-transfer"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></div>
+          <div class="li-main">
+            <div class="li-title">
+              <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} → {{ t.to_wallet.name }}{% endif %}</span>
+              {% if t.image %}
+                <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon"><use href="#icon-receipt_long"></use></svg></span>
+              {% endif %}
+            </div>
+            <div class="li-sub">{{ t.date|date:"M j, Y · H:i" }}{% if t.note %} · {{ t.from_wallet.name }} → {{ t.to_wallet.name }}{% endif %}</div>
+          </div>
+        {% else %}
+          <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><svg class="icon"><use href="#icon-{{ t.category.icon }}"></use></svg></div>
+          <div class="li-main">
+            <div class="li-title">
+              <span>{% if t.note %}{{ t.note }}{% else %}{{ t.category.name }}{% endif %}</span>
+              {% if t.image %}
+                <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon"><use href="#icon-receipt_long"></use></svg></span>
+              {% endif %}
+            </div>
+            <div class="li-sub">{{ t.date|date:"M j, Y · H:i" }}{% if t.note %} · {{ t.category.name }}{% endif %}</div>
+          </div>
+        {% endif %}
+        <div class="li-right">
+          <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
+            {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
+          </div>
+          <div class="li-sub">{% if t.kind == 'transfer' %}Transfer{% else %}{{ t.wallet.name }}{% endif %}</div>
         </div>
       </div>
-    </div>
   {% empty %}
     <div class="card muted center">No transactions match.</div>
   {% endfor %}

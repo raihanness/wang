@@ -2,6 +2,7 @@ Django>=5,<6
 python-dotenv
 Pillow
 whitenoise
-mysqlclient; sys_platform != "win32"
-PyMySQL; sys_platform == "win32"
+PyMySQL
 gunicorn
+
+

@@ -1,0 +1,19 @@
+# DOM Cloud deployment configuration
+# Ref: https://domcloud.co/docs/recipes/django
+features:
+  - python 3.10
+  - mariadb
+  - ssl
+
+nginx:
+  root: public_html/staticfiles
+  passenger:
+    enabled: on
+    app_type: wsgi
+    startup_file: passenger_wsgi.py
+
+commands:
+  - python3 -m venv venv
+  - venv/bin/pip install -r requirements.txt
+  - venv/bin/python manage.py migrate
+  - venv/bin/python manage.py collectstatic --noinput

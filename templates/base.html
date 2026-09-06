@@ -3,79 +3,125 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#FFF7F3">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF7F3" id="meta-theme-color">
+  <script>
+    (function(){
+      try {
+        var saved = localStorage.getItem('wang-theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = saved || (prefersDark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+        var meta = document.getElementById('meta-theme-color');
+        if (meta) meta.setAttribute('content', theme === 'dark' ? '#11100f' : '#FFF7F3');
+        if (window.AndroidBridge && typeof window.AndroidBridge.setSystemTheme === 'function') {
+          window.AndroidBridge.setSystemTheme(theme === 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <title>{% block title %}Wang{% endblock %}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+  <!-- Self-Hosted Fonts (GDPR Compliant) -->
+  <link rel="preload" href="{% static 'fonts/plus-jakarta-sans-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/wang.css' %}">
+  <link rel="prefetch" href="{% static 'img/icons.svg' %}">
+  <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Wang">
+  <meta name="turbo-cache-control" content="no-preview">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.4/dist/turbo.es2017-umd.js"></script>
+  <script src="{% static 'js/app.js' %}?v=4"></script>
 </head>
-<body>
+<body data-page="{% block page_name %}{% endblock %}">
+  {% include "tracker/_svg_symbols.html" %}
   <div class="phone">
     <div class="appbar">
       <div class="appbar-brand">
-        <span class="material-symbols-rounded brand-badge">payments</span>
+        <img src="{% static 'img/logo-fix.png' %}" alt="Wang" class="brand-badge brand-logo-img">
         <span class="appbar-title">Wang</span>
       </div>
       <div class="appbar-actions">
-        <a href="{% url 'transaction_list' %}" class="icon-btn" aria-label="Search"><span class="material-symbols-rounded">search</span></a>
+        <button type="button" class="icon-btn sound-toggle" id="sound-toggle" aria-label="Toggle sound effects" title="Toggle sound effects">
+          <svg class="icon" id="sound-icon"><use href="#icon-volume_up"></use></svg>
+        </button>
+        <button type="button" class="icon-btn theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="icon" id="theme-icon"><use href="#icon-dark_mode"></use></svg>
+        </button>
+        <!-- <a href="{% url 'dashboard' %}#history-search" class="icon-btn" aria-label="Search"><svg class="icon"><use href="#icon-search"></use></svg></a> -->
         {% if user.is_authenticated %}
-          <a href="{% url 'wallet_list' %}" class="icon-btn" aria-label="Wallets"><span class="material-symbols-rounded">account_balance_wallet</span></a>
+          <!-- <a href="{% url 'wallet_list' %}" class="icon-btn" aria-label="Wallets"><svg class="icon"><use href="#icon-account_balance_wallet"></use></svg></a> -->
           <form method="post" action="{% url 'logout' %}" style="margin:0">
             {% csrf_token %}
-            <button class="icon-btn" aria-label="Logout"><span class="material-symbols-rounded">logout</span></button>
+            <button class="icon-btn" aria-label="Logout"><svg class="icon"><use href="#icon-logout"></use></svg></button>
           </form>
         {% else %}
-          <a href="{% url 'login' %}" class="icon-btn" aria-label="Login"><span class="material-symbols-rounded">login</span></a>
+          <a href="{% url 'login' %}" class="icon-btn" aria-label="Login"><svg class="icon"><use href="#icon-login"></use></svg></a>
         {% endif %}
       </div>
     </div>
 
-    <main class="content">
-      {% if messages %}<div class="messages">{% for m in messages %}<div class="msg">{{ m }}</div>{% endfor %}</div>{% endif %}
+    <main class="content turbo-enter">
+      {{ recent_notes|json_script:"turbo-recent-notes" }}
+      {% if messages %}
+        <div class="toast-container" id="toast-container" aria-live="polite">
+          {% for m in messages %}
+            <div class="toast-pill msg toast-{{ m.tags|default:'info' }}" role="status">
+              <svg class="icon">
+                {% if 'success' in m.tags %}<use href="#icon-check_circle"></use>
+                {% elif 'error' in m.tags or 'danger' in m.tags %}<use href="#icon-error"></use>
+                {% elif 'warning' in m.tags %}<use href="#icon-warning"></use>
+                {% else %}<use href="#icon-info"></use>{% endif %}
+              </svg>
+              <span class="toast-msg">{{ m }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
       {% block content %}{% endblock %}
       <div class="content-bottom-space"></div>
     </main>
 
     <nav class="bottomnav">
-      <a href="{% url 'dashboard' %}" class="bn-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-        <span class="material-symbols-rounded">home</span><small>Home</small>
+      <a href="{% url 'dashboard' %}" class="bn-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" data-nav="dashboard" data-turbo-preload>
+        <svg class="icon"><use href="#icon-home"></use></svg><small>Home</small>
       </a>
-      <a href="{% url 'wallet_list' %}" class="bn-item {% if 'wallet' in request.resolver_match.url_name %}active{% endif %}">
-        <span class="material-symbols-rounded">account_balance_wallet</span><small>Wallets</small>
+      <a href="{% url 'wallet_list' %}" class="bn-item {% if 'wallet' in request.resolver_match.url_name %}active{% endif %}" data-nav="wallets" data-turbo-preload>
+        <svg class="icon"><use href="#icon-account_balance_wallet"></use></svg><small>Wallets</small>
       </a>
       <button class="bn-fab" id="bn-fab" aria-label="Add transaction">
-        <span class="material-symbols-rounded">add</span>
+        <svg class="icon"><use href="#icon-add"></use></svg>
       </button>
-      <a href="{% url 'transaction_list' %}" class="bn-item {% if request.resolver_match.url_name == 'transaction_list' %}active{% endif %}">
-        <span class="material-symbols-rounded">receipt_long</span><small>History</small>
+      <a href="{% url 'graphs' %}" class="bn-item {% if request.resolver_match.url_name == 'graphs' %}active{% endif %}" data-nav="graphs" data-turbo-preload>
+        <svg class="icon"><use href="#icon-pie_chart"></use></svg><small>Graphs</small>
       </a>
-      <a href="{% url 'category_list' %}" class="bn-item {% if 'category' in request.resolver_match.url_name %}active{% endif %}">
-        <span class="material-symbols-rounded">grid_view</span><small>Categories</small>
+      <a href="{% url 'category_list' %}" class="bn-item {% if 'category' in request.resolver_match.url_name %}active{% endif %}" data-nav="categories" data-turbo-preload>
+        <svg class="icon"><use href="#icon-grid_view"></use></svg><small>Categories</small>
       </a>
     </nav>
 
-    {% include "tracker/_add_sheet.html" %}
+    <div class="sheet-root" id="sheet-root-container" data-turbo-permanent>
+      {% include "tracker/_add_sheet.html" %}
+      {% include "tracker/_detail_sheet.html" %}
+      {% include "tracker/_budget_sheet.html" %}
+      {% include "tracker/_confirm_sheet.html" %}
+      {% include "tracker/_filter_sheet.html" %}
+    </div>
+
+    <!-- Receipt Lightbox Modal -->
+    <div id="receipt-lightbox" class="lightbox-overlay" hidden>
+      <div class="lightbox-content">
+        <button type="button" class="lightbox-close" id="lightbox-close" aria-label="Close photo">
+          <svg class="icon"><use href="#icon-close"></use></svg>
+        </button>
+        <img id="lightbox-img" src="" alt="Receipt photo full view">
+      </div>
+    </div>
   </div>
-  <script>
-    const fab = document.getElementById('bn-fab');
-    const sheet = document.getElementById('add-sheet');
-    const overlay = document.getElementById('sheet-overlay');
-    if (fab) fab.addEventListener('click', () => openSheet());
-    if (overlay) overlay.addEventListener('click', closeSheet);
-    function openSheet(){
-      sheet.classList.add('open'); overlay.classList.add('show'); document.body.style.overflow = 'hidden';
-    }
-    function closeSheet(){
-      sheet.classList.remove('open'); overlay.classList.remove('show'); document.body.style.overflow = '';
-    }
-    window.openSheet = openSheet;
-    window.closeSheet = closeSheet;
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
-  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

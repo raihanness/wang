@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block page_name %}subscription_list{% endblock %}
+{% block title %}Subscriptions — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2 style="margin:0">Subscriptions</h2>
+    <small class="muted">Recurring bills & memberships</small>
+  </div>
+  <a class="btn btn-primary btn-sm" href="{% url 'subscription_create' %}">+ New</a>
+</div>
+
+<!-- Monthly Commitment Hero Card -->
+<div class="card" style="margin-top:4px;background:var(--card);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <small class="muted" style="font-weight:700;letter-spacing:.4px;text-transform:uppercase">Total Monthly</small>
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.3px;color:var(--ink)">
+        Rp{{ monthly_total|floatformat:0|intcomma }}
+      </div>
+    </div>
+    <span class="badge badge-transfer" style="font-weight:700">
+      <svg class="icon" style="font-size:16px"><use href="#icon-event_repeat"></use></svg>
+      {{ subscriptions|length }} active
+    </span>
+  </div>
+</div>
+
+<div class="section-title">
+  <h3>All Subscriptions</h3>
+</div>
+
+<div class="sub-list" style="display:grid;gap:10px">
+  {% for s in subscriptions %}
+    <div class="sub-card {% if not s.active %}inactive{% endif %}">
+      <div class="sub-left">
+        <div class="sub-icon" style="background:{{ s.color }}20;color:{{ s.color }}">
+          <svg class="icon"><use href="#icon-{{ s.icon }}"></use></svg>
+        </div>
+        <div class="sub-info">
+          <div class="sub-name-row">
+            <strong title="{{ s.name }}">{{ s.name }}</strong>
+            {% if not s.active %}<span class="badge" style="font-size:10px;padding:1px 5px;flex-shrink:0">Paused</span>{% endif %}
+          </div>
+          <small class="muted">
+            {{ s.get_cycle_display }} 
+            <!-- {% if s.cycle == 'yearly' and s.due_month %}
+              Due {{ s.get_due_month_display|slice:":3" }} {{ s.due_day }}{% if s.due_day == 1 %}st{% elif s.due_day == 2 %}nd{% elif s.due_day == 3 %}rd{% else %}th{% endif %}
+            {% else %}
+              Due {{ s.due_day }}{% if s.due_day == 1 %}st{% elif s.due_day == 2 %}nd{% elif s.due_day == 3 %}rd{% else %}th{% endif %}
+            {% endif %} -->
+            {% if s.wallet %}// {{ s.wallet.name }}{% endif %}
+          </small>
+        </div>
+      </div>
+
+      <div class="sub-right">
+        <div class="sub-amt">Rp{{ s.amount|floatformat:0|intcomma }}</div>
+        {% with badge=s.status_badge %}
+          <span class="sub-badge {{ badge.class }}">{{ badge.label }}</span>
+        {% endwith %}
+      </div>
+
+      <div class="sub-actions">
+        {% if s.active %}
+          {% if s.is_paid_this_cycle %}
+            <button class="btn btn-sm btn-sub-paid" type="button" disabled title="Paid for this cycle" aria-label="{{ s.name }} is paid">
+              <svg class="icon" style="font-size:16px"><use href="#icon-task_alt"></use></svg>
+              <!-- <span>Paid</span> -->
+            </button>
+          {% else %}
+            <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0" data-turbo="false">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-sub-pay" type="submit" title="Record this payment now" aria-label="Pay {{ s.name }}">
+                <svg class="icon" style="font-size:16px"><use href="#icon-check"></use></svg>
+                <!-- <span>Pay</span> -->
+              </button>
+            </form>
+          {% endif %}
+        {% endif %}
+        <a class="icon-btn" style="width:34px;height:34px" href="{% url 'subscription_edit' s.pk %}" aria-label="Edit {{ s.name }}">
+          <svg class="icon" style="font-size:18px"><use href="#icon-edit"></use></svg>
+        </a>
+      </div>
+    </div>
+  {% empty %}
+    <div class="card muted center" style="box-shadow:none;border:1px dashed var(--line);background:var(--surface-muted);padding:30px 16px">
+      <svg class="icon" style="font-size:38px;color:var(--muted);margin-bottom:8px"><use href="#icon-subscriptions"></use></svg>
+      <div style="font-weight:700;color:var(--ink);margin-bottom:4px">No recurring subscriptions yet</div>
+      <p style="margin:0 0 14px;font-size:13px">Track Netflix, Spotify, Rent, Gym, and Internet bills with automatic due date countdowns.</p>
+      <a class="btn btn-primary btn-sm" href="{% url 'subscription_create' %}">+ Add First Subscription</a>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

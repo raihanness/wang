@@ -1,0 +1,94 @@
+{% load humanize %}
+<div class="sheet-overlay" id="filter-overlay"></div>
+<div class="sheet filter-sheet" id="filter-sheet" role="dialog" aria-modal="true" aria-label="Filter Transactions">
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="filter-cancel" aria-label="Close filters">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div class="sheet-head-title" style="font-weight:800;">Filter Transactions</div>
+    <button type="button" class="filter-reset-text-btn" id="filter-reset-btn" aria-label="Reset all filters">Reset</button>
+  </div>
+
+  <div class="filter-sheet-body">
+    <!-- Type Section -->
+    <div class="filter-section">
+      <div class="filter-section-title">Transaction Type</div>
+      <div class="filter-chips-wrap" id="filter-type-group">
+        <button type="button" class="filter-choice-chip active" data-type="">
+          <span>All Types</span>
+        </button>
+        <button type="button" class="filter-choice-chip" data-type="expense">
+          <svg class="icon" style="font-size:14px;color:var(--red)"><use href="#icon-trending_down"></use></svg>
+          <span>Expense</span>
+        </button>
+        <button type="button" class="filter-choice-chip" data-type="income">
+          <svg class="icon" style="font-size:14px;color:var(--green)"><use href="#icon-trending_up"></use></svg>
+          <span>Income</span>
+        </button>
+        <button type="button" class="filter-choice-chip" data-type="transfer">
+          <svg class="icon" style="font-size:14px;color:var(--lilac)"><use href="#icon-send_money"></use></svg>
+          <span>Transfer</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Account / Wallet Section -->
+    <div class="filter-section">
+      <div class="filter-section-title">Account / Wallet</div>
+      <div class="filter-chips-wrap" id="filter-wallet-group">
+        <button type="button" class="filter-choice-chip active" data-wallet="">
+          <span>All Accounts</span>
+        </button>
+        {% for w in wallets %}
+          <button type="button" class="filter-choice-chip" data-wallet="{{ w.id }}">
+            <svg class="icon" style="font-size:14px;color:{{ w.color }}"><use href="#icon-{{ w.icon }}"></use></svg>
+            <span>{{ w.name }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Category Section -->
+    <div class="filter-section">
+      <div class="filter-section-title">Category</div>
+      <div class="filter-chips-wrap filter-cats-wrap" id="filter-cat-group">
+        <button type="button" class="filter-choice-chip active" data-category="">
+          <span>All Categories</span>
+        </button>
+        {% for c in all_cats %}
+          <button type="button" class="filter-choice-chip" data-category="{{ c.id }}" data-kind="{{ c.kind }}">
+            <svg class="icon" style="font-size:14px;color:{{ c.color }}"><use href="#icon-{{ c.icon }}"></use></svg>
+            <span>{{ c.name }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Date Range Section -->
+    <div class="filter-section">
+      <div class="filter-section-title">Date Range</div>
+      <div class="filter-presets-strip">
+        <button type="button" class="filter-preset-btn" data-preset="this_month">This Month</button>
+        <button type="button" class="filter-preset-btn" data-preset="last_month">Last Month</button>
+        <button type="button" class="filter-preset-btn" data-preset="last_30">Last 30 Days</button>
+        <button type="button" class="filter-preset-btn" data-preset="all">Clear Dates</button>
+      </div>
+      <div class="filter-date-inputs">
+        <div class="filter-date-box">
+          <label for="filter-date-from">From</label>
+          <input type="date" id="filter-date-from" class="filter-date-field" value="{{ date_from }}">
+        </div>
+        <div class="filter-date-box">
+          <label for="filter-date-to">To</label>
+          <input type="date" id="filter-date-to" class="filter-date-field" value="{{ date_to }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-actions filter-sheet-footer">
+    <button type="button" class="btn btn-primary" id="filter-apply-btn" style="flex:1">
+      Apply Filters
+    </button>
+  </div>
+</div>

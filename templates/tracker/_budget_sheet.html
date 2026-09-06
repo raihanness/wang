@@ -1,0 +1,54 @@
+{% load humanize %}
+<div class="sheet-overlay" id="budget-overlay"></div>
+<div class="sheet budget-sheet" id="budget-sheet" role="dialog" aria-label="Daily Budget">
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="budget-cancel" aria-label="Close">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div class="sheet-head-title" style="font-weight:800;">Daily Budget</div>
+    <div style="width:36px"></div>
+  </div>
+
+  <form method="post" action="{% url 'budget_set' %}" id="budget-form" data-turbo="false">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    
+    <div class="budget-sheet-body">
+      <div class="budget-input-card">
+        <label for="budget-amount-input">Target Daily Limit</label>
+        <div class="budget-amount-row">
+          <span class="currency-tag">Rp</span>
+          <input type="number" step="5000" min="0" name="amount" id="budget-amount-input"
+                 value="{{ overall_budget.amount|default_if_none:''|floatformat:0 }}"
+                 placeholder="0" class="budget-amount-input" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- Quick Preset Chips for Daily Spend -->
+      <div class="budget-preset-strip">
+        <button type="button" class="budget-preset-chip" data-amt="50000">50K</button>
+        <button type="button" class="budget-preset-chip" data-amt="100000">100K</button>
+        <button type="button" class="budget-preset-chip" data-amt="150000">150K</button>
+        <button type="button" class="budget-preset-chip" data-amt="200000">200K</button>
+        <button type="button" class="budget-preset-chip" data-amt="300000">300K</button>
+        <button type="button" class="budget-preset-chip" data-amt="500000">500K</button>
+      </div>
+
+      <p class="budget-hint muted">
+        Set a daily spending limit to track today's expenses in real time and keep your habits in check.
+      </p>
+
+      <div class="sheet-actions">
+
+        <button type="submit" class="btn btn-primary" style="flex:1">
+          Save Daily Budget
+        </button>
+        {% if overall_budget %}
+          <button type="button" class="btn btn-delete budget-remove-btn" id="budget-remove-btn">
+            <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+          </button>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>

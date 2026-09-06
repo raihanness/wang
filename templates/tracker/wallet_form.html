@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block page_name %}wallet_form{% endblock %}
 {% block content %}
 <div class="page-head">
   <h2>{{ title }}</h2>
@@ -6,19 +7,26 @@
 <div class="card">
   <form method="post">
     {% csrf_token %}
-    <div class="form-row">
+    {% include "tracker/_icon_color_picker.html" %}
+    <div class="form-row" style="margin-top:16px">
       <div><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}</div>
       <div><label for="{{ form.type.id_for_label }}">{{ form.type.label }}</label>{{ form.type }}</div>
-      <div><label for="{{ form.icon.id_for_label }}">{{ form.icon.label }} <span class="muted">(Material icon name)</span></label>{{ form.icon }}
-        <div class="icon-helper">e.g. <b>payments</b>, <b>account_balance</b>, <b>savings</b>, <b>credit_card</b>, <b>wallet</b>, <b>currency_exchange</b>. Find more at fonts.google.com/icons.</div>
-      </div>
-      <div><label for="{{ form.color.id_for_label }}">{{ form.color.label }}</label>{{ form.color }}</div>
       <div><label for="{{ form.initial_balance.id_for_label }}">{{ form.initial_balance.label }}</label>{{ form.initial_balance }}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0">
+        <div>
+          <label for="{{ form.include_in_total.id_for_label }}" style="margin:0;cursor:pointer">{{ form.include_in_total.label }}</label>
+          <small class="muted" style="display:block;margin-top:2px">Include this wallet's balance in total balance calculation</small>
+        </div>
+        <div style="transform:scale(1.2)">{{ form.include_in_total }}</div>
+      </div>
     </div>
     {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
-    <div class="form-actions">
+    <div class="sheet-actions">
       <button class="btn btn-primary">Save</button>
-      <a class="btn" href="{% url 'wallet_list' %}" style="text-align: center;">Cancel</a>
+      <a class="btn btn-ghost" href="{% url 'wallet_list' %}" style="text-align: center;">Cancel</a>
+      {% if wallet_pk %}<a class="btn btn-delete" style="text-align: center;" href="{% url 'wallet_delete' wallet_pk %}">
+        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+      </a>{% endif %}
     </div>
   </form>
 </div>

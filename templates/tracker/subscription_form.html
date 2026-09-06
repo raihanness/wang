@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block page_name %}subscription_form{% endblock %}
+{% block title %}{{ title }} — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h2>{{ title }}</h2>
+</div>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {% include "tracker/_icon_color_picker.html" %}
+
+    <div class="form-row" style="margin-top:16px">
+      <div>
+        <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+        {{ form.name }}
+      </div>
+      <div>
+        <label for="{{ form.amount.id_for_label }}">Amount (Rp)</label>
+        {{ form.amount }}
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top:12px">
+      <div>
+        <label for="{{ form.cycle.id_for_label }}">{{ form.cycle.label }}</label>
+        {{ form.cycle }}
+      </div>
+      <div id="due-month-group" style="display:none">
+        <label for="{{ form.due_month.id_for_label }}">Due Month</label>
+        {{ form.due_month }}
+      </div>
+      <div>
+        <label for="{{ form.due_day.id_for_label }}" id="due-day-label">Due Day (1-31)</label>
+        {{ form.due_day }}
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top:12px">
+      <div>
+        <label for="{{ form.wallet.id_for_label }}">{{ form.wallet.label }} (Optional)</label>
+        {{ form.wallet }}
+      </div>
+      <div>
+        <label for="{{ form.category.id_for_label }}">{{ form.category.label }} (Optional)</label>
+        {{ form.category }}
+      </div>
+    </div>
+
+    <div style="margin-top:14px;display:flex;align-items:center;gap:8px">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13.5px">
+        {{ form.active }}
+        <span>Active (Include in reminders)</span>
+      </label>
+    </div>
+
+    {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
+
+    <div class="sheet-actions" style="margin-top:16px">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn btn-ghost" href="{% url 'subscription_list' %}" style="text-align: center;">Cancel</a>
+      {% if is_edit and subscription_pk %}
+        <a class="btn btn-delete" style="text-align: center;" href="{% url 'subscription_delete' subscription_pk %}">
+          <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+        </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<script>
+  (function() {
+    function initCycleToggle() {
+      var cycleSelect = document.getElementById('id_cycle');
+      var monthGroup = document.getElementById('due-month-group');
+      var dayLabel = document.getElementById('due-day-label');
+      if (!cycleSelect) return;
+
+      function update() {
+        var val = cycleSelect.value;
+        if (monthGroup) {
+          monthGroup.style.display = val === 'yearly' ? 'block' : 'none';
+        }
+        if (dayLabel) {
+          if (val === 'weekly') dayLabel.textContent = 'Day of Week (1=Mon..7=Sun)';
+          else dayLabel.textContent = 'Due Day (1-31)';
+        }
+      }
+      cycleSelect.removeEventListener('change', update);
+      cycleSelect.addEventListener('change', update);
+      update();
+    }
+    initCycleToggle();
+    document.addEventListener('turbo:render', initCycleToggle);
+    document.addEventListener('turbo:load', initCycleToggle);
+  })();
+</script>
+{% endblock %}

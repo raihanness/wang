@@ -1,0 +1,166 @@
+{% comment %}
+  Reusable Visual Icon & Color Swatch Picker Component
+  Expected context: form (with form.icon and form.color fields, plus form.name)
+{% endcomment %}
+
+<div class="picker-suite">
+  <!-- Live Preview Header -->
+  <div class="picker-preview-box">
+    <div class="picker-preview-icon" id="picker-preview-icon" style="background: {{ form.color.value|default:'#FFB5A7' }}22; color: {{ form.color.value|default:'#FFB5A7' }};">
+      <svg class="icon" id="picker-preview-symbol"><use href="#icon-{{ form.icon.value|default:'account_balance_wallet' }}"></use></svg>
+    </div>
+    <div class="picker-preview-details">
+      <div class="picker-preview-title" id="picker-preview-title">{{ form.name.value|default:"Preview" }}</div>
+      <div class="picker-preview-subtitle muted" id="picker-preview-subtitle">Pick an icon and color below</div>
+    </div>
+  </div>
+
+  <!-- Color Swatches -->
+  <div class="picker-section">
+    <div class="picker-section-label">
+      <span>Color</span>
+      <span class="picker-selected-color-val" id="picker-color-hex">{{ form.color.value|default:'#FFB5A7' }}</span>
+    </div>
+
+    <!-- Hidden native color input synced with form -->
+    <input type="hidden" name="{{ form.color.name }}" id="{{ form.color.id_for_label }}" value="{{ form.color.value|default:'#FFB5A7' }}">
+
+    <div class="color-swatches" id="color-swatches">
+      <button type="button" class="color-swatch-btn" data-color="#FFB5A7" style="background-color: #FFB5A7;" title="Peach" aria-label="Peach"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#FEC8A1" style="background-color: #FEC8A1;" title="Coral" aria-label="Coral"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#FCD5CE" style="background-color: #FCD5CE;" title="Melon" aria-label="Melon"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#B5EAD7" style="background-color: #B5EAD7;" title="Mint" aria-label="Mint"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#D8E2DC" style="background-color: #D8E2DC;" title="Sage" aria-label="Sage"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#E8E8A6" style="background-color: #E8E8A6;" title="Butter" aria-label="Butter"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#C7CEEA" style="background-color: #C7CEEA;" title="Lavender" aria-label="Lavender"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#D6C9F0" style="background-color: #D6C9F0;" title="Lilac" aria-label="Lilac"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#A8D8EA" style="background-color: #A8D8EA;" title="Sky" aria-label="Sky"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#FFD6E0" style="background-color: #FFD6E0;" title="Rose" aria-label="Rose"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#B0BEC5" style="background-color: #B0BEC5;" title="Slate" aria-label="Slate"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      <button type="button" class="color-swatch-btn" data-color="#4A4754" style="background-color: #4A4754;" title="Obsidian" aria-label="Obsidian"><svg class="icon swatch-check"><use href="#icon-check"></use></svg></button>
+      
+      <!-- Custom color input trigger -->
+      <label class="color-swatch-btn swatch-custom" title="Custom color picker" aria-label="Custom color picker">
+        <svg class="icon" style="font-size:18px"><use href="#icon-palette"></use></svg>
+        <input type="color" class="custom-color-input" id="custom-color-input" value="{{ form.color.value|default:'#FFB5A7' }}">
+      </label>
+    </div>
+  </div>
+
+  <!-- Icon Selection -->
+  <div class="picker-section">
+    <div class="picker-section-label">
+      <span>Icon</span>
+      <button type="button" class="btn-link-subtle" id="toggle-custom-icon-btn">Manual input</button>
+    </div>
+
+    <!-- Synced manual icon input (collapsible) -->
+    <div class="custom-icon-field" id="custom-icon-field" style="display:none;margin-bottom:10px">
+      <input type="text" name="{{ form.icon.name }}" id="{{ form.icon.id_for_label }}" class="input" value="{{ form.icon.value|default:'account_balance_wallet' }}" placeholder="Material Symbol name">
+      <small class="muted" style="display:block;margin-top:4px;font-size:11.5px">Type any Material Symbols ligature (e.g. <code>payments</code>, <code>restaurant</code>).</small>
+    </div>
+
+    <!-- Icon category tabs -->
+    <div class="icon-cat-tabs" id="icon-cat-tabs">
+      <button type="button" class="icon-cat-tab active" data-cat="all">All</button>
+      <button type="button" class="icon-cat-tab" data-cat="finance">Finance</button>
+      <button type="button" class="icon-cat-tab" data-cat="food">Food</button>
+      <button type="button" class="icon-cat-tab" data-cat="transport">Transport</button>
+      <button type="button" class="icon-cat-tab" data-cat="home">Home</button>
+      <button type="button" class="icon-cat-tab" data-cat="life">Life</button>
+      <button type="button" class="icon-cat-tab" data-cat="work">Work</button>
+    </div>
+
+    <!-- Search bar -->
+    <div class="icon-search-wrap">
+      <svg class="icon icon-search-lens"><use href="#icon-search"></use></svg>
+      <input type="text" class="icon-search-input" id="icon-search-input" placeholder="Search icon... (e.g. coffee, car, bank, cat)" autocomplete="off">
+      <button type="button" class="icon-search-clear" id="icon-search-clear" style="display:none" aria-label="Clear search">
+        <svg class="icon"><use href="#icon-close"></use></svg>
+      </button>
+    </div>
+
+    <!-- Icon Grid -->
+    <div class="icon-grid-picker" id="icon-grid-picker">
+      <!-- Finance -->
+      <button type="button" class="icon-tile" data-icon="account_balance_wallet" data-cat="finance" data-tags="wallet money cash card pay"><svg class="icon"><use href="#icon-account_balance_wallet"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="payments" data-cat="finance" data-tags="payments cash bills money notes rupiah"><svg class="icon"><use href="#icon-payments"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="account_balance" data-cat="finance" data-tags="bank bca mandiri bni bri cimb atm tax"><svg class="icon"><use href="#icon-account_balance"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="savings" data-cat="finance" data-tags="savings piggy bank deposit invest money save"><svg class="icon"><use href="#icon-savings"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="credit_card" data-cat="finance" data-tags="credit card debit visa mastercard payment"><svg class="icon"><use href="#icon-credit_card"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="currency_exchange" data-cat="finance" data-tags="currency exchange forex crypto transfer swap"><svg class="icon"><use href="#icon-currency_exchange"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="paid" data-cat="finance" data-tags="paid dollar coin money salary payment"><svg class="icon"><use href="#icon-paid"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="receipt_long" data-cat="finance" data-tags="receipt bill invoice transaction paper"><svg class="icon"><use href="#icon-receipt_long"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="sell" data-cat="finance" data-tags="sell tag price promo discount offer"><svg class="icon"><use href="#icon-sell"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="price_change" data-cat="finance" data-tags="price change market stock invest trading"><svg class="icon"><use href="#icon-price_change"></use></svg></button>
+
+      <!-- Food & Drinks -->
+      <button type="button" class="icon-tile" data-icon="restaurant" data-cat="food" data-tags="restaurant food dinner eat meal dining lunch"><svg class="icon"><use href="#icon-restaurant"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="local_cafe" data-cat="food" data-tags="cafe coffee tea drink beverage starbucks kofi"><svg class="icon"><use href="#icon-local_cafe"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="fastfood" data-cat="food" data-tags="fast food burger fries snack junk meal"><svg class="icon"><use href="#icon-fastfood"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="local_bar" data-cat="food" data-tags="bar drink cocktail alcohol beer party night"><svg class="icon"><use href="#icon-local_bar"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="lunch_dining" data-cat="food" data-tags="lunch dining food meal bento dinner"><svg class="icon"><use href="#icon-lunch_dining"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bakery_dining" data-cat="food" data-tags="bakery bread pastry cake dessert roti"><svg class="icon"><use href="#icon-bakery_dining"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="local_pizza" data-cat="food" data-tags="pizza fast food italian meal slice"><svg class="icon"><use href="#icon-local_pizza"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="ramen_dining" data-cat="food" data-tags="ramen noodles soup mie asian food"><svg class="icon"><use href="#icon-ramen_dining"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shopping_cart" data-cat="food" data-tags="groceries supermarket market food ingredients shopping"><svg class="icon"><use href="#icon-shopping_cart"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="icecream" data-cat="food" data-tags="ice cream dessert sweet cold snack gelato"><svg class="icon"><use href="#icon-icecream"></use></svg></button>
+
+      <!-- Transport -->
+      <button type="button" class="icon-tile" data-icon="directions_bus" data-cat="transport" data-tags="bus tj transjakarta transit public commute"><svg class="icon"><use href="#icon-directions_bus"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="directions_car" data-cat="transport" data-tags="car drive travel grabcar gocar trip"><svg class="icon"><use href="#icon-directions_car"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="local_gas_station" data-cat="transport" data-tags="gas fuel bbm pertamina petrol station oil"><svg class="icon"><use href="#icon-local_gas_station"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="two_wheeler" data-cat="transport" data-tags="motorcycle motorbike gojek grab motor scooter bike"><svg class="icon"><use href="#icon-two_wheeler"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="flight" data-cat="transport" data-tags="flight airplane travel vacation airport trip"><svg class="icon"><use href="#icon-flight"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="train" data-cat="transport" data-tags="train subway mrt krl railway transit"><svg class="icon"><use href="#icon-train"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="local_taxi" data-cat="transport" data-tags="taxi cab ride bluebird grab"><svg class="icon"><use href="#icon-local_taxi"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="pedal_bike" data-cat="transport" data-tags="bicycle bike cycling sport ride"><svg class="icon"><use href="#icon-pedal_bike"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="commute" data-cat="transport" data-tags="commute transit travel work daily"><svg class="icon"><use href="#icon-commute"></use></svg></button>
+
+      <!-- Home & Utilities -->
+      <button type="button" class="icon-tile" data-icon="home" data-cat="home" data-tags="home house rent mortgage living dwelling"><svg class="icon"><use href="#icon-home"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bolt" data-cat="home" data-tags="electricity power pln utilities energy light"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="water_drop" data-cat="home" data-tags="water pdam utilities bills drop"><svg class="icon"><use href="#icon-water_drop"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wifi" data-cat="home" data-tags="wifi internet network indihome provider broadband"><svg class="icon"><use href="#icon-wifi"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cell_tower" data-cat="home" data-tags="telecom pulse data telkomsel indosat provider mobile"><svg class="icon"><use href="#icon-cell_tower"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="tv" data-cat="home" data-tags="tv television netflix cable stream entertainment"><svg class="icon"><use href="#icon-tv"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="apartment" data-cat="home" data-tags="apartment kos kost building flat room"><svg class="icon"><use href="#icon-apartment"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="handyman" data-cat="home" data-tags="handyman tools repair maintenance fix service"><svg class="icon"><use href="#icon-handyman"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="chair" data-cat="home" data-tags="chair furniture decor interior living"><svg class="icon"><use href="#icon-chair"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cleaning_services" data-cat="home" data-tags="cleaning laundry wash maid housekeeping"><svg class="icon"><use href="#icon-cleaning_services"></use></svg></button>
+
+      <!-- Life & Leisure -->
+      <button type="button" class="icon-tile" data-icon="shopping_bag" data-cat="life" data-tags="shopping bag clothes mall retail buy store"><svg class="icon"><use href="#icon-shopping_bag"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="checkroom" data-cat="life" data-tags="clothing apparel fashion wardrobe outfit shirt dress"><svg class="icon"><use href="#icon-checkroom"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="fitness_center" data-cat="life" data-tags="gym fitness workout exercise sport weights"><svg class="icon"><use href="#icon-fitness_center"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="sports_esports" data-cat="life" data-tags="gaming games playstation steam console fun esports"><svg class="icon"><use href="#icon-sports_esports"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="movie" data-cat="life" data-tags="movie cinema film theater tickets entertainment"><svg class="icon"><use href="#icon-movie"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="pets" data-cat="life" data-tags="pets dog cat animal pet food vet kitten puppy"><svg class="icon"><use href="#icon-pets"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="medical_services" data-cat="life" data-tags="medical medicine health doctor hospital pharmacy clinic"><svg class="icon"><use href="#icon-medical_services"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="school" data-cat="life" data-tags="school education college course study university book tuition"><svg class="icon"><use href="#icon-school"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="menu_book" data-cat="life" data-tags="book reading study course novel library"><svg class="icon"><use href="#icon-menu_book"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="redeem" data-cat="life" data-tags="gift present reward bonus voucher prize"><svg class="icon"><use href="#icon-redeem"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="card_giftcard" data-cat="life" data-tags="gift card present celebration birthday holiday"><svg class="icon"><use href="#icon-card_giftcard"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="spa" data-cat="life" data-tags="spa wellness massage relax beauty self-care salon"><svg class="icon"><use href="#icon-spa"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="headphones" data-cat="life" data-tags="music spotify audio headphones podcast"><svg class="icon"><use href="#icon-headphones"></use></svg></button>
+
+      <!-- Work & Family -->
+      <button type="button" class="icon-tile" data-icon="work" data-cat="work" data-tags="work office job briefcase career project freelance"><svg class="icon"><use href="#icon-work"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="favorite" data-cat="work" data-tags="love heart mom parents family charity donation give"><svg class="icon"><use href="#icon-favorite"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="family_restroom" data-cat="work" data-tags="family dad parents kids family restroom"><svg class="icon"><use href="#icon-family_restroom"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="diversity_3" data-cat="work" data-tags="social friends hangout people community group sister"><svg class="icon"><use href="#icon-diversity_3"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="domain" data-cat="work" data-tags="company corporate office building business domain"><svg class="icon"><use href="#icon-domain"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="trending_up" data-cat="work" data-tags="growth raise promotion bonus invest profit trending up"><svg class="icon"><use href="#icon-trending_up"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="stars" data-cat="work" data-tags="stars bonus award achievement special rating"><svg class="icon"><use href="#icon-stars"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="devices" data-cat="work" data-tags="electronics phone gadget devices tech hardware"><svg class="icon"><use href="#icon-devices"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="laptop" data-cat="work" data-tags="laptop computer pc software tech it laptop stuff"><svg class="icon"><use href="#icon-laptop"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="handshake" data-cat="work" data-tags="utang debt loan borrow lend agreement handshake"><svg class="icon"><use href="#icon-handshake"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="help" data-cat="work" data-tags="help forgotten unknown question mystery misc"><svg class="icon"><use href="#icon-help"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="apps" data-cat="work" data-tags="apps misc other general software widgets"><svg class="icon"><use href="#icon-apps"></use></svg></button>
+    </div>
+    <div class="icon-search-empty" id="icon-search-empty" style="display:none">
+      <svg class="icon" style="font-size:28px"><use href="#icon-search_off"></use></svg>
+      <p>No matching icons found</p>
+    </div>
+  </div>
+</div>

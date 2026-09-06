@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Offline — Wang{% endblock %}
+{% block page_name %}offline{% endblock %}
+
+{% block content %}
+<div class="offline-wrap">
+  <div class="card offline-card">
+    <div class="offline-icon-badge">
+      <svg class="icon offline-icon"><use href="#icon-wifi_off"></use></svg>
+    </div>
+    <h2 class="offline-title">You're Offline</h2>
+    <p class="offline-desc">
+      Wang couldn't reach the server. Don't worry—your cached data and settings are safely stored on your device.
+    </p>
+    <div class="offline-tips">
+      <div class="offline-tip-item">
+        <svg class="icon"><use href="#icon-cloud_sync"></use></svg>
+        <span>Reconnection will happen automatically once signal returns.</span>
+      </div>
+      <div class="offline-tip-item">
+        <svg class="icon"><use href="#icon-history"></use></svg>
+        <span>You can still browse recently viewed pages and charts.</span>
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary offline-retry-btn" onclick="window.location.reload()">
+      <svg class="icon"><use href="#icon-refresh"></use></svg>
+      <span>Try Reconnecting</span>
+    </button>
+  </div>
+</div>
+{% endblock %}

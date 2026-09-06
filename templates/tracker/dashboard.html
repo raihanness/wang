@@ -1,122 +1,408 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% block page_name %}dashboard{% endblock %}
 {% block content %}
 <div class="page-head" style="margin-bottom:4px">
   <div>
-    <div class="greeting">{{ month_label }}</div>
-    <h1>Hi, {{ user.username }} ♡</h1>
+    <!-- <div class="greeting">{{ month_label }}</div> -->
+    <h1><span class="title-script">Hi,</span> {{ user.username }}</h1>
   </div>
 </div>
 
-<div class="balance-card">
-  <small>Total balance</small>
-  <div class="amount">Rp {{ total_balance|floatformat:0|intcomma }}</div>
-  <div class="balance-trend {% if balance_change >= 0 %}trend-up{% else %}trend-down{% endif %}">
-    <span class="material-symbols-rounded" style="font-size:15px">{% if balance_change >= 0 %}trending_up{% else %}trending_down{% endif %}</span>
-    {% if balance_change >= 0 %}+{% endif %}Rp {{ balance_change|floatformat:0|intcomma }}
-    <span class="muted" style="color:#B9B9BE;font-weight:600">this month</span>
-  </div>
-  <div class="balance-chips">
-    <div class="b-chip"><small>Income</small><strong style="color:#8FE3B4">+{{ income_month|floatformat:0|intcomma }}</strong></div>
-    <div class="b-chip"><small>Expense</small><strong style="color:#FFB199">-{{ expense_month|floatformat:0|intcomma }}</strong></div>
-  </div>
-</div>
-
-<div class="section-title"><h3>Wallets</h3><a href="{% url 'wallet_list' %}">See all</a></div>
-<div class="wallet-strip">
-  {% for w in wallets %}
-    <div class="w-card">
-      <div class="w-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><span class="material-symbols-rounded">{{ w.icon }}</span></div>
-      <strong>{{ w.name }}</strong>
-      <small>{{ w.get_type_display }}</small>
-      <div class="w-bal">Rp {{ w.current_balance|floatformat:0|intcomma }}</div>
+<div class="dash-hero-grid">
+  <!-- Card 1: Total Balance & Today -->
+  <div class="today-card hero-balance-card">
+    <div class="hero-card-head">
+      <div class="hero-head-left">
+        <!-- <svg class="icon hero-head-icon"><use href="#icon-account_balance_wallet"></use></svg> -->
+        <span class="hero-balance-label">Total</span>
+      </div>
+      <button type="button" class="hero-privacy-toggle" id="hero-privacy-toggle" title="Hide/show balance" aria-label="Toggle balance visibility">
+        <svg class="icon" id="hero-privacy-icon"><use href="#icon-visibility"></use></svg>
+      </button>
     </div>
-  {% empty %}
-    <div class="muted">No wallets yet.</div>
-  {% endfor %}
-</div>
 
-<div class="section-title"><h3>Recent transactions</h3><a href="{% url 'transaction_list' %}">See all</a></div>
-<div class="tx-list">
-  {% for t in recent %}
-    <div class="list-item">
-      {% if t.kind == 'transfer' %}
-        <div class="li-icon" style="background:#EDEDFB;color:#6C6CE0"><span class="material-symbols-rounded">swap_horiz</span></div>
-        <div class="li-main">
-          <div class="li-title">{{ t.from_wallet.name }} → {{ t.to_wallet.name }}</div>
-          <div class="li-sub">{{ t.date|date:"M j" }} · transfer</div>
-        </div>
-      {% else %}
-        <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><span class="material-symbols-rounded">{{ t.category.icon }}</span></div>
-        <div class="li-main">
-          <div class="li-title">{{ t.category.name }}{% if t.note %} · {{ t.note }}{% endif %}</div>
-          <div class="li-sub">{{ t.date|date:"M j" }} · {{ t.wallet.name }}</div>
-        </div>
-      {% endif %}
-      <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
-        {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp {{ t.amount|floatformat:0|intcomma }}
+    <div class="hero-balance-amount" id="hero-balance-amount" data-raw-balance="Rp{{ total_balance|floatformat:0|intcomma }}">
+      <span class="currency">Rp</span><span class="value">{{ total_balance|floatformat:0|intcomma }}</span>
+    </div>
+
+    <div class="hero-card-foot">
+      <div class="hero-cashflow-sub">
+        <span class="lbl">{% if is_current %}This Month{% else %}{{ view_month|date:"M Y" }}{% endif %}</span>
+        <span class="hero-cashflow-badge {% if balance_change > 0 %}is-pos{% elif balance_change < 0 %}is-neg{% else %}is-neutral{% endif %}">
+          <span id="hero-cashflow-val" data-raw-cashflow="{% if balance_change > 0 %}+{% elif balance_change < 0 %}-{% endif %}Rp{{ balance_change_abs|floatformat:0|intcomma }}">
+            {% if balance_change > 0 %}+{% elif balance_change < 0 %}-{% endif %}Rp{{ balance_change_abs|floatformat:0|intcomma }}
+          </span>
+        </span>
+      </div>
+      <div class="hero-cashflow-track" title="Income: {{ cashflow_inc_pct }}% · Expense: {{ cashflow_exp_pct }}%">
+        {% if cashflow_inc_pct != '0' and cashflow_inc_pct != '0.0' %}
+          <div class="hero-cashflow-bar-inc" style="width:{{ cashflow_inc_pct }}%"></div>
+        {% endif %}
+        {% if cashflow_exp_pct != '0' and cashflow_exp_pct != '0.0' %}
+          <div class="hero-cashflow-bar-exp" style="width:{{ cashflow_exp_pct }}%"></div>
+        {% endif %}
       </div>
     </div>
+  </div>
+
+  <!-- Card 2: Daily Budget -->
+  <div class="card budget-card">
+    {% if budget_info %}
+      <div class="budget-col-head">
+        <div class="budget-col-title-wrap">
+          <!-- <svg class="icon budget-card-icon"><use href="#icon-savings"></use></svg> -->
+          <span class="budget-col-title">Budget</span>
+        </div>
+        <button type="button" class="budget-edit-trigger" id="budget-edit-trigger" aria-label="Edit daily budget" title="Edit daily budget">
+          <svg class="icon" style="font-size:16px"><use href="#icon-tune"></use></svg>
+        </button>
+      </div>
+
+      <div class="budget-col-amt {% if budget_info.over > 0 %}text-negative{% endif %}">
+        {% if budget_info.over > 0 %}
+          <span class="currency">Rp</span><span class="value">{{ budget_info.over|floatformat:0|intcomma }}</span><small class="budget-unit">over</small>
+        {% else %}
+          <span class="currency">Rp</span><span class="value">{{ budget_info.remaining|floatformat:0|intcomma }}</span><small class="budget-unit">left</small>
+        {% endif %}
+      </div>
+
+      <div class="budget-col-foot">
+        <div class="budget-col-sub">
+          <span class="lbl">{{ budget_info.spent|floatformat:0|intcomma }}/{{ budget_info.amount|floatformat:0|intcomma }}</span>
+          <span class="budget-status-pill {{ budget_info.status_class }}" title="{{ budget_info.status_label }}" aria-label="{{ budget_info.status_label }}">
+            <svg class="icon"><use href="#icon-{{ budget_info.status_icon }}"></use></svg>
+          </span>
+        </div>
+        <div class="budget-progress-track">
+          <div class="budget-progress-bar {{ budget_info.status_class }}" style="width:{{ budget_info.pct }}%"></div>
+        </div>
+      </div>
+    {% else %}
+      <div class="budget-col-head">
+        <div class="budget-col-title-wrap">
+          <svg class="icon budget-card-icon"><use href="#icon-savings"></use></svg>
+          <span class="budget-col-title">Budget</span>
+        </div>
+      </div>
+
+      <div class="budget-col-amt muted" style="font-size:13px;font-weight:700">
+        No limit set
+      </div>
+
+      <div class="budget-col-foot" id="budget-empty-trigger" style="cursor:pointer">
+        <button type="button" class="btn btn-sm btn-ghost budget-set-btn" style="width:100%">
+          + Set Limit
+        </button>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section-title">
+  <h3>Recurring Payments</h3>
+  <a href="{% url 'subscription_list' %}">Manage{% if all_subs %} ({{ all_subs|length }}){% endif %}</a>
+</div>
+<div class="sub-strip">
+  {% for s in all_subs %}
+    <div class="sub-chip-card {% if s.is_paid_this_cycle %}is-paid{% endif %}">
+      <div class="sub-chip-icon" style="background:{{ s.color }}20;color:{{ s.color }}">
+        <svg class="icon"><use href="#icon-{{ s.icon }}"></use></svg>
+      </div>
+      <div class="sub-chip-info">
+        <strong>{{ s.name }}</strong>
+        <small class="muted">Rp{{ s.amount|floatformat:0|intcomma }} // <span class="sub-status-text">{{ s.status_badge.label }}</span></small>
+      </div>
+      {% if s.is_paid_this_cycle %}
+        <div class="icon-btn pay-chip-btn paid-done" title="Paid for this cycle" aria-label="Paid for this cycle">
+          <svg class="icon" style="font-size:16px"><use href="#icon-task_alt"></use></svg>
+        </div>
+      {% else %}
+        <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0" data-turbo="false">
+          {% csrf_token %}
+          <button class="icon-btn pay-chip-btn" type="submit" title="Pay {{ s.name }}" aria-label="Pay {{ s.name }}">
+            <svg class="icon" style="font-size:16px"><use href="#icon-check"></use></svg>
+          </button>
+        </form>
+      {% endif %}
+    </div>
   {% empty %}
-    <div class="card muted center">No transactions yet — tap + to add your first one!</div>
+    <a href="{% url 'subscription_create' %}" class="sub-chip-card" style="text-decoration:none;border:1px dashed var(--line);background:transparent">
+      <div class="sub-chip-icon" style="background:var(--surface-chip);color:var(--muted)">
+        <svg class="icon"><use href="#icon-add"></use></svg>
+      </div>
+      <div class="sub-chip-info">
+        <strong>Track Bills</strong>
+        <small class="muted">Add Netflix, rent, spotify...</small>
+      </div>
+    </a>
   {% endfor %}
 </div>
 
-<div class="section-title"><h3>Last 6 months</h3></div>
-<div class="card">
-  <div class="chart-wrap"><canvas id="monthChart"></canvas></div>
+<div class="search-row">
+  <form id="history-search" method="get" action="{% url 'dashboard' %}" class="search-form" data-turbo-frame="tx-history">
+    {% if not is_current %}<input type="hidden" name="month" id="search-month-input" value="{{ view_month|date:'Y-m' }}">{% endif %}
+    {% if active_filter %}<input type="hidden" name="filter" id="search-filter-input" value="{{ active_filter }}">{% endif %}
+    <svg class="icon search-icon"><use href="#icon-search"></use></svg>
+    <input class="search-input" name="q" value="{{ q }}" placeholder="Search notes or categories" autocomplete="off" autocorrect="off" spellcheck="false">
+    {% if q %}<a class="search-clear" href="{% url 'dashboard' %}?{% if not is_current %}month={{ view_month|date:'Y-m' }}&{% endif %}{% if active_filter %}filter={{ active_filter }}{% endif %}" data-turbo-frame="tx-history" aria-label="Clear search"><svg class="icon" style="font-size:15px"><use href="#icon-close"></use></svg></a>{% endif %}
+  </form>
 </div>
 
-<div class="section-title"><h3>Spending by category</h3></div>
-<div class="card">
-  <div class="chart-wrap"><canvas id="catChart"></canvas></div>
-  <div class="divider"></div>
-  <div style="display:grid;gap:8px" id="cat-legend"></div>
-</div>
-{% endblock %}
 
-{% block scripts %}
-{{ months_json|json_script:"months-data" }}
-{{ expense_cat_json|json_script:"cat-data" }}
-<script>
-const months = JSON.parse(document.getElementById('months-data').textContent);
-const cats = JSON.parse(document.getElementById('cat-data').textContent);
-new Chart(document.getElementById('monthChart'), {
-  type: 'bar',
-  data: {
-    labels: months.map(m=>m.label),
-    datasets: [
-      {label:'Income', data: months.map(m=>m.income), backgroundColor:'#7BD3A4', borderRadius:6, barPercentage:.65, categoryPercentage:.65},
-      {label:'Expense', data: months.map(m=>m.expense), backgroundColor:'#FF8A65', borderRadius:6, barPercentage:.65, categoryPercentage:.65},
-    ]
-  },
-  options: {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom', labels:{usePointStyle:true, pointStyle:'circle', boxWidth:8, font:{family:'Plus Jakarta Sans', size:11, weight:'600'}}}},
-    scales:{x:{grid:{display:false}, ticks:{font:{family:'Plus Jakarta Sans', size:11}}}, y:{grid:{color:'#F3E9E2'}, ticks:{font:{family:'Plus Jakarta Sans', size:11}}}}
-  }
-});
-const cctx = document.getElementById('catChart');
-if (cats.length){
-  new Chart(cctx, {
-    type: 'doughnut',
-    data: {labels: cats.map(c=>c.label), datasets: [{data: cats.map(c=>c.value), backgroundColor: cats.map(c=>c.color), borderWidth: 3, borderColor: '#fff'}]},
-    options: {
-      responsive:true, maintainAspectRatio:false, cutout:'68%',
-      plugins:{legend:{display:false}}
-    }
-  });
-  const legend = document.getElementById('cat-legend');
-  cats.forEach(c => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;font-size:13px';
-    row.innerHTML = '<span style="width:10px;height:10px;border-radius:3px;background:' + c.color + '"></span><span style="flex:1;font-weight:600">' + c.label + '</span><strong>Rp ' + Math.round(c.value).toLocaleString('en-US') + '</strong>';
-    legend.appendChild(row);
-  });
-} else {
-  cctx.parentElement.style.display = 'none';
-  const l = document.getElementById('cat-legend');
-  l.innerHTML = '<div class="muted center" style="padding:8px 0">No expenses this month.</div>';
-}
-</script>
+<turbo-frame id="tx-history"
+  data-income="{{ income_month|floatformat:0|intcomma }}"
+  data-expense="{{ expense_month|floatformat:0|intcomma }}"
+  data-change="{% if balance_change >= 0 %}+{% endif %}Rp{{ balance_change|floatformat:0|intcomma }}"
+  data-trend="{% if balance_change >= 0 %}trend-up{% else %}trend-down{% endif %}"
+  data-month="{{ view_month|date:'Y-m' }}">
+
+  <!-- Combined Quick Filters & Compact Month Navigator -->
+  <div class="dashboard-filter-row">
+    <div class="quick-filter-bar">
+      <a href="{% url 'dashboard' %}?{% if not is_current and not custom_dates %}month={{ view_month|date:'Y-m' }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}{% if selected_wallet_id %}wallet={{ selected_wallet_id }}&{% endif %}{% if selected_category_id %}category={{ selected_category_id }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}"
+         class="quick-filter-chip {% if not active_filter %}active{% endif %}"
+         data-filter="">
+        <svg class="icon" style="font-size:14px"><use href="#icon-apps"></use></svg>
+      </a>
+      <a href="{% url 'dashboard' %}?filter=expense{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+         class="quick-filter-chip {% if active_filter == 'expense' %}active{% endif %}"
+         data-filter="expense">
+        <svg class="icon" style="font-size:14px"><use href="#icon-trending_down"></use></svg>
+      </a>
+      <a href="{% url 'dashboard' %}?filter=income{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+         class="quick-filter-chip {% if active_filter == 'income' %}active{% endif %}"
+         data-filter="income">
+        <svg class="icon" style="font-size:14px"><use href="#icon-trending_up"></use></svg>
+      </a>
+      <a href="{% url 'dashboard' %}?filter=transfer{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+         class="quick-filter-chip {% if active_filter == 'transfer' %}active{% endif %}"
+         data-filter="transfer">
+        <svg class="icon" style="font-size:14px"><use href="#icon-send_money"></use></svg>
+      </a>
+      <button type="button"
+              class="quick-filter-chip filter-btn-trigger {% if active_filter_count > 0 %}has-filters{% endif %}"
+              id="multi-filter-trigger"
+              data-type="{{ active_filter }}"
+              data-wallet="{{ selected_wallet_id|default:'' }}"
+              data-category="{{ selected_category_id|default:'' }}"
+              data-date-from="{{ date_from }}"
+              data-date-to="{{ date_to }}"
+              aria-label="Filter transactions"
+              title="Filter transactions">
+        <svg class="icon" style="font-size:14px"><use href="#icon-tune"></use></svg>
+        {% if active_filter_count > 0 %}
+          <span class="filter-count-badge">{{ active_filter_count }}</span>
+        {% endif %}
+      </button>
+    </div>
+
+    <!-- Compact Month Navigation with Popover Trigger -->
+    <div class="compact-month-nav" role="navigation" aria-label="Month navigation">
+      {% if has_older %}
+        <a class="c-month-btn" href="{% url 'dashboard' %}?month={{ prev_month|date:'Y-m' }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}" aria-label="Previous month" title="Previous month">
+          <svg class="icon"><use href="#icon-chevron_left"></use></svg>
+        </a>
+      {% else %}
+        <span class="c-month-btn disabled" aria-hidden="true">
+          <svg class="icon"><use href="#icon-chevron_left"></use></svg>
+        </span>
+      {% endif %}
+
+      <button type="button" class="c-month-badge-btn" id="c-month-trigger" aria-haspopup="dialog" aria-expanded="false" title="Jump to month">
+        <span>{{ view_month|date:"M Y" }}</span>
+        <svg class="icon c-month-arrow"><use href="#icon-arrow_drop_down"></use></svg>
+      </button>
+
+      {% if has_newer %}
+        <a class="c-month-btn" href="{% url 'dashboard' %}?month={{ next_month|date:'Y-m' }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}" aria-label="Next month" title="Next month">
+          <svg class="icon"><use href="#icon-chevron_right"></use></svg>
+        </a>
+      {% else %}
+        <span class="c-month-btn disabled" aria-hidden="true">
+          <svg class="icon"><use href="#icon-chevron_right"></use></svg>
+        </span>
+      {% endif %}
+    </div>
+
+    <!-- Month Picker Popover -->
+    <div class="month-popover" id="month-popover" hidden role="dialog" aria-label="Choose month"
+         data-view-year="{{ view_month|date:'Y' }}"
+         data-view-month="{{ view_month|date:'Y-m' }}"
+         data-current-month="{{ today_date|date:'Y-m' }}"
+         data-min-year="{{ min_year }}"
+         data-max-year="{{ max_year }}"
+         data-available-months="{{ available_months_json }}"
+         data-base-url="{% url 'dashboard' %}"
+         data-q="{{ q|default:'' }}"
+         data-filter="{{ active_filter|default:'' }}"
+         data-wallet="{{ selected_wallet_id|default:'' }}"
+         data-category="{{ selected_category_id|default:'' }}">
+      <div class="month-popover-head">
+        <button type="button" class="m-popover-nav-btn {% if view_month.year <= min_year %}disabled{% endif %}" id="m-year-prev" aria-label="Previous year" title="{% if view_month.year <= min_year %}No earlier data{% else %}Previous year{% endif %}" {% if view_month.year <= min_year %}disabled aria-disabled="true"{% endif %}>
+          <svg class="icon"><use href="#icon-chevron_left"></use></svg>
+        </button>
+        <span class="m-popover-year" id="m-year-display">{{ view_month|date:"Y" }}</span>
+        <button type="button" class="m-popover-nav-btn {% if view_month.year >= max_year %}disabled{% endif %}" id="m-year-next" aria-label="Next year" title="{% if view_month.year >= max_year %}No later data{% else %}Next year{% endif %}" {% if view_month.year >= max_year %}disabled aria-disabled="true"{% endif %}>
+          <svg class="icon"><use href="#icon-chevron_right"></use></svg>
+        </button>
+      </div>
+
+      <div class="month-popover-grid" id="month-popover-grid">
+        {% for pm in popover_months %}
+          {% if pm.has_data %}
+            <a href="{% url 'dashboard' %}?month={{ pm.ym }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}"
+               class="m-grid-btn {% if pm.is_active %}active{% elif pm.is_current %}is-current{% endif %}"
+               data-m="{{ pm.num }}">
+              {{ pm.name }}
+            </a>
+          {% else %}
+            <span class="m-grid-btn disabled"
+                  data-m="{{ pm.num }}"
+                  aria-disabled="true"
+                  title="No transactions">
+              {{ pm.name }}
+            </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="month-popover-footer">
+        <a href="{% url 'dashboard' %}{% if q %}?q={{ q|urlencode }}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% elif active_filter %}?filter={{ active_filter }}{% endif %}" class="m-popover-today-btn">
+          Current Month
+        </a>
+      </div>
+    </div>
+    <div class="month-popover-backdrop" id="month-popover-backdrop" hidden></div>
+  </div>
+
+  <!-- Active Multi-Filter Tags Strip -->
+  {% if active_filter_tags %}
+    <div class="active-filter-strip">
+      <div class="active-filter-pills">
+        {% for tag in active_filter_tags %}
+          <span class="active-filter-tag">
+            {% if tag.icon %}
+              <svg class="icon" style="font-size:13px;{% if tag.color %}color:{{ tag.color }}{% endif %}"><use href="#icon-{{ tag.icon }}"></use></svg>
+            {% endif %}
+            <span>{{ tag.label }}</span>
+            <a href="{{ tag.remove_url }}" class="active-filter-remove" data-turbo-frame="tx-history" aria-label="Remove {{ tag.label }} filter">✕</a>
+          </span>
+        {% endfor %}
+        <a href="{% url 'dashboard' %}{% if not is_current and not custom_dates %}?month={{ view_month|date:'Y-m' }}{% endif %}" class="active-filter-clear-all" data-turbo-frame="tx-history">Clear all</a>
+      </div>
+    </div>
+  {% endif %}
+
+  {% for day, items, day_exp, day_inc in history_groups %}
+    <details class="day-group" open>
+      <summary class="day-head">
+        <span class="day-date">{{ day|date:"l · M j" }}</span>
+        <div class="day-totals-wrap">
+          {% if day_inc > 0 %}
+            <span class="day-badge day-badge-inc" title="Day Income">
+              <span class="day-badge-label">Income</span>
+              <span class="day-badge-val">+{{ day_inc|floatformat:0|intcomma }}</span>
+            </span>
+          {% endif %}
+          {% if day_exp > 0 %}
+            <span class="day-badge day-badge-exp" title="Day Expense">
+              <span class="day-badge-label">Expense</span>
+              <span class="day-badge-val">-{{ day_exp|floatformat:0|intcomma }}</span>
+            </span>
+          {% endif %}
+          {% if day_inc == 0 and day_exp == 0 %}
+            <span class="day-badge day-badge-neutral">
+              <span class="day-badge-val">Rp0</span>
+            </span>
+          {% endif %}
+          <svg class="icon day-chevron"><use href="#icon-expand_more"></use></svg>
+        </div>
+      </summary>
+      <div class="tx-list">
+        {% for t in items %}
+          <div class="list-item js-detail-tx" style="cursor:pointer"
+               data-id="{{ t.pk }}"
+               data-url="{% url 'transaction_edit' t.pk %}"
+               data-delete-url="{% url 'transaction_delete' t.pk %}"
+               data-kind="{{ t.kind }}"
+               data-amount="{{ t.amount|floatformat:0 }}"
+               data-formatted-amount="Rp{{ t.amount|floatformat:0|intcomma }}"
+               data-note="{{ t.note }}"
+               data-date="{{ t.date|date:'Y-m-d\TH:i' }}"
+               data-date-display="{{ t.date|date:'l, F j, Y' }}"
+               data-time-display="{{ t.date|date:'H:i' }}"
+               data-datetime-display="{{ t.date|date:'l, F j, Y · H:i' }}"
+               data-cat="{{ t.category.id|default:'' }}"
+               data-cat-name="{{ t.category.name|default:'' }}"
+               data-cat-icon="{{ t.category.icon|default:'label' }}"
+               data-cat-color="{{ t.category.color|default:'#FFB5A7' }}"
+               data-wallet="{{ t.wallet.id|default:'' }}"
+               data-wallet-name="{{ t.wallet.name|default:'' }}"
+               data-from="{{ t.from_wallet.id|default:'' }}"
+               data-from-name="{{ t.from_wallet.name|default:'' }}"
+               data-to="{{ t.to_wallet.id|default:'' }}"
+               data-to-name="{{ t.to_wallet.name|default:'' }}"
+               data-image="{% if t.image %}{{ t.image.url }}{% endif %}">
+            {% if t.kind == 'transfer' %}
+              <div class="li-icon li-icon-transfer"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></div>
+              <div class="li-main">
+                <div class="li-title">
+                  <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} → {{ t.to_wallet.name }}{% endif %}</span>
+                  {% if t.image %}
+                    <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
+                  {% endif %}
+                </div>
+                <div class="li-sub">{{ t.date|date:"H:i" }}{% if t.note %} // Transfer{% endif %}</div>
+              </div>
+            {% else %}
+              <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><svg class="icon"><use href="#icon-{{ t.category.icon }}"></use></svg></div>
+              <div class="li-main">
+                <div class="li-title">
+                  <span>{% if t.note %}{{ t.note }}{% else %}{{ t.category.name }}{% endif %}</span>
+                  {% if t.image %}
+                    <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
+                  {% endif %}
+                </div>
+                <div class="li-sub">{{ t.date|date:"H:i" }}{% if t.note %} // {{ t.category.name }}{% endif %}</div>
+              </div>
+            {% endif %}
+            <div class="li-right">
+              <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
+                {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
+              </div>
+              <div class="li-sub" style="display: flex; justify-content: right;{% if t.kind != 'transfer' %}{% endif %}">
+                {% if t.kind == 'transfer' %}
+                  {{ t.from_wallet.name }} → {{ t.to_wallet.name }}
+                {% else %}
+                  <svg class="icon" style="font-size: 12px; margin:2px 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  {% empty %}
+    <div class="card muted center" style="margin-top:10px">
+      {% if q %}No results for “{{ q }}”.{% else %}No transactions yet — tap + to add your first one!{% endif %}
+    </div>
+  {% endfor %}
+
+  {% if edit_tx %}
+    <div id="auto-edit-tx" hidden
+         data-id="{{ edit_tx.pk }}"
+         data-url="{% url 'transaction_edit' edit_tx.pk %}"
+         data-delete-url="{% url 'transaction_delete' edit_tx.pk %}"
+         data-kind="{{ edit_tx.kind }}"
+         data-amount="{{ edit_tx.amount|floatformat:0 }}"
+         data-note="{{ edit_tx.note }}"
+         data-date="{{ edit_tx.date|date:'Y-m-d\TH:i' }}"
+         data-cat="{{ edit_tx.category.id|default:'' }}"
+         data-wallet="{{ edit_tx.wallet.id|default:'' }}"
+         data-from="{{ edit_tx.from_wallet.id|default:'' }}"
+         data-to="{{ edit_tx.to_wallet.id|default:'' }}"
+         data-image="{% if edit_tx.image %}{{ edit_tx.image.url }}{% endif %}"></div>
+  {% endif %}
+</turbo-frame>
 {% endblock %}

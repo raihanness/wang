@@ -1,13 +1,29 @@
 {% extends "base.html" %}
+{% block page_name %}confirm_delete{% endblock %}
 {% block content %}
 <div class="page-head">
   <h2>Confirm delete</h2>
 </div>
-<div class="card">
-  <p>Delete <strong>{{ obj }}</strong>?</p>
-  <div class="form-actions">
-    <form method="post" style="display:contents">{% csrf_token %}<button class="btn btn-primary">Yes, delete</button></form>
-    <a class="btn" href="{% url back %}">Cancel</a>
+<div class="card" style="text-align: center; padding: 24px 20px;">
+  <div class="confirm-icon-badge" style="margin: 0 auto 14px; {% if obj.color %}background: {{ obj.color }}20; color: {{ obj.color }};{% endif %}">
+    <svg class="icon"><use href="#icon-{% if obj.icon %}{{ obj.icon }}{% else %}delete{% endif %}"></use></svg>
+  </div>
+  <p style="font-size: 15px; margin-bottom: {% if warning %}16px{% else %}20px{% endif %};">Delete <strong>{{ obj }}</strong>?</p>
+  {% if warning %}
+    <div style="background: rgba(255, 90, 95, 0.1); border: 1px solid rgba(255, 90, 95, 0.25); border-radius: 12px; padding: 12px 14px; margin-bottom: 20px; text-align: left; display: flex; align-items: flex-start; gap: 10px;">
+      <svg class="icon" style="color: var(--red); font-size: 20px; flex-shrink: 0; margin-top: 1px;"><use href="#icon-warning"></use></svg>
+      <span style="font-size: 13px; line-height: 1.45; color: var(--red); font-weight: 500;">{{ warning }}</span>
+    </div>
+  {% endif %}
+  <div class="sheet-actions">
+    <a class="btn btn-ghost" href="{% url back %}" data-turbo-frame="_top" style="flex:1; text-align:center;">Cancel</a>
+    <form method="post" data-turbo-frame="_top" style="flex:1; display:flex; margin:0;">
+      {% csrf_token %}
+      <button class="btn btn-delete" style="flex:1; justify-content:center; gap:6px;">
+        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+        <span>Delete</span>
+      </button>
+    </form>
   </div>
 </div>
 {% endblock %}

@@ -6,3 +6,24 @@ staticfiles/
 media/
 .env
 .DS_Store
+.commandcode/
+.vscode/
+logs/
+*.log
+
+# Android
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/*/*.iml
+*.apk
+
+# Reference & Scratch files
+*.xlsx
+ref*.jpeg
+IMG_*.PNG
+Screenshot_*.png
+

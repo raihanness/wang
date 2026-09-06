@@ -2,6 +2,9 @@
 <div class="sheet-overlay" id="sheet-overlay"></div>
 <div class="sheet" id="add-sheet" role="dialog" aria-label="Add transaction">
   <div class="sheet-head">
+    <div class="sheet-title-row" id="sheet-title-row" hidden>
+      <span class="sheet-title-badge">Editing Transaction</span>
+    </div>
     <div class="sheet-tabs">
       <button type="button" class="sheet-tab active" data-kind="expense">Expenses</button>
       <button type="button" class="sheet-tab" data-kind="income">Income</button>
@@ -9,19 +12,24 @@
     </div>
   </div>
 
-  <form method="post" action="{% url 'transaction_create' %}" id="add-form" novalidate>
+  <form method="post" action="{% url 'transaction_create' %}" id="add-form" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
     <input type="hidden" name="kind" id="id_kind" value="expense">
     <input type="hidden" name="amount" id="id_amount" value="0">
     <input type="hidden" name="note" id="id_note" value="">
     <input type="hidden" name="date" id="id_date" value="">
+    <input type="hidden" name="category" id="id_category" value="">
+    <input type="hidden" name="wallet" id="id_wallet" value="{{ wallets.0.id|default:'' }}">
+    <input type="hidden" name="from_wallet" id="id_from_wallet" value="">
+    <input type="hidden" name="to_wallet" id="id_to_wallet" value="">
+    <input type="hidden" name="image_clear" id="sheet-image-clear" value="0">
 
     <div class="sheet-scroll">
       <div id="grid-expense" class="cat-grid">
-        {% for c in expense_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><span class="material-symbols-rounded">{{ c.icon }}</span></span><span>{{ c.name }}</span></button>{% endfor %}
+        {% for c in expense_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><svg class="icon"><use href="#icon-{{ c.icon }}"></use></svg></span><span>{{ c.name }}</span></button>{% endfor %}
       </div>
       <div id="grid-income" class="cat-grid" hidden>
-        {% for c in income_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><span class="material-symbols-rounded">{{ c.icon }}</span></span><span>{{ c.name }}</span></button>{% endfor %}
+        {% for c in income_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><svg class="icon"><use href="#icon-{{ c.icon }}"></use></svg></span><span>{{ c.name }}</span></button>{% endfor %}
       </div>
 
       <div id="grid-transfer" hidden>
@@ -33,7 +41,7 @@
               <strong id="from-block-name">Select wallet</strong>
             </div>
           </button>
-          <button type="button" class="swap-btn" id="swap-wallets"><span class="material-symbols-rounded">swap_horiz</span></button>
+          <button type="button" class="swap-btn" id="swap-wallets"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></button>
           <button type="button" class="wallet-block" id="to-block">
             <span class="wallet-block-icon" id="to-block-icon">?</span>
             <div class="wallet-block-txt">
@@ -47,70 +55,109 @@
       <div class="sheet-scroll-spacer"></div>
     </div>
 
-    <div class="sheet-input">
-      <button type="button" class="wallet-chip" id="wallet-chip">
-        <span class="wallet-chip-icon" id="wallet-chip-icon"><span class="material-symbols-rounded">account_balance_wallet</span></span>
-        <span class="wallet-chip-name" id="wallet-chip-name">{{ wallets.0.name|default:"Select account" }}</span>
-        <span class="material-symbols-rounded" style="font-size:18px;color:var(--muted)">expand_more</span>
-      </button>
-      <input class="note-input" id="sheet-note" placeholder="Note" maxlength="200">
-      <div class="amount-edit-box">
-        <span class="amount-currency">Rp</span>
-        <span class="amount-value" id="amount-value">0</span>
+    <div class="sheet-input-section">
+      <!-- Note Auto-Suggestions Chip Strip -->
+      <div class="note-suggestions-strip" id="note-suggestions-strip" style="display:none"></div>
+
+      <!-- Row 1: Wallet Selector + Note Input with Camera Attachment -->
+      <div class="sheet-meta-row">
+        <button type="button" class="wallet-chip" id="wallet-chip" title="Select account">
+          <span class="wallet-chip-icon" id="wallet-chip-icon" style="background:{{ wallets.0.color|default:'#FFB5A7' }}20;color:{{ wallets.0.color|default:'#FFB5A7' }}"><svg class="icon"><use href="#icon-{{ wallets.0.icon|default:'account_balance_wallet' }}"></use></svg></span>
+          <span class="wallet-chip-name" id="wallet-chip-name">{{ wallets.0.name|default:"Select account" }}</span>
+          <svg class="icon wallet-chip-chevron"><use href="#icon-expand_more"></use></svg>
+        </button>
+
+        <div class="note-wrap">
+          <svg class="icon note-icon"><use href="#icon-edit_note"></use></svg>
+          <input class="note-input" id="sheet-note" placeholder="Add note..." maxlength="200" autocomplete="off" enterkeyhint="done">
+          <label class="photo-attach-btn" id="photo-attach-btn" title="Attach receipt photo" aria-label="Attach receipt photo">
+            <input type="file" name="image" id="sheet-image-input" accept="image/*" style="display:none">
+            <svg class="icon" id="photo-attach-icon"><use href="#icon-photo_camera"></use></svg>
+          </label>
+        </div>
+      </div>
+
+      <!-- Attached photo preview thumbnail chip -->
+      <div class="photo-preview-chip" id="photo-preview-chip" style="display:none">
+        <img id="photo-preview-img" src="" alt="Receipt preview">
+        <span id="photo-preview-text">Receipt photo attached</span>
+        <button type="button" class="photo-remove-btn" id="photo-remove-btn" title="Remove photo" aria-label="Remove photo">
+          <svg class="icon"><use href="#icon-close"></use></svg>
+        </button>
+      </div>
+
+      <!-- Row 2: Hero Amount Display (Value IDR) -->
+      <div class="sheet-amount-row">
+        <div class="amount-category-indicator">
+          <span class="amount-label" id="sheet-amount-label">Amount</span>
+          <span class="math-expr-preview" id="math-expr-preview" style="display:none"></span>
+        </div>
+        <div class="amount-edit-box">
+          <span class="amount-currency">Rp</span>
+          <span class="amount-value" id="amount-value">0</span>
+        </div>
       </div>
     </div>
+    {{ recent_notes|json_script:"sheet-recent-notes" }}
+    <div class="sheet-notice" id="sheet-notice" hidden></div>
   </form>
 
   <div class="sheet-bottom">
     <div class="keypad" id="keypad">
       <div class="keypad-fn">
-        <!-- <button type="button" class="key-fn"><span class="material-symbols-rounded">emoji_emotions</span></button> -->
-        <button type="button" class="key-fn today" id="key-today">TODAY</button>
-        <!-- <button type="button" class="key-fn"><span class="material-symbols-rounded">add</span></button> -->
-        <!-- <button type="button" class="key-fn"><span class="material-symbols-rounded">calculate</span></button> -->
+        <button type="button" class="key-fn active" id="key-today">TODAY</button>
+        <button type="button" class="key-fn" id="key-yesterday">YESTERDAY</button>
+        <button type="button" class="key-fn key-calendar" id="key-calendar" aria-label="Pick custom date and time">
+          <svg class="icon"><use href="#icon-calendar_month"></use></svg>
+          <span id="key-custom-label" style="display:none"></span>
+        </button>
       </div>
       <input type="datetime-local" id="datetime-picker" hidden>
       <div class="keypad-grid">
-        <button type="button" class="key-op">x</button>
         <button type="button" class="key">7</button>
         <button type="button" class="key">8</button>
         <button type="button" class="key">9</button>
-        <button type="button" class="key-op">/</button>
+        <button type="button" class="key-op" data-op="/" aria-label="Divide">÷</button>
         <button type="button" class="key">4</button>
         <button type="button" class="key">5</button>
         <button type="button" class="key">6</button>
-        <button type="button" class="key-op">-</button>
+        <button type="button" class="key-op" data-op="*" aria-label="Multiply">×</button>
         <button type="button" class="key">1</button>
         <button type="button" class="key">2</button>
         <button type="button" class="key">3</button>
-        <button type="button" class="key-op">+</button>
+        <button type="button" class="key-op" data-op="-" aria-label="Subtract">−</button>
         <button type="button" class="key key-dot">.</button>
         <button type="button" class="key">0</button>
-        <button type="button" class="key key-clear"><span class="material-symbols-rounded">backspace</span></button>
+        <button type="button" class="key key-clear" aria-label="Backspace"><svg class="icon"><use href="#icon-backspace"></use></svg></button>
+        <button type="button" class="key-op" id="key-plus-eq" data-op="+" aria-label="Add">+</button>
       </div>
     </div>
 
     <div class="sheet-actions">
-      <button type="button" class="btn btn-ghost" id="sheet-cancel">Cancel</button>
       <button type="submit" class="btn btn-primary" form="add-form" id="sheet-save-big">Save</button>
+      <button type="button" class="btn btn-ghost" id="sheet-cancel">Cancel</button>
+      <button type="button" class="btn btn-delete" id="sheet-delete-btn" hidden aria-label="Delete transaction"><svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg></button>
     </div>
+    <form id="sheet-delete-form" method="post" action="" style="display:none">
+      {% csrf_token %}
+    </form>
   </div>
 </div>
 
 <div class="sheet-overlay" id="picker-overlay"></div>
 <div class="sheet picker" id="picker-sheet" role="dialog" aria-label="Select account" style="height: 600px;">
   <div class="sheet-head">
-    <button type="button" class="sheet-head-btn" id="picker-close"><span class="material-symbols-rounded">close</span></button>
+    <button type="button" class="sheet-head-btn" id="picker-close"><svg class="icon"><use href="#icon-close"></use></svg></button>
     <div class="picker-title">Select account</div>
-    <a class="sheet-head-btn" href="{% url 'wallet_create' %}" aria-label="Add wallet"><span class="material-symbols-rounded">add</span></a>
+    <a class="sheet-head-btn" href="{% url 'wallet_create' %}" aria-label="Add wallet"><svg class="icon"><use href="#icon-add"></use></svg></a>
   </div>
   <div class="picker-list">
     {% for w in wallets %}
-      <button type="button" class="picker-item" data-wallet="{{ w.id }}" data-icon="{{ w.icon }}" data-color="{{ w.color }}">
-        <span class="picker-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><span class="material-symbols-rounded">{{ w.icon }}</span></span>
+      <button type="button" class="picker-item {% if forloop.first %}selected{% endif %}" data-wallet="{{ w.id }}" data-icon="{{ w.icon }}" data-color="{{ w.color }}">
+        <span class="picker-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><svg class="icon"><use href="#icon-{{ w.icon }}"></use></svg></span>
         <span class="picker-name">{{ w.name }}</span>
-        <span class="picker-bal">Rp {{ w.current_balance|floatformat:0|intcomma }}</span>
-        <span class="picker-check material-symbols-rounded">check</span>
+        <span class="picker-bal">Rp{{ w.current_balance|floatformat:0|intcomma }}</span>
+        <svg class="icon picker-check"><use href="#icon-check"></use></svg>
       </button>
     {% empty %}
       <div class="muted center" style="padding:20px">No wallets yet — add one first.</div>
@@ -129,9 +176,9 @@
   </div>
 
   <div class="date-nav">
-    <button type="button" class="date-nav-btn" id="date-prev"><span class="material-symbols-rounded">chevron_left</span></button>
+    <button type="button" class="date-nav-btn" id="date-prev"><svg class="icon"><use href="#icon-chevron_left"></use></svg></button>
     <div class="date-nav-title" id="date-month-title">Month YYYY</div>
-    <button type="button" class="date-nav-btn" id="date-next"><span class="material-symbols-rounded">chevron_right</span></button>
+    <button type="button" class="date-nav-btn" id="date-next"><svg class="icon"><use href="#icon-chevron_right"></use></svg></button>
   </div>
 
   <div class="date-weekdays">
@@ -150,28 +197,78 @@
 
   <div class="sheet-actions">
     <button type="button" class="btn btn-ghost" id="date-close">Cancel</button>
+    <button type="button" class="btn btn-ghost" id="date-yesterday-btn">Yesterday</button>
+    <button type="button" class="btn btn-ghost" id="date-today-btn">Today</button>
     <button type="button" class="btn btn-primary" id="date-done">Done</button>
   </div>
 </div>
 
-<script>
+<script data-sheet-init>
 (function(){
+  const initKey = 'wangSheetBound';
+  if (document.body[initKey]) return;      // guard: sheet markup persists via Turbo
+  document.body[initKey] = true;
+
   const form = document.getElementById('add-form');
+  if (!form) return;
+
   const tabs = document.querySelectorAll('.sheet-tab');
-  const kindInput = document.getElementById('id_kind');
+  const kindInput = form.querySelector('input[name="kind"]');
+  const amountHidden = form.querySelector('input[name="amount"]');
+  const noteHidden = form.querySelector('input[name="note"]');
+  const dateHidden = form.querySelector('input[name="date"]');
+  const catHidden = form.querySelector('input[name="category"]');
+  const walletHidden = form.querySelector('input[name="wallet"]');
+  const fromWalletHidden = form.querySelector('input[name="from_wallet"]');
+  const toWalletHidden = form.querySelector('input[name="to_wallet"]');
+
   const gridExpense = document.getElementById('grid-expense');
   const gridIncome = document.getElementById('grid-income');
   const gridTransfer = document.getElementById('grid-transfer');
   const amountValue = document.getElementById('amount-value');
-  const amountHidden = document.getElementById('id_amount');
   const noteInput = document.getElementById('sheet-note');
-  const dateHidden = document.getElementById('id_date');
+  const addSheetModal = document.getElementById('add-sheet');
+
+  function updateVisualViewport() {
+    if (!window.visualViewport || !addSheetModal) return;
+    if (addSheetModal.classList.contains('is-typing-note')) {
+      const vv = window.visualViewport;
+      // Distance from bottom of visual viewport (top of keyboard) to bottom of layout viewport.
+      // Subtracting (vv.offsetTop + vv.height) accounts for keyboard overlay AND any document scroll,
+      // ensuring the sheet sits flush on top of the keyboard with zero floating gap.
+      const offsetFromBottom = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)));
+      if (offsetFromBottom > 20) {
+        addSheetModal.style.bottom = offsetFromBottom + 'px';
+      } else {
+        addSheetModal.style.bottom = '';
+      }
+    } else {
+      addSheetModal.style.bottom = '';
+    }
+  }
+
+  function setKeypadHidden(hidden) {
+    if (!addSheetModal) return;
+    if (hidden) {
+      addSheetModal.classList.add('is-typing-note');
+      updateVisualViewport();
+    } else {
+      addSheetModal.classList.remove('is-typing-note');
+      addSheetModal.style.bottom = '';
+    }
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateVisualViewport);
+    window.visualViewport.addEventListener('scroll', updateVisualViewport);
+  }
+
   const walletChip = document.getElementById('wallet-chip');
   const walletChipIcon = document.getElementById('wallet-chip-icon');
   const walletChipName = document.getElementById('wallet-chip-name');
   const pickerOverlay = document.getElementById('picker-overlay');
   const pickerSheet = document.getElementById('picker-sheet');
-  const pickerItems = document.querySelectorAll('.picker-item');
+  const pickerList = document.querySelector('.picker-list');
   const fromBlock = document.getElementById('from-block');
   const toBlock = document.getElementById('to-block');
   const fromName = document.getElementById('from-block-name');
@@ -179,10 +276,100 @@
   const fromIcon = document.getElementById('from-block-icon');
   const toIcon = document.getElementById('to-block-icon');
   const transferError = document.getElementById('transfer-error');
-  let selectedCat = null;
-  let walletId = pickerItems.length ? pickerItems[0].dataset.wallet : null;
+  const sheetNotice = document.getElementById('sheet-notice');
+  const sheetTitleRow = document.getElementById('sheet-title-row');
+  const deleteBtn = document.getElementById('sheet-delete-btn');
+  const deleteForm = document.getElementById('sheet-delete-form');
+  const saveBtn = document.getElementById('sheet-save-big');
 
-  const fmt = n => n.toLocaleString('en-US');
+  let selectedCat = null;
+  let walletId = (walletHidden && walletHidden.value) || (pickerList && pickerList.querySelector('.picker-item') ? pickerList.querySelector('.picker-item').dataset.wallet : null);
+
+  const fmt = n => n.toLocaleString('id-ID');
+
+  function escapeHtml(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  let isFetchingWallets = false;
+
+  function renderPickerWallets(wallets) {
+    if (!pickerList) return;
+    if (!wallets || !wallets.length) {
+      pickerList.innerHTML = '<div class="muted center" style="padding:20px">No wallets yet — add one first.</div>';
+      return;
+    }
+    let activeId = null;
+    if (pickerMode === 'chip') {
+      activeId = (walletHidden && walletHidden.value) || walletId;
+    } else if (pickerMode === 'from') {
+      activeId = fromName && fromName.dataset.id;
+    } else if (pickerMode === 'to') {
+      activeId = toName && toName.dataset.id;
+    }
+    if (!activeId && wallets.length > 0) {
+      activeId = String(wallets[0].id);
+    }
+
+    const scrollY = pickerList.scrollTop;
+    pickerList.innerHTML = wallets.map((w, idx) => {
+      const isSel = String(w.id) === String(activeId) || (!activeId && idx === 0);
+      return `<button type="button" class="picker-item ${isSel ? 'selected' : ''}" data-wallet="${w.id}" data-icon="${escapeHtml(w.icon)}" data-color="${escapeHtml(w.color)}">
+        <span class="picker-icon" style="background:${escapeHtml(w.color)}20;color:${escapeHtml(w.color)}"><svg class="icon"><use href="${window.getIconHref ? window.getIconHref(w.icon) : ('#icon-' + escapeHtml(w.icon))}"></use></svg></span>
+        <span class="picker-name">${escapeHtml(w.name)}</span>
+        <span class="picker-bal">${escapeHtml(w.formatted_balance)}</span>
+        <svg class="icon picker-check"><use href="#icon-check"></use></svg>
+      </button>`;
+    }).join('');
+    pickerList.scrollTop = scrollY;
+  }
+
+  async function fetchRealtimeWallets() {
+    if (isFetchingWallets) return;
+    isFetchingWallets = true;
+    try {
+      const res = await fetch('/api/wallets/', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && Array.isArray(data.wallets)) {
+        renderPickerWallets(data.wallets);
+        if (walletHidden && walletHidden.value) {
+          const currentW = data.wallets.find(w => String(w.id) === String(walletHidden.value));
+          if (currentW && walletChipName && walletChipIcon) {
+            walletChipName.textContent = currentW.name;
+            walletChipIcon.innerHTML = `<svg class="icon"><use href="${window.getIconHref ? window.getIconHref(currentW.icon) : ('#icon-' + escapeHtml(currentW.icon))}"></use></svg>`;
+            walletChipIcon.style.background = currentW.color + '20';
+            walletChipIcon.style.color = currentW.color;
+          }
+        }
+      }
+    } catch (e) {
+      // Quietly retain current list
+    } finally {
+      isFetchingWallets = false;
+    }
+  }
+  window.wangRefreshWallets = fetchRealtimeWallets;
+
+  function showSheetError(msg){
+    if (!sheetNotice) return;
+    sheetNotice.textContent = msg;
+    sheetNotice.hidden = false;
+    clearTimeout(sheetNotice._timer);
+    sheetNotice._timer = setTimeout(() => { sheetNotice.hidden = true; }, 3200);
+  }
+  function hideSheetError(){
+    if (!sheetNotice) return;
+    sheetNotice.hidden = true;
+  }
 
   /* tabs */
   tabs.forEach(t => t.addEventListener('click', () => {
@@ -196,6 +383,9 @@
     walletChip.hidden = k === 'transfer';
     selectedCat = null;
     document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('selected'));
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel) amountLabel.textContent = k === 'transfer' ? 'Transfer' : 'Amount';
+    hideSheetError();
   }));
 
   /* categories */
@@ -203,53 +393,77 @@
     document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
     c.classList.add('selected');
     selectedCat = c;
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel && c.dataset.name) amountLabel.textContent = c.dataset.name;
+    hideSheetError();
   }));
 
   /* wallet picker (mode: 'chip' | 'from' | 'to') */
   let pickerMode = 'chip';
   function openPicker(mode){
     pickerMode = mode;
-    pickerSheet.classList.add('open'); pickerOverlay.classList.add('show');
+    let activeId = null;
+    if (pickerMode === 'chip') activeId = (walletHidden && walletHidden.value) || walletId;
+    else if (pickerMode === 'from') activeId = fromName && fromName.dataset.id;
+    else if (pickerMode === 'to') activeId = toName && toName.dataset.id;
+    if (activeId && pickerList) {
+      pickerList.querySelectorAll('.picker-item').forEach(i => {
+        i.classList.toggle('selected', String(i.dataset.wallet) === String(activeId));
+      });
+    }
+
+    pickerSheet.classList.add('open');
+    pickerOverlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+    fetchRealtimeWallets();
   }
   function closePicker(){
-    pickerSheet.classList.remove('open'); pickerOverlay.classList.remove('show');
+    pickerSheet.classList.remove('open');
+    pickerOverlay.classList.remove('show');
   }
-  walletChip.addEventListener('click', () => openPicker('chip'));
-  document.getElementById('picker-close').addEventListener('click', closePicker);
-  pickerOverlay.addEventListener('click', closePicker);
-  pickerItems.forEach(item => item.addEventListener('click', () => {
+  walletChip?.addEventListener('click', () => openPicker('chip'));
+  document.getElementById('picker-close')?.addEventListener('click', closePicker);
+  pickerOverlay?.addEventListener('click', closePicker);
+
+  pickerList?.addEventListener('click', (e) => {
+    const item = e.target.closest('.picker-item');
+    if (!item) return;
     const id = item.dataset.wallet;
     if (pickerMode === 'chip'){
       walletId = id;
-      walletChipIcon.innerHTML = '<span class="material-symbols-rounded">' + item.dataset.icon + '</span>';
+      if (walletHidden) walletHidden.value = id;
+      walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(item.dataset.icon) : ('#icon-' + item.dataset.icon)) + '"></use></svg>';
       walletChipIcon.style.background = item.dataset.color + '20';
       walletChipIcon.style.color = item.dataset.color;
       walletChipName.textContent = item.querySelector('.picker-name').textContent;
+      pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
     } else {
       const nameEl = pickerMode === 'from' ? fromName : toName;
       const iconEl = pickerMode === 'from' ? fromIcon : toIcon;
       const block = pickerMode === 'from' ? fromBlock : toBlock;
       nameEl.textContent = item.querySelector('.picker-name').textContent;
       nameEl.dataset.id = id;
-      iconEl.textContent = item.dataset.icon;
+      iconEl.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(item.dataset.icon) : ('#icon-' + item.dataset.icon)) + '"></use></svg>';
       iconEl.style.background = item.dataset.color + '20';
       iconEl.style.color = item.dataset.color;
       block.classList.add('selected');
     }
-    pickerItems.forEach(i => i.classList.remove('selected'));
-    item.classList.add('selected');
     checkTransfer();
     closePicker();
-  }));
+    hideSheetError();
+  });
 
   /* transfer from/to */
-  fromBlock.addEventListener('click', () => openPicker('from'));
-  toBlock.addEventListener('click', () => openPicker('to'));
-  document.getElementById('swap-wallets').addEventListener('click', () => {
-    const tmpName = fromName.textContent, tmpIcon = fromIcon.textContent, tmpBg = fromIcon.style.background, tmpColor = fromIcon.style.color, tmpId = fromName.dataset.id;
-    fromName.textContent = toName.textContent; fromIcon.textContent = toIcon.textContent;
+  fromBlock?.addEventListener('click', () => openPicker('from'));
+  toBlock?.addEventListener('click', () => openPicker('to'));
+  document.getElementById('swap-wallets')?.addEventListener('click', () => {
+    const tmpName = fromName.textContent, tmpIcon = fromIcon.innerHTML, tmpBg = fromIcon.style.background, tmpColor = fromIcon.style.color, tmpId = fromName.dataset.id;
+    fromName.textContent = toName.textContent; fromIcon.innerHTML = toIcon.innerHTML;
     fromIcon.style.background = toIcon.style.background; fromIcon.style.color = toIcon.style.color; fromName.dataset.id = toName.dataset.id;
-    toName.textContent = tmpName; toIcon.textContent = tmpIcon;
+    toName.textContent = tmpName; toIcon.innerHTML = tmpIcon;
     toIcon.style.background = tmpBg; toIcon.style.color = tmpColor; toName.dataset.id = tmpId;
     checkTransfer();
   });
@@ -258,30 +472,203 @@
     transferError.hidden = !(f && t && f === t);
   }
 
-  /* keypad */
+  /* ── Smart Keypad Inline Arithmetic Calculator ── */
+  let rawExpr = '0';
+  const mathPreview = document.getElementById('math-expr-preview');
+  const keyPlusEq = document.getElementById('key-plus-eq');
+
+  function isOperator(char){
+    return ['+', '-', '*', '/'].includes(char);
+  }
+
+  function getDisplaySymbol(op){
+    if (op === '*') return '×';
+    if (op === '/') return '÷';
+    if (op === '-') return '−';
+    return '+';
+  }
+
+  function tokenizeExpr(expr){
+    const tokens = [];
+    let curNum = '';
+    for (let i = 0; i < expr.length; i++){
+      const c = expr[i];
+      if (c === ' ') continue;
+      if (isOperator(c)){
+        if (curNum){
+          tokens.push(curNum);
+          curNum = '';
+        }
+        tokens.push(c);
+      } else {
+        curNum += c;
+      }
+    }
+    if (curNum) tokens.push(curNum);
+    return tokens;
+  }
+
+  function evaluateTokens(tokens){
+    if (!tokens.length) return 0;
+    let clean = tokens.slice();
+    while (clean.length && isOperator(clean[clean.length - 1])){
+      clean.pop();
+    }
+    if (!clean.length) return 0;
+
+    // 1. Multiply & Divide
+    const pass1 = [];
+    let i = 0;
+    while (i < clean.length){
+      const t = clean[i];
+      if (t === '*' || t === '/'){
+        const prev = parseFloat(pass1.pop());
+        const next = parseFloat(clean[i + 1]);
+        if (isNaN(prev) || isNaN(next)) return 0;
+        let res = (t === '*') ? (prev * next) : (next !== 0 ? prev / next : 0);
+        pass1.push(String(res));
+        i += 2;
+      } else {
+        pass1.push(t);
+        i++;
+      }
+    }
+
+    // 2. Add & Subtract
+    if (!pass1.length) return 0;
+    let total = parseFloat(pass1[0]) || 0;
+    for (let j = 1; j < pass1.length; j += 2){
+      const op = pass1[j];
+      const val = parseFloat(pass1[j + 1]) || 0;
+      if (op === '+') total += val;
+      else if (op === '-') total -= val;
+    }
+    return Math.max(0, total);
+  }
+
+  function formatDisplayExpression(expr){
+    const tokens = tokenizeExpr(expr);
+    if (!tokens.length) return '0';
+    return tokens.map((t) => {
+      if (isOperator(t)){
+        return ' ' + getDisplaySymbol(t) + ' ';
+      }
+      if (t.includes('.')){
+        const [intPart, decPart] = t.split('.');
+        return (parseFloat(intPart) || 0).toLocaleString('id-ID') + (decPart !== undefined ? ',' + decPart : '');
+      }
+      return (parseFloat(t) || 0).toLocaleString('id-ID');
+    }).join('');
+  }
+
+  function updateKeypadDisplay(){
+    const tokens = tokenizeExpr(rawExpr);
+    const hasOp = tokens.some(t => isOperator(t));
+    const endsWithOp = tokens.length > 0 && isOperator(tokens[tokens.length - 1]);
+
+    const formatted = formatDisplayExpression(rawExpr);
+    amountValue.textContent = formatted || '0';
+
+    if (hasOp && !endsWithOp && tokens.length >= 3){
+      const computed = evaluateTokens(tokens);
+      if (mathPreview){
+        mathPreview.textContent = '= Rp' + fmt(Math.round(computed));
+        mathPreview.style.display = 'inline-flex';
+      }
+      if (keyPlusEq){
+        keyPlusEq.textContent = '=';
+        keyPlusEq.setAttribute('aria-label', 'Calculate result');
+      }
+    } else {
+      if (mathPreview) mathPreview.style.display = 'none';
+      if (keyPlusEq){
+        keyPlusEq.textContent = '+';
+        keyPlusEq.setAttribute('aria-label', 'Add');
+      }
+    }
+
+    const currentTotal = evaluateTokens(tokens);
+    amountHidden.value = String(Math.round(currentTotal));
+  }
+
+  function commitMathEvaluation(){
+    const tokens = tokenizeExpr(rawExpr);
+    if (tokens.length >= 3){
+      const finalVal = Math.round(evaluateTokens(tokens));
+      rawExpr = String(finalVal);
+      updateKeypadDisplay();
+    }
+  }
+
+  /* keypad listener */
   const keypad = document.getElementById('keypad');
-  keypad.addEventListener('click', e => {
+  keypad?.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b || b.classList.contains('key-fn')) return;
-    let cur = amountHidden.value;
-    if (b.classList.contains('key-clear')){ amountHidden.value = '0'; }
-    else if (b.classList.contains('key-op')){ /* ignore operators for now */ }
-    else {
-      const ch = b.textContent;
-      if (ch === '.' && cur.includes('.')) return;
-      if (cur === '0' && ch !== '.') cur = '';
-      const nxt = cur + ch;
-      if (nxt.replace('.','').length > 12) return;
-      amountHidden.value = nxt;
+
+    if (b.classList.contains('key-clear')){
+      // Backspace: if ends with operator, trim operator
+      if (/\s*[\+\-\*\/]\s*$/.test(rawExpr)){
+        rawExpr = rawExpr.replace(/\s*[\+\-\*\/]\s*$/, '');
+      } else if (rawExpr.length > 1){
+        rawExpr = rawExpr.slice(0, -1);
+      } else {
+        rawExpr = '0';
+      }
+      if (rawExpr === '' || rawExpr === '-') rawExpr = '0';
+      updateKeypadDisplay();
+    } else if (b.classList.contains('key-op')){
+      const op = b.dataset.op || '+';
+      const isEqAction = (b.id === 'key-plus-eq' && b.textContent.trim() === '=');
+
+      if (isEqAction){
+        commitMathEvaluation();
+      } else {
+        const tokens = tokenizeExpr(rawExpr);
+        // If expression already has a completed operation (e.g. 18000 + 7000), evaluate first then append operator
+        if (tokens.length >= 3 && !isOperator(tokens[tokens.length - 1])){
+          const computed = Math.round(evaluateTokens(tokens));
+          rawExpr = String(computed) + ' ' + op + ' ';
+        } else if (tokens.length > 0 && isOperator(tokens[tokens.length - 1])){
+          // Replace trailing operator
+          rawExpr = rawExpr.replace(/\s*[\+\-\*\/]\s*$/, '') + ' ' + op + ' ';
+        } else {
+          rawExpr = rawExpr + ' ' + op + ' ';
+        }
+        updateKeypadDisplay();
+      }
+    } else {
+      const ch = b.textContent.trim();
+      const tokens = tokenizeExpr(rawExpr);
+      const lastToken = tokens.length ? tokens[tokens.length - 1] : '';
+
+      if (ch === '.'){
+        if (isOperator(lastToken) || !lastToken){
+          rawExpr += ' 0.';
+        } else if (!lastToken.includes('.')){
+          rawExpr += '.';
+        }
+      } else {
+        // digit
+        if (rawExpr === '0'){
+          rawExpr = ch;
+        } else {
+          // Guard maximum length per number token
+          if (!isOperator(lastToken) && lastToken.replace('.','').length >= 12) return;
+          rawExpr += ch;
+        }
+      }
+      updateKeypadDisplay();
     }
-    amountValue.textContent = fmt(Math.round(parseFloat(amountHidden.value) || 0));
+    hideSheetError();
   });
 
-  /* note -> hidden */
-  noteInput.addEventListener('input', () => { document.getElementById('id_note').value = noteInput.value; });
 
   /* ── date & time picker (custom bottom sheet) ── */
   const todayBtn = document.getElementById('key-today');
+  const yesterdayBtn = document.getElementById('key-yesterday');
+  const calendarBtn = document.getElementById('key-calendar');
+  const customLabel = document.getElementById('key-custom-label');
   const dateOverlay = document.getElementById('date-overlay');
   const dateSheet = document.getElementById('date-sheet');
   const dateGrid = document.getElementById('date-grid');
@@ -292,25 +679,89 @@
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   function pad2(n){ return String(n).padStart(2,'0'); }
-  let selDate = new Date();            // working date in the picker
-  let viewDate = new Date();           // month being viewed
-  let tzOffsetMs = new Date().getTimezoneOffset() * 60000;
+  function formatLocalISO(d){
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+
+  function isSameDay(d1, d2) {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+  }
+  function getToday() { return new Date(); }
+  function getYesterday() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d;
+  }
+
+  let selDate = new Date();
+  let viewDate = new Date();
+
+  function syncDateUI() {
+    const today = getToday();
+    const yesterday = getYesterday();
+    const isToday = isSameDay(selDate, today);
+    const isYesterday = isSameDay(selDate, yesterday);
+
+    todayBtn?.classList.toggle('active', isToday);
+    yesterdayBtn?.classList.toggle('active', isYesterday);
+
+    if (isToday || isYesterday) {
+      calendarBtn?.classList.remove('picked');
+      if (customLabel) {
+        customLabel.textContent = '';
+        customLabel.style.display = 'none';
+      }
+    } else {
+      calendarBtn?.classList.add('picked');
+      if (customLabel) {
+        customLabel.textContent = pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()].slice(0,3);
+        customLabel.style.display = 'inline';
+      }
+    }
+  }
+
+  todayBtn?.addEventListener('click', () => {
+    const h = selDate.getHours();
+    const m = selDate.getMinutes();
+    selDate = getToday();
+    selDate.setHours(h, m);
+    dateHidden.value = formatLocalISO(selDate);
+    syncDateUI();
+  });
+
+  yesterdayBtn?.addEventListener('click', () => {
+    const h = selDate.getHours();
+    const m = selDate.getMinutes();
+    selDate = getYesterday();
+    selDate.setHours(h, m);
+    dateHidden.value = formatLocalISO(selDate);
+    syncDateUI();
+  });
 
   function openDatePicker(){
     if (dateHidden.value){
-      const d = new Date(dateHidden.value + 'T12:00:00');
-      if (!isNaN(d)) selDate = d;
+      const [dPart, tPart] = dateHidden.value.split('T');
+      if (dPart){
+        const [y, mo, day] = dPart.split('-').map(Number);
+        const [h, mi] = (tPart || '12:00').split(':').map(Number);
+        if (!isNaN(y) && !isNaN(mo) && !isNaN(day)){
+          selDate = new Date(y, mo - 1, day, isNaN(h) ? 12 : h, isNaN(mi) ? 0 : mi);
+        }
+      }
     }
     viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
     timeH.value = pad2(selDate.getHours());
-    timeM.value = pad2(selDate.getMinutes());
-    dateSheet.classList.add('open'); dateOverlay.classList.add('show');
+    const nearest5 = Math.round(selDate.getMinutes() / 5) * 5 % 60;
+    timeM.value = pad2(nearest5);
+    dateSheet.classList.add('open'); dateOverlay.classList.add('show'); if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) { window.AndroidBridge.setScrollableActive(true); }
     renderCalendar();
   }
   function closeDatePicker(){ dateSheet.classList.remove('open'); dateOverlay.classList.remove('show'); }
-  todayBtn.addEventListener('click', openDatePicker);
-  document.getElementById('date-close').addEventListener('click', closeDatePicker);
-  dateOverlay.addEventListener('click', closeDatePicker);
+  calendarBtn?.addEventListener('click', openDatePicker);
+  document.getElementById('date-close')?.addEventListener('click', closeDatePicker);
+  dateOverlay?.addEventListener('click', closeDatePicker);
 
   function renderCalendar(){
     dateMonthTitle.textContent = MONTHS[viewDate.getMonth()] + ' ' + viewDate.getFullYear();
@@ -329,85 +780,628 @@
       html += '<button type="button" class="' + cls.join(' ') + '" data-day="' + d + '">' + d + '</button>';
     }
     dateGrid.innerHTML = html;
-    dateSelected.textContent = DAYS[selDate.getDay()] + ', ' + pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()] + ' ' + selDate.getFullYear() + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
+    dateSelected.textContent = fmtSelected();
   }
-  dateGrid.addEventListener('click', e => {
+  dateGrid?.addEventListener('click', e => {
     const b = e.target.closest('button[data-day]');
     if (!b) return;
     selDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), +b.dataset.day, selDate.getHours(), selDate.getMinutes());
     renderCalendar();
   });
-  document.getElementById('date-prev').addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1); renderCalendar(); });
-  document.getElementById('date-next').addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1); renderCalendar(); });
+  document.getElementById('date-prev')?.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1); renderCalendar(); });
+  document.getElementById('date-next')?.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1); renderCalendar(); });
 
-  /* time spinners */
-  (function(){
+  /* time spinners (only when empty so Turbo re-runs don't duplicate) */
+  if (timeH && timeH.options.length === 0){
     for (let h=0; h<24; h++) timeH.add(new Option(pad2(h), pad2(h)));
+  }
+  if (timeM && timeM.options.length === 0){
     for (let m=0; m<60; m+=5) timeM.add(new Option(pad2(m), pad2(m)));
-  })();
-  timeH.addEventListener('change', () => { selDate.setHours(+timeH.value); dateSelected.textContent = fmtSelected(); });
-  timeM.addEventListener('change', () => { selDate.setMinutes(+timeM.value); dateSelected.textContent = fmtSelected(); });
+  }
+  timeH?.addEventListener('change', () => { selDate.setHours(+timeH.value); dateSelected.textContent = fmtSelected(); });
+  timeM?.addEventListener('change', () => { selDate.setMinutes(+timeM.value); dateSelected.textContent = fmtSelected(); });
 
   function fmtSelected(){
     return DAYS[selDate.getDay()] + ', ' + pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()] + ' ' + selDate.getFullYear() + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
   }
 
   /* confirm / shortcuts */
-  document.getElementById('date-done').addEventListener('click', commitDate);
-  document.getElementById('date-today').addEventListener('click', () => {
-    selDate = new Date();
+  document.getElementById('date-done')?.addEventListener('click', commitDate);
+  document.getElementById('date-today-btn')?.addEventListener('click', () => {
+    const h = selDate.getHours();
+    const m = selDate.getMinutes();
+    selDate = getToday();
+    selDate.setHours(h, m);
     viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
-    timeH.value = pad2(selDate.getHours()); timeM.value = pad2(selDate.getMinutes());
-    renderCalendar(); commitDate();
+    timeH.value = pad2(selDate.getHours());
+    timeM.value = pad2(Math.round(selDate.getMinutes() / 5) * 5 % 60);
+    renderCalendar();
   });
-  document.getElementById('date-clear').addEventListener('click', () => {
-    dateHidden.value = '';
-    todayBtn.textContent = 'TODAY';
-    todayBtn.classList.remove('picked');
-    closeDatePicker();
+  document.getElementById('date-yesterday-btn')?.addEventListener('click', () => {
+    const h = selDate.getHours();
+    const m = selDate.getMinutes();
+    selDate = getYesterday();
+    selDate.setHours(h, m);
+    viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
+    timeH.value = pad2(selDate.getHours());
+    timeM.value = pad2(Math.round(selDate.getMinutes() / 5) * 5 % 60);
+    renderCalendar();
   });
 
   function commitDate(){
-    const local = new Date(selDate.getTime() - tzOffsetMs);
-    dateHidden.value = local.toISOString().slice(0,16);
-    const now = new Date();
-    const isToday = selDate.getFullYear()===now.getFullYear() && selDate.getMonth()===now.getMonth() && selDate.getDate()===now.getDate();
-    todayBtn.classList.toggle('picked', !isToday);
-    todayBtn.textContent = isToday ? 'TODAY' : pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()].slice(0,3) + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
+    dateHidden.value = formatLocalISO(selDate);
+    syncDateUI();
     closeDatePicker();
   }
 
   /* init: default to now */
   (function(){
-    const d = new Date();
-    selDate = d;
-    dateHidden.value = new Date(d.getTime() - tzOffsetMs).toISOString().slice(0,16);
+    selDate = getToday();
+    dateHidden.value = formatLocalISO(selDate);
+    syncDateUI();
   })();
+
+  /* delete in edit mode */
+  deleteBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!deleteForm || !deleteForm.action) return;
+    if (window.wangPlaySound) window.wangPlaySound('click');
+    const amtStr = amountValue ? amountValue.textContent.trim() : '0';
+    let label = 'Transaction';
+    if (kindInput && kindInput.value === 'transfer') {
+      label = 'Transfer';
+    } else if (selectedCat && selectedCat.dataset.name) {
+      label = selectedCat.dataset.name;
+    }
+    const previewText = `${label} · Rp${amtStr}`;
+    if (window.openConfirmSheet) {
+      window.openConfirmSheet({
+        title: 'Delete Transaction?',
+        desc: 'Are you sure you want to delete this transaction? This action cannot be undone.',
+        preview: previewText,
+        actionUrl: deleteForm.action,
+        onConfirm: () => {
+          closeSheet();
+        }
+      });
+    } else {
+      deleteForm.submit();
+    }
+  });
+
+  /* reset sheet state */
+  function resetSheet(){
+    form.reset();
+    form.dataset.mode = 'create';
+    form.action = "{% url 'transaction_create' %}";
+    if (deleteForm) deleteForm.action = "";
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (saveBtn) saveBtn.textContent = 'Save';
+    if (sheetTitleRow) sheetTitleRow.hidden = true;
+
+    // 1. Reset kind & tabs to Expense
+    kindInput.value = 'expense';
+    tabs.forEach(t => {
+      t.classList.toggle('active', t.dataset.kind === 'expense');
+    });
+    gridExpense.hidden = false;
+    gridIncome.hidden = true;
+    gridTransfer.hidden = true;
+    walletChip.hidden = false;
+
+    // 2. Reset amount & note
+    rawExpr = '0';
+    updateKeypadDisplay();
+    noteInput.value = '';
+    noteHidden.value = '';
+    setKeypadHidden(false);
+    if (document.activeElement === noteInput) noteInput.blur();
+    const suggestionsStrip = document.getElementById('note-suggestions-strip');
+    if (suggestionsStrip) {
+      suggestionsStrip.innerHTML = '';
+      suggestionsStrip.style.display = 'none';
+    }
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel) amountLabel.textContent = 'Amount';
+
+    // 3. Reset category
+    selectedCat = null;
+    catHidden.value = '';
+    document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('selected'));
+
+    // 4. Reset date
+    selDate = getToday();
+    dateHidden.value = formatLocalISO(selDate);
+    syncDateUI();
+
+    // 5. Reset wallet chip to first available wallet
+    const firstWallet = pickerList ? pickerList.querySelector('.picker-item') : null;
+    if (firstWallet) {
+      walletId = firstWallet.dataset.wallet;
+      walletHidden.value = walletId;
+      walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(firstWallet.dataset.icon || 'account_balance_wallet') : ('#icon-' + (firstWallet.dataset.icon || 'account_balance_wallet'))) + '"></use></svg>';
+      walletChipIcon.style.background = (firstWallet.dataset.color || '#FFB5A7') + '20';
+      walletChipIcon.style.color = firstWallet.dataset.color || '#FFB5A7';
+      walletChipName.textContent = firstWallet.querySelector('.picker-name')?.textContent || 'Wallet';
+      pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
+      firstWallet.classList.add('selected');
+    }
+
+    // 6. Reset transfer blocks
+    fromName.textContent = 'Select wallet';
+    delete fromName.dataset.id;
+    toName.textContent = 'Select wallet';
+    delete toName.dataset.id;
+    fromBlock.classList.remove('selected');
+    toBlock.classList.remove('selected');
+    fromIcon.innerHTML = '?';
+    toIcon.innerHTML = '?';
+    fromIcon.style.background = '';
+    fromIcon.style.color = '';
+    toIcon.style.background = '';
+    toIcon.style.color = '';
+    fromWalletHidden.value = '';
+    toWalletHidden.value = '';
+    transferError.hidden = true;
+    hideSheetError();
+
+    // 7. Reset photo preview
+    const imageInput = document.getElementById('sheet-image-input');
+    const imageClear = document.getElementById('sheet-image-clear');
+    const photoAttachBtn = document.getElementById('photo-attach-btn');
+    const photoPreviewChip = document.getElementById('photo-preview-chip');
+    const photoPreviewImg = document.getElementById('photo-preview-img');
+    if (imageInput) imageInput.value = '';
+    if (imageClear) imageClear.value = '0';
+    if (photoPreviewChip) photoPreviewChip.style.display = 'none';
+    if (photoPreviewImg) photoPreviewImg.src = '';
+    if (photoAttachBtn) photoAttachBtn.classList.remove('has-photo');
+  }
+  window.wangResetSheet = resetSheet;
+
+  // Bind photo attach and remove
+  (function(){
+    const imageInput = document.getElementById('sheet-image-input');
+    const imageClear = document.getElementById('sheet-image-clear');
+    const photoAttachBtn = document.getElementById('photo-attach-btn');
+    const photoPreviewChip = document.getElementById('photo-preview-chip');
+    const photoPreviewImg = document.getElementById('photo-preview-img');
+    const photoRemoveBtn = document.getElementById('photo-remove-btn');
+
+    if (imageInput && !imageInput.dataset.bound) {
+      imageInput.dataset.bound = '1';
+      imageInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          if (imageClear) imageClear.value = '0';
+          const reader = new FileReader();
+          reader.onload = (re) => {
+            if (photoPreviewImg) photoPreviewImg.src = re.target.result;
+            if (photoPreviewChip) photoPreviewChip.style.display = 'flex';
+            if (photoAttachBtn) photoAttachBtn.classList.add('has-photo');
+            if (window.wangPlaySound) window.wangPlaySound('tap');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    if (photoRemoveBtn && !photoRemoveBtn.dataset.bound) {
+      photoRemoveBtn.dataset.bound = '1';
+      photoRemoveBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (imageInput) imageInput.value = '';
+        if (imageClear) imageClear.value = '1';
+        if (photoPreviewChip) photoPreviewChip.style.display = 'none';
+        if (photoPreviewImg) photoPreviewImg.src = '';
+        if (photoAttachBtn) photoAttachBtn.classList.remove('has-photo');
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+      });
+    }
+  })();
+
+  /* open edit transaction in bottom sheet */
+  function openEditTransaction(data){
+    if (!data) return;
+    resetSheet();
+    form.dataset.mode = 'edit';
+    if (data.url) form.action = data.url;
+    if (data.deleteUrl){
+      deleteForm.action = data.deleteUrl;
+      deleteBtn.hidden = false;
+    } else {
+      deleteBtn.hidden = true;
+    }
+    saveBtn.textContent = 'Update';
+    if (sheetTitleRow) sheetTitleRow.hidden = false;
+
+    // 1. Kind & tabs
+    const k = data.kind || 'expense';
+    kindInput.value = k;
+    tabs.forEach(t => {
+      const match = t.dataset.kind === k;
+      t.classList.toggle('active', match);
+    });
+    gridExpense.hidden = k !== 'expense';
+    gridIncome.hidden = k !== 'income';
+    gridTransfer.hidden = k !== 'transfer';
+    walletChip.hidden = k === 'transfer';
+
+    // 2. Amount
+    const amt = data.amount ? parseFloat(data.amount) : 0;
+    rawExpr = String(Math.round(amt));
+    updateKeypadDisplay();
+
+    // 3. Note
+    noteInput.value = data.note || '';
+    noteHidden.value = data.note || '';
+
+    // 4. Date
+    if (data.date){
+      const [dPart, tPart] = data.date.split('T');
+      if (dPart){
+        const [y, mo, day] = dPart.split('-').map(Number);
+        const [h, mi] = (tPart || '12:00').split(':').map(Number);
+        if (!isNaN(y) && !isNaN(mo) && !isNaN(day)){
+          selDate = new Date(y, mo - 1, day, isNaN(h) ? 12 : h, isNaN(mi) ? 0 : mi);
+        }
+      }
+      dateHidden.value = data.date;
+    } else {
+      selDate = getToday();
+      dateHidden.value = formatLocalISO(selDate);
+    }
+    syncDateUI();
+
+    // 5. Category (expense / income)
+    if (k !== 'transfer' && data.cat){
+      const cell = document.querySelector(`.cat-cell[data-cat="${data.cat}"]`);
+      if (cell){
+        document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
+        cell.classList.add('selected');
+        selectedCat = cell;
+        catHidden.value = data.cat;
+      }
+    }
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel) {
+      if (k === 'transfer') amountLabel.textContent = 'Transfer';
+      else if (selectedCat && selectedCat.dataset.name) amountLabel.textContent = selectedCat.dataset.name;
+      else amountLabel.textContent = 'Amount';
+    }
+
+    // 6. Wallets
+    if (k !== 'transfer' && data.wallet){
+      walletId = data.wallet;
+      walletHidden.value = data.wallet;
+      const pItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${data.wallet}"]`) : null;
+      if (pItem){
+        walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(pItem.dataset.icon) : ('#icon-' + pItem.dataset.icon)) + '"></use></svg>';
+        walletChipIcon.style.background = pItem.dataset.color + '20';
+        walletChipIcon.style.color = pItem.dataset.color;
+        walletChipName.textContent = pItem.querySelector('.picker-name')?.textContent || 'Wallet';
+        pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
+        pItem.classList.add('selected');
+      } else if (data.walletName) {
+        walletChipName.textContent = data.walletName;
+      }
+    } else if (k === 'transfer'){
+      if (data.from){
+        const fItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${data.from}"]`) : null;
+        if (fItem){
+          fromName.textContent = fItem.querySelector('.picker-name')?.textContent || 'From';
+          fromName.dataset.id = data.from;
+          fromIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(fItem.dataset.icon) : ('#icon-' + fItem.dataset.icon)) + '"></use></svg>';
+          fromIcon.style.background = fItem.dataset.color + '20';
+          fromIcon.style.color = fItem.dataset.color;
+          fromBlock.classList.add('selected');
+          fromWalletHidden.value = data.from;
+        } else if (data.fromName) {
+          fromName.textContent = data.fromName;
+          fromName.dataset.id = data.from;
+          fromBlock.classList.add('selected');
+          fromWalletHidden.value = data.from;
+        }
+      }
+      if (data.to){
+        const tItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${data.to}"]`) : null;
+        if (tItem){
+          toName.textContent = tItem.querySelector('.picker-name')?.textContent || 'To';
+          toName.dataset.id = data.to;
+          toIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(tItem.dataset.icon) : ('#icon-' + tItem.dataset.icon)) + '"></use></svg>';
+          toIcon.style.background = tItem.dataset.color + '20';
+          toIcon.style.color = tItem.dataset.color;
+          toBlock.classList.add('selected');
+          toWalletHidden.value = data.to;
+        } else if (data.toName) {
+          toName.textContent = data.toName;
+          toName.dataset.id = data.to;
+          toBlock.classList.add('selected');
+          toWalletHidden.value = data.to;
+        }
+      }
+      checkTransfer();
+    }
+    fetchRealtimeWallets();
+
+    // 7. Existing photo in edit mode
+    const imageClear = document.getElementById('sheet-image-clear');
+    if (imageClear) imageClear.value = '0';
+    if (data.image){
+      const pChip = document.getElementById('photo-preview-chip');
+      const pImg = document.getElementById('photo-preview-img');
+      const pBtn = document.getElementById('photo-attach-btn');
+      if (pChip && pImg){
+        pImg.src = data.image;
+        pChip.style.display = 'flex';
+        if (pBtn) pBtn.classList.add('has-photo');
+      }
+    }
+
+    if (window.openSheet) window.openSheet();
+  }
+  window.openEditTransaction = openEditTransaction;
+
+  // ── Note Auto-Suggestions ────────────────────────────
+  const noteSuggestionsStrip = document.getElementById('note-suggestions-strip');
+  let recentNotesList = [];
+
+  function sanitizeAndDedupeNotes(notesArray) {
+    const seen = new Set();
+    const result = [];
+    for (const n of (notesArray || [])) {
+      if (!n || typeof n !== 'string') continue;
+      const trimmed = n.trim();
+      const lower = trimmed.toLowerCase();
+      if (trimmed && !seen.has(lower)) {
+        seen.add(lower);
+        result.push(trimmed);
+      }
+    }
+    return result;
+  }
+
+  function saveRecentNotesToStorage(notes) {
+    try {
+      localStorage.setItem('wang-recent-notes', JSON.stringify(notes.slice(0, 80)));
+    } catch (e) { }
+  }
+
+  function getRecentNotes() {
+    // 1. Try to read from turbo-recent-notes inside swapped <main> (always fresh after transaction create/navigation)
+    const turboEl = document.getElementById('turbo-recent-notes');
+    if (turboEl) {
+      try {
+        const parsed = JSON.parse(turboEl.textContent);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          recentNotesList = sanitizeAndDedupeNotes([...(recentNotesList || []), ...parsed]);
+          saveRecentNotesToStorage(recentNotesList);
+          return recentNotesList;
+        }
+      } catch (e) { }
+    }
+
+    if (recentNotesList && recentNotesList.length > 0) {
+      return recentNotesList;
+    }
+
+    // 2. Try sheet-recent-notes (server rendered initially)
+    const el = document.getElementById('sheet-recent-notes');
+    if (el) {
+      try {
+        const parsed = JSON.parse(el.textContent);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          recentNotesList = sanitizeAndDedupeNotes(parsed);
+          return recentNotesList;
+        }
+      } catch (e) { }
+    }
+
+    // 3. Try localStorage (persisted across sessions)
+    try {
+      const stored = localStorage.getItem('wang-recent-notes');
+      if (stored) {
+        recentNotesList = sanitizeAndDedupeNotes(JSON.parse(stored));
+        return recentNotesList;
+      }
+    } catch (e) { }
+
+    return recentNotesList || [];
+  }
+
+  function addNoteToRecent(note) {
+    if (!note || typeof note !== 'string') return;
+    const trimmed = note.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    const current = getRecentNotes();
+    const updated = [trimmed, ...current.filter(n => (n || '').trim().toLowerCase() !== lower)];
+    recentNotesList = sanitizeAndDedupeNotes(updated);
+    saveRecentNotesToStorage(recentNotesList);
+
+    // Update DOM element if present so subsequent reads pick it up
+    const el = document.getElementById('sheet-recent-notes');
+    if (el) {
+      try { el.textContent = JSON.stringify(recentNotesList); } catch (e) { }
+    }
+  }
+  window.wangAddRecentNote = addNoteToRecent;
+
+  // Listen to Turbo render so fresh notes from newly created transactions sync immediately
+  document.addEventListener('turbo:render', () => {
+    const turboEl = document.getElementById('turbo-recent-notes');
+    if (turboEl) {
+      try {
+        const parsed = JSON.parse(turboEl.textContent);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          recentNotesList = sanitizeAndDedupeNotes([...(recentNotesList || []), ...parsed]);
+          saveRecentNotesToStorage(recentNotesList);
+        }
+      } catch (e) { }
+    }
+  });
+
+  function updateNoteSuggestions() {
+    if (!noteSuggestionsStrip || !noteInput) return;
+    const notes = getRecentNotes();
+    const q = noteInput.value.trim().toLowerCase();
+    if (!q) {
+      noteSuggestionsStrip.innerHTML = '';
+      noteSuggestionsStrip.style.display = 'none';
+      return;
+    }
+
+    const seen = new Set();
+    const matches = [];
+    for (const n of notes) {
+      if (!n) continue;
+      const trimmed = n.trim();
+      const lower = trimmed.toLowerCase();
+      if (lower.includes(q) && lower !== q && !seen.has(lower)) {
+        seen.add(lower);
+        matches.push(trimmed);
+        if (matches.length >= 6) break;
+      }
+    }
+
+    if (matches.length === 0) {
+      noteSuggestionsStrip.innerHTML = '';
+      noteSuggestionsStrip.style.display = 'none';
+      return;
+    }
+
+    noteSuggestionsStrip.innerHTML = matches.map(n => {
+      const escaped = n.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<button type="button" class="note-suggestion-chip" data-note="${escaped}">
+        <span>${escaped}</span>
+      </button>`;
+    }).join('');
+
+    noteSuggestionsStrip.style.display = 'flex';
+  }
+
+  let focusTimeout = null;
+  let blurTimeout = null;
+
+  noteInput?.addEventListener('input', () => {
+    noteHidden.value = noteInput.value;
+    updateNoteSuggestions();
+  });
+
+  noteInput?.addEventListener('focus', () => {
+    if (blurTimeout) clearTimeout(blurTimeout);
+    updateNoteSuggestions();
+    // Delay hiding the keypad slightly (60ms) so iOS Safari finishes its native
+    // touch and focus event pipeline and successfully launches the virtual keyboard
+    if (focusTimeout) clearTimeout(focusTimeout);
+    focusTimeout = setTimeout(() => {
+      if (document.activeElement === noteInput) {
+        setKeypadHidden(true);
+        updateVisualViewport();
+      }
+    }, 60);
+  });
+
+  noteInput?.addEventListener('blur', () => {
+    if (focusTimeout) clearTimeout(focusTimeout);
+    if (blurTimeout) clearTimeout(blurTimeout);
+    // Buffer prevents layout jump before click events on suggestion chips or actions resolve
+    blurTimeout = setTimeout(() => {
+      if (document.activeElement !== noteInput) {
+        setKeypadHidden(false);
+      }
+    }, 120);
+  });
+
+  noteInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      noteInput.blur();
+    }
+  });
+
+  // Tapping amount row immediately switches focus back to numeric keypad
+  document.querySelector('.sheet-amount-row')?.addEventListener('click', () => {
+    if (document.activeElement === noteInput) {
+      noteInput.blur();
+    }
+  });
+
+  // Prevent premature blur when tapping suggestion chips
+  noteSuggestionsStrip?.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.note-suggestion-chip')) {
+      e.preventDefault();
+    }
+  });
+
+  noteSuggestionsStrip?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.note-suggestion-chip');
+    if (chip && chip.dataset.note) {
+      noteInput.value = chip.dataset.note;
+      noteHidden.value = chip.dataset.note;
+      if (window.wangPlaySound) window.wangPlaySound('tap');
+      noteSuggestionsStrip.innerHTML = '';
+      noteSuggestionsStrip.style.display = 'none';
+      // Picked suggestion -> close mobile keyboard and return to keypad
+      noteInput.blur();
+    }
+  });
 
   /* submit */
   form.addEventListener('submit', function(e){
+    commitMathEvaluation();
     const kind = kindInput.value;
     const amt = parseFloat(amountHidden.value);
-    if (!amt || amt <= 0){ e.preventDefault(); return; }
+    if (!amt || amt <= 0){
+      showSheetError('Please enter an amount');
+      e.preventDefault();
+      return;
+    }
+    noteHidden.value = noteInput.value.trim();
+    if (noteHidden.value) {
+      addNoteToRecent(noteHidden.value);
+    }
+    if (!dateHidden.value){
+      dateHidden.value = formatLocalISO(new Date());
+    }
     if (kind !== 'transfer'){
-      if (!selectedCat){ e.preventDefault(); return; }
-      form.appendChild(createHidden('category', selectedCat.dataset.cat));
-      if (!walletId){ e.preventDefault(); return; }
-      form.appendChild(createHidden('wallet', walletId));
+      if (!selectedCat){
+        showSheetError('Please choose a category');
+        e.preventDefault();
+        return;
+      }
+      if (!walletId){
+        showSheetError('Please select an account');
+        e.preventDefault();
+        return;
+      }
+      catHidden.value = selectedCat.dataset.cat;
+      walletHidden.value = walletId;
+      fromWalletHidden.value = '';
+      toWalletHidden.value = '';
     } else {
       const fromId = fromName.dataset.id, toId = toName.dataset.id;
-      if (!fromId || !toId || fromId === toId){ e.preventDefault(); return; }
-      form.appendChild(createHidden('from_wallet', fromId));
-      form.appendChild(createHidden('to_wallet', toId));
-      form.appendChild(createHidden('wallet', ''));
-      form.appendChild(createHidden('category', ''));
+      if (!fromId || !toId){
+        showSheetError('Please select both From and To accounts');
+        e.preventDefault();
+        return;
+      }
+      if (fromId === toId){
+        showSheetError('From and To accounts must differ');
+        e.preventDefault();
+        return;
+      }
+      catHidden.value = '';
+      walletHidden.value = '';
+      fromWalletHidden.value = fromId;
+      toWalletHidden.value = toId;
     }
+    hideSheetError();
   });
-  function createHidden(name, value){
-    const i = document.createElement('input');
-    i.type = 'hidden'; i.name = name; i.value = value;
-    return i;
-  }
-  document.getElementById('sheet-cancel').addEventListener('click', () => { form.reset(); amountHidden.value = '0'; amountValue.textContent = '0'; closeSheet(); });
+
+  document.getElementById('sheet-cancel')?.addEventListener('click', () => {
+    resetSheet();
+    if (window.closeSheet) window.closeSheet();
+  });
 })();
 </script>

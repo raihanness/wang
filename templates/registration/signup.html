@@ -1,8 +1,12 @@
 {% extends "base.html" %}
+{% load static %}
+{% block page_name %}signup{% endblock %}
 {% block content %}
 <div class="card auth-card">
   <div class="center" style="margin-bottom:14px">
-    <span class="brand-badge" style="width:46px;height:46px;font-size:26px;display:inline-grid"><span class="material-symbols-rounded">payments</span></span>
+    <div class="auth-badge-wrap" style="margin-bottom:12px">
+      <img src="{% static 'img/logo-fix.png' %}" alt="Wang" class="brand-badge brand-logo-img">
+    </div>
     <h2>Join Wang ♡</h2>
     <p class="muted" style="margin:0;font-size:13px">Track your cute money</p>
   </div>

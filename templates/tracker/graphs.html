@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Graphs — Wang{% endblock %}
+{% block page_name %}graphs{% endblock %}
+{% block content %}
+<div class="page-head" style="margin-bottom:6px">
+  <h2 style="margin:0"><span class="title-script">G</span>raphs</h2>
+</div>
+
+<turbo-frame id="graphs-frame" data-turbo-action="advance" data-mode="{{ mode }}" data-month="{% if sel_month %}{{ sel_month|date:'Y-m' }}{% endif %}" data-kind="{{ kind|default:'' }}" data-year="{{ sel_year }}">
+  <!-- Period Switcher: Monthly vs Annual Year-in-Review -->
+  <div class="period-switch" role="tablist" aria-label="Period Mode">
+    <a href="{% url 'graphs' %}?mode=month{% if sel_month %}&month={{ sel_month|date:'Y-m' }}{% endif %}{% if kind %}&kind={{ kind }}{% endif %}"
+       class="period-tab {% if mode == 'month' %}active{% endif %}"
+       role="tab"
+       aria-selected="{% if mode == 'month' %}true{% else %}false{% endif %}">
+      <svg class="icon"><use href="#icon-calendar_view_month"></use></svg>
+      <span>Monthly</span>
+    </a>
+    <a href="{% url 'graphs' %}?mode=year{% if sel_year %}&year={{ sel_year }}{% endif %}"
+       class="period-tab {% if mode == 'year' %}active{% endif %}"
+       role="tab"
+       aria-selected="{% if mode == 'year' %}true{% else %}false{% endif %}">
+      <svg class="icon"><use href="#icon-analytics"></use></svg>
+      <span>Annual Review</span>
+    </a>
+  </div>
+
+  {% if mode == "year" %}
+    <!-- ── Annual Year-in-Review View ── -->
+    <!-- Year Stepper Navigation -->
+    <div class="year-stepper-bar">
+      {% if prev_year %}
+        <a class="icon-btn year-step-btn" href="{% url 'graphs' %}?mode=year&year={{ prev_year }}" aria-label="Previous year"><svg class="icon"><use href="#icon-chevron_left"></use></svg></a>
+      {% else %}
+        <span class="icon-btn year-step-btn disabled" style="opacity:.25;pointer-events:none"><svg class="icon"><use href="#icon-chevron_left"></use></svg></span>
+      {% endif %}
+
+      <div class="year-stepper-label">
+        <svg class="icon" style="font-size:18px;color:var(--primary)"><use href="#icon-calendar_today"></use></svg>
+        <strong>{{ sel_year }} Year-in-Review</strong>
+      </div>
+
+      {% if next_year %}
+        <a class="icon-btn year-step-btn" href="{% url 'graphs' %}?mode=year&year={{ next_year }}" aria-label="Next year"><svg class="icon"><use href="#icon-chevron_right"></use></svg></a>
+      {% else %}
+        <span class="icon-btn year-step-btn disabled" style="opacity:.25;pointer-events:none"><svg class="icon"><use href="#icon-chevron_right"></use></svg></span>
+      {% endif %}
+    </div>
+
+    <!-- Annual Hero Cashflow & Savings Card -->
+    <div class="card annual-hero-card">
+      <div class="annual-hero-head">
+        <div>
+          <small class="muted" style="font-weight:700;letter-spacing:.4px;text-transform:uppercase">Net Annual Savings</small>
+          <div class="annual-hero-net {% if annual_net >= 0 %}text-positive{% else %}text-negative{% endif %}">
+            {% if annual_net >= 0 %}+{% endif %}Rp{{ annual_net|floatformat:0|intcomma }}
+          </div>
+        </div>
+        <span class="badge annual-rate-badge {% if annual_savings_rate >= 20 %}badge-income{% elif annual_savings_rate > 0 %}badge-neutral{% else %}badge-expense{% endif %}">
+          {{ annual_savings_rate }}% Saved
+        </span>
+      </div>
+
+      <div class="annual-stats-grid">
+        <div class="annual-stat-box">
+          <span class="annual-stat-lbl">Total Income</span>
+          <strong class="annual-stat-val text-income">Rp{{ annual_income|floatformat:0|intcomma }}</strong>
+        </div>
+        <div class="annual-stat-box">
+          <span class="annual-stat-lbl">Total Spend</span>
+          <strong class="annual-stat-val text-expense">Rp{{ annual_expense|floatformat:0|intcomma }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12-Month Dual Cashflow Bar Chart -->
+    <div class="card" style="margin-top:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <h3 style="margin:0;font-size:15px">12-Month Cashflow · {{ sel_year }}</h3>
+        <div class="chart-dual-legend">
+          <span class="legend-chip"><span class="legend-dot" style="background:#7BD3A4"></span>Income</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#FF8A65"></span>Expense</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:210px">
+        <canvas id="annualChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Top 3 Biggest Expense Categories Podium -->
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin:0 0 10px;font-size:15px">Top Expense Categories of {{ sel_year }}</h3>
+      {% if top_3_cats %}
+        <div class="podium-grid">
+          {% for c in top_3_cats %}
+            <div class="podium-card rank-card-{{ c.rank }}">
+              <span class="podium-medal rank-{{ c.rank }}">
+                <svg class="icon podium-medal-icon"><use href="#icon-{{ c.medal_icon|default:c.medal }}"></use></svg>
+                <!-- <span class="podium-rank-num">#{{ c.rank }}</span> -->
+              </span>
+              <span class="podium-icon" style="background:{{ c.category__color }}20;color:{{ c.category__color }}">
+                <svg class="icon"><use href="#icon-{{ c.category__icon }}"></use></svg>
+              </span>
+              <strong class="podium-name">{{ c.category__name }}</strong>
+              <span class="podium-amt">Rp{{ c.total|floatformat:0|intcomma }}</span>
+              <span class="podium-pct">{{ c.pct }}% of year</span>
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if top_cats|length > 3 %}
+          <div class="divider" style="margin:12px 0 10px"></div>
+          <div class="annual-cat-list">
+            {% for c in top_cats|slice:"3:8" %}
+              <div class="cat-legend-item">
+                <div class="cat-legend-top">
+                  <div class="cat-legend-label">
+                    <span class="cat-legend-dot" style="background:{{ c.category__color }}"></span>
+                    <span class="cat-legend-name">{{ c.category__name }}</span>
+                    <span class="cat-legend-pct">{{ c.pct }}%</span>
+                  </div>
+                  <strong class="cat-legend-amt">Rp{{ c.total|floatformat:0|intcomma }}</strong>
+                </div>
+                <div class="cat-pct-track">
+                  <div class="cat-pct-bar" style="width:{{ c.pct }}%;background:{{ c.category__color }}"></div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="card muted center" style="box-shadow:none;border:1px dashed var(--line);background:var(--surface-muted);color:var(--muted)">No expense data recorded for {{ sel_year }}.</div>
+      {% endif %}
+    </div>
+
+    <!-- Year Highlights Banner -->
+    <div class="card" style="margin-top:12px;margin-bottom:14px">
+      <h3 style="margin:0 0 10px;font-size:15px">Year Highlights</h3>
+      <div class="metrics-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div class="metric-card">
+          <small class="muted">Best Savings</small>
+          <strong>{% if best_month_name %}{{ best_month_name }}{% else %}-{% endif %}</strong>
+          <span class="metric-sub">{% if best_month_net %}Rp{{ best_month_net|floatformat:0|intcomma }}{% else %}no data{% endif %}</span>
+        </div>
+        <div class="metric-card">
+          <small class="muted">Peak Spend</small>
+          <strong>{% if highest_spend_name %}{{ highest_spend_name }}{% else %}-{% endif %}</strong>
+          <span class="metric-sub">{% if highest_spend_amt > 0 %}Rp{{ highest_spend_amt|floatformat:0|intcomma }}{% else %}no data{% endif %}</span>
+        </div>
+        <div class="metric-card">
+          <small class="muted">Monthly Avg</small>
+          <strong>Rp{{ monthly_avg_spend|floatformat:0|intcomma }}</strong>
+          <span class="metric-sub">/ month</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12-Month Net Worth Progression Card -->
+    <div class="card networth-card" style="margin-top:12px;margin-bottom:14px">
+      <div class="networth-card-head">
+        <div>
+          <h3 style="margin:0;font-size:15px">Net Worth Progression · {{ sel_year }}</h3>
+          <!-- <small class="muted" style="font-size:11px">12-month total assets curve</small> -->
+        </div>
+        <div class="networth-growth-badge {% if net_worth_growth_amt >= 0 %}growth-positive{% else %}growth-negative{% endif %}">
+          <svg class="icon" style="font-size:14px"><use href="#icon-{% if net_worth_growth_amt >= 0 %}trending_up{% else %}trending_down{% endif %}"></use></svg>
+          <span>{% if net_worth_growth_amt >= 0 %}+{% endif %}Rp{{ net_worth_growth_amt|floatformat:0|intcomma }} ({{ net_worth_growth_pct }}%)</span>
+        </div>
+      </div>
+      <div class="networth-hero-amt">
+        <small class="muted" style="font-size:11px;font-weight:600">Year-End Net Worth</small>
+        <div style="font-size:20px;font-weight:800;letter-spacing:-.3px">Rp{{ net_worth_end|floatformat:0|intcomma }}</div>
+      </div>
+      <div class="chart-wrap" style="height:190px;margin-top:8px">
+        <canvas id="netWorthChartAnnual"></canvas>
+      </div>
+    </div>
+
+    {{ year_trend_json|json_script:"year-trend-data" }}
+    {{ net_worth_trend_json|json_script:"net-worth-data" }}
+
+  {% else %}
+    <!-- ── Monthly View (Default) ── -->
+    <!-- Horizontal scrollable month navigation -->
+    <div class="month-scroll-container">
+      {% if has_older %}
+        <a class="icon-btn month-scroll-arrow" href="{% url 'graphs' %}?mode=month&month={{ prev_month|date:'Y-m' }}&kind={{ kind }}" aria-label="Previous month"><svg class="icon"><use href="#icon-chevron_left"></use></svg></a>
+      {% else %}
+        <span class="icon-btn month-scroll-arrow" style="opacity:.25;pointer-events:none"><svg class="icon"><use href="#icon-chevron_left"></use></svg></span>
+      {% endif %}
+
+      <div class="month-scroll-track" id="month-scroll-track">
+        {% for m in months_nav %}
+          <a href="{% url 'graphs' %}?mode=month&month={{ m.param }}&kind={{ kind }}"
+             class="month-chip {% if m.is_active %}active{% endif %}"
+             data-month="{{ m.param }}">
+            <span>{{ m.label }}</span>
+          </a>
+        {% endfor %}
+      </div>
+
+      {% if has_newer %}
+        <a class="icon-btn month-scroll-arrow" href="{% url 'graphs' %}?mode=month&month={{ next_month|date:'Y-m' }}&kind={{ kind }}" aria-label="Next month"><svg class="icon"><use href="#icon-chevron_right"></use></svg></a>
+      {% else %}
+        <span class="icon-btn month-scroll-arrow" style="opacity:.25;pointer-events:none"><svg class="icon"><use href="#icon-chevron_right"></use></svg></span>
+      {% endif %}
+    </div>
+
+    <div class="kind-switch" role="tablist" aria-label="Kind">
+      <a href="{% url 'graphs' %}?mode=month&month={{ sel_month|date:'Y-m' }}&kind=expense"
+         class="kind-tab {% if kind == 'expense' %}active{% endif %}"
+         role="tab"
+         aria-selected="{% if kind == 'expense' %}true{% else %}false{% endif %}">Expenses</a>
+      <a href="{% url 'graphs' %}?mode=month&month={{ sel_month|date:'Y-m' }}&kind=income"
+         class="kind-tab {% if kind == 'income' %}active{% endif %}"
+         role="tab"
+         aria-selected="{% if kind == 'income' %}true{% else %}false{% endif %}">Income</a>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+        <div>
+          <small class="muted" style="font-weight:700;letter-spacing:.4px;text-transform:uppercase">Total {{ kind|title }}</small>
+          <div style="font-size:22px;font-weight:800;letter-spacing:-.3px">Rp{{ total|floatformat:0|intcomma }}</div>
+        </div>
+        <span class="badge {% if kind == 'expense' %}badge-expense{% else %}badge-income{% endif %}">{{ sel_month|date:"F Y" }}</span>
+      </div>
+
+      {% if by_cat %}
+        <div class="chart-wrap">
+          <canvas id="pieChart"></canvas>
+        </div>
+
+        <!-- Spending Insights Grid -->
+        <div class="metrics-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;margin-bottom:8px">
+          <div class="metric-card">
+            <small class="muted">Daily Avg</small>
+            <strong>Rp{{ daily_avg|floatformat:0|intcomma }}</strong>
+            <span class="metric-sub">/ day</span>
+          </div>
+          <div class="metric-card">
+            <small class="muted">{% if is_sel_current %}Projected{% else %}Days Tracked{% endif %}</small>
+            <strong>{% if is_sel_current %}Rp{{ projected_total|floatformat:0|intcomma }}{% else %}{{ days_elapsed }} days{% endif %}</strong>
+            <span class="metric-sub">{% if is_sel_current %}month-end{% else %}total{% endif %}</span>
+          </div>
+          <div class="metric-card">
+            <small class="muted">Peak Day</small>
+            <strong>{% if peak_info %}Rp{{ peak_info.amount|floatformat:0|intcomma }}{% else %}-{% endif %}</strong>
+            <span class="metric-sub">{% if peak_info %}{{ peak_info.date }}{% else %}no data{% endif %}</span>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div id="cat-legend" style="display:grid;gap:8px"></div>
+      {% else %}
+        <div class="card muted center" style="box-shadow:none;border:1px dashed var(--line);background:var(--surface-muted);color:var(--muted);margin-top:10px">No {{ kind }} recorded for {{ sel_month|date:"F Y" }}.</div>
+      {% endif %}
+      
+    </div>
+
+    <!-- 6-Month Dual Cashflow & Trend Chart -->
+    <div class="card" style="margin-top:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <h3 style="margin:0;font-size:15px">6-Month Cashflow</h3>
+          <small class="muted" style="font-size:11px">Income vs. Expense comparison</small>
+        </div>
+        <div class="chart-dual-legend">
+          <span class="legend-chip"><span class="legend-dot" style="background:#7BD3A4"></span>Income</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#FF8A65"></span>Expense</span>
+        </div>
+      </div>
+
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="trendChart"></canvas>
+      </div>
+
+      <div class="divider" style="margin:10px 0"></div>
+      <div class="cashflow-summary-strip">
+        <div class="cashflow-stat">
+          <span class="muted">Avg Income</span>
+          <strong class="text-income">Rp{{ avg_6m_income|floatformat:0|intcomma }}</strong>
+        </div>
+        <div class="cashflow-stat">
+          <span class="muted">Avg Spend</span>
+          <strong class="text-expense">Rp{{ avg_6m_expense|floatformat:0|intcomma }}</strong>
+        </div>
+        <div class="cashflow-stat">
+          <span class="muted">Avg Net / mo</span>
+          <strong class="{% if avg_6m_net >= 0 %}text-positive{% else %}text-negative{% endif %}">
+            {% if avg_6m_net >= 0 %}+{% endif %}Rp{{ avg_6m_net|floatformat:0|intcomma }}
+          </strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6-Month Net Worth Progression Card -->
+    <div class="card networth-card" style="margin-top:12px;margin-bottom:14px">
+      <div class="networth-card-head">
+        <div>
+          <h3 style="margin:0;font-size:15px">Net Worth Progression</h3>
+          <!-- <small class="muted" style="font-size:11px">6-month total assets curve</small> -->
+        </div>
+        <div class="networth-growth-badge {% if net_worth_growth_amt >= 0 %}growth-positive{% else %}growth-negative{% endif %}">
+          <svg class="icon" style="font-size:14px"><use href="#icon-{% if net_worth_growth_amt >= 0 %}trending_up{% else %}trending_down{% endif %}"></use></svg>
+          <span>{% if net_worth_growth_amt >= 0 %}+{% endif %}Rp{{ net_worth_growth_amt|floatformat:0|intcomma }} ({{ net_worth_growth_pct }}%)</span>
+        </div>
+      </div>
+      <div class="networth-hero-amt">
+        <small class="muted" style="font-size:11px;font-weight:600">Current Net Worth</small>
+        <div style="font-size:20px;font-weight:800;letter-spacing:-.3px">Rp{{ net_worth_end|floatformat:0|intcomma }}</div>
+      </div>
+      <div class="chart-wrap" style="height:190px;margin-top:8px">
+        <canvas id="netWorthChart"></canvas>
+      </div>
+    </div>
+
+    {{ pie_json|json_script:"pie-data" }}
+    {{ trend_json|json_script:"trend-data" }}
+    {{ net_worth_trend_json|json_script:"net-worth-data" }}
+  {% endif %}
+
+  <script data-turbo-eval="always">
+    if (typeof window.wangMountGraphs === 'function') {
+      requestAnimationFrame(function() { window.wangMountGraphs(); });
+    }
+  </script>
+</turbo-frame>
+{% endblock %}

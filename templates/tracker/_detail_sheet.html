@@ -1,0 +1,81 @@
+<div class="sheet-overlay" id="detail-overlay"></div>
+<div class="sheet detail-sheet" id="detail-sheet" role="dialog" aria-label="Transaction Details">
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="detail-close-btn" aria-label="Close">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div class="sheet-head-title" style="font-weight:800;">Transaction Details</div>
+    <div style="width:36px"></div>
+  </div>
+
+  <div class="detail-sheet-body" id="detail-sheet-body">
+    <!-- Hero Category & Large Amount -->
+    <div class="detail-hero">
+      <div class="detail-icon" id="dt-icon">
+        <svg class="icon" id="dt-symbol"><use href="#icon-payments"></use></svg>
+      </div>
+      <div class="detail-amt" id="dt-amount">Rp0</div>
+      <div class="detail-cat-name" id="dt-cat-name">Expense</div>
+    </div>
+
+    <!-- Metadata Info List -->
+    <div class="detail-info-list">
+      <div class="detail-row">
+        <span class="detail-row-lbl">
+          <svg class="icon"><use href="#icon-calendar_today"></use></svg>
+          <span>Date</span>
+        </span>
+        <strong class="detail-row-val" id="dt-date">-</strong>
+      </div>
+
+      <div class="detail-row">
+        <span class="detail-row-lbl">
+          <svg class="icon"><use href="#icon-schedule"></use></svg>
+          <span>Time</span>
+        </span>
+        <strong class="detail-row-val" id="dt-time">-</strong>
+      </div>
+
+      <div class="detail-row">
+        <span class="detail-row-lbl">
+          <svg class="icon"><use href="#icon-account_balance_wallet"></use></svg>
+          <span>Account</span>
+        </span>
+        <strong class="detail-row-val" id="dt-wallet">-</strong>
+      </div>
+
+      <div class="detail-row" id="dt-note-row" hidden>
+        <span class="detail-row-lbl">
+          <svg class="icon"><use href="#icon-edit_note"></use></svg>
+          <span>Note</span>
+        </span>
+        <span class="detail-row-val detail-note-bubble" id="dt-note">-</span>
+      </div>
+
+      <!-- Receipt Photo Preview (if present) -->
+      <div class="detail-receipt-box" id="dt-receipt-box" hidden>
+        <div class="detail-receipt-head">
+          <svg class="icon" style="font-size:16px"><use href="#icon-receipt_long"></use></svg>
+          <span>Receipt Attachment</span>
+        </div>
+        <div class="detail-receipt-thumb" id="dt-receipt-thumb">
+          <img id="dt-receipt-img" src="" alt="Receipt Photo">
+          <div class="detail-receipt-zoom-hint">
+            <svg class="icon"><use href="#icon-zoom_in"></use></svg> Tap to enlarge
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Actions -->
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-primary detail-btn-edit" id="dt-edit-btn" style="flex:1">
+        <svg class="icon"><use href="#icon-edit"></use></svg>
+        <span>Edit Transaction</span>
+      </button>
+      <button type="button" class="btn btn-delete" id="dt-delete-btn" aria-label="Delete transaction">
+        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+      </button>
+    </div>
+  </div>
+</div>
