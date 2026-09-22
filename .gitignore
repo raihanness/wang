@@ -1,17 +1,49 @@
+# Python / Virtual Environment
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Database & Environment
 db.sqlite3
+db.sqlite3-journal
+.env
+.env.local
+.env.*.local
+
+# Static & Media Assets
 staticfiles/
 media/
-.env
-.DS_Store
-.commandcode/
-.vscode/
 logs/
 *.log
 
-# Android
+# System & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.commandcode/
+AGENTS.md
+
+# References & Scratch Files
+refs/
+ref*.jpeg
+ref*.jpg
+ref*.png
+rec*.webp
+IMG_*.PNG
+IMG_*.png
+IMG_*.jpg
+IMG_*.jpeg
+Screenshot_*.png
+Screenshot_*.jpg
+*.xlsx
+*.xls
+wang-deploy.zip
+
+# Android Build Artifacts
 android/.gradle/
 android/build/
 android/*/build/
@@ -20,11 +52,4 @@ android/.idea/
 android/*.iml
 android/*/*.iml
 *.apk
-
-# Reference & Scratch files
-*.xlsx
-ref*.jpeg
-IMG_*.PNG
-Screenshot_*.png
-
-wang-deploy.zip
+*.aab
