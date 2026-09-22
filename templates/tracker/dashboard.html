@@ -10,25 +10,39 @@
 </div>
 
 <div class="dash-hero-grid">
-  <!-- Card 1: Total Balance & Today -->
-  <div class="today-card hero-balance-card">
+  <!-- Card 1: Dual Header (Spendable & Net Worth) Balance & Cashflow -->
+  <div class="today-card hero-balance-card" id="hero-balance-card">
     <div class="hero-card-head">
       <div class="hero-head-left">
-        <!-- <svg class="icon hero-head-icon"><use href="#icon-account_balance_wallet"></use></svg> -->
-        <span class="hero-balance-label">Total</span>
+        <div class="hero-toggle-pill" id="hero-mode-toggle" role="tablist" aria-label="Balance mode switcher">
+          <button type="button" class="hero-toggle-btn active" id="hero-btn-spendable" data-mode="spendable" role="tab" aria-selected="true" title="Spendables (Cash, Bank, E-Wallet)">
+            <svg class="icon"><use href="#icon-payments"></use></svg>
+          </button>
+          <button type="button" class="hero-toggle-btn" id="hero-btn-savings" data-mode="savings" role="tab" aria-selected="false" title="Savings">
+            <svg class="icon"><use href="#icon-savings"></use></svg>
+          </button>
+          <button type="button" class="hero-toggle-btn" id="hero-btn-networth" data-mode="networth" role="tab" aria-selected="false" title="Net Worth (Spendables + Savings)">
+            <svg class="icon"><use href="#icon-trending_up"></use></svg>
+          </button>
+        </div>
       </div>
       <button type="button" class="hero-privacy-toggle" id="hero-privacy-toggle" title="Hide/show balance" aria-label="Toggle balance visibility">
         <svg class="icon" id="hero-privacy-icon"><use href="#icon-visibility"></use></svg>
       </button>
     </div>
 
-    <div class="hero-balance-amount" id="hero-balance-amount" data-raw-balance="Rp{{ total_balance|floatformat:0|intcomma }}">
-      <span class="currency">Rp</span><span class="value">{{ total_balance|floatformat:0|intcomma }}</span>
+    <div class="hero-balance-amount" id="hero-balance-amount"
+         data-raw-spendable="Rp{{ spendable_balance|floatformat:0|intcomma }}"
+         data-raw-savings="Rp{{ savings_balance|floatformat:0|intcomma }}"
+         data-raw-networth="Rp{{ net_worth|floatformat:0|intcomma }}"
+         data-raw-balance="Rp{{ spendable_balance|floatformat:0|intcomma }}"
+         data-mode="spendable">
+      <span class="currency">Rp</span><span class="value">{{ spendable_balance|floatformat:0|intcomma }}</span>
     </div>
 
     <div class="hero-card-foot">
       <div class="hero-cashflow-sub">
-        <span class="lbl">{% if is_current %}This Month{% else %}{{ view_month|date:"M Y" }}{% endif %}</span>
+        <span class="lbl" id="hero-cashflow-lbl">{% if is_current %}This Month{% else %}{{ view_month|date:"M Y" }}{% endif %}</span>
         <span class="hero-cashflow-badge {% if balance_change > 0 %}is-pos{% elif balance_change < 0 %}is-neg{% else %}is-neutral{% endif %}">
           <span id="hero-cashflow-val" data-raw-cashflow="{% if balance_change > 0 %}+{% elif balance_change < 0 %}-{% endif %}Rp{{ balance_change_abs|floatformat:0|intcomma }}">
             {% if balance_change > 0 %}+{% elif balance_change < 0 %}-{% endif %}Rp{{ balance_change_abs|floatformat:0|intcomma }}
@@ -99,24 +113,47 @@
   </div>
 </div>
 
-<div class="section-title">
-  <h3>Recurring Payments</h3>
-  <a href="{% url 'subscription_list' %}">Manage{% if all_subs %} ({{ all_subs|length }}){% endif %}</a>
+<div class="section-title carousel-tab-header">
+  <div class="carousel-tabs">
+    <button type="button" class="carousel-tab-btn active" id="tab-btn-subs" data-target="subs">
+      <svg class="icon"><use href="#icon-event_repeat"></use></svg>
+      {% if all_subs %} <span class="badge-count">{{ all_subs|length }}</span>{% endif %}
+    </button>
+    <button type="button" class="carousel-tab-btn" id="tab-btn-debts" data-target="debts">
+      <svg class="icon"><use href="#icon-handshake"></use></svg>
+      {% if active_debts %} <span class="badge-count">{{ active_debts|length }}</span>{% endif %}
+    </button>
+  </div>
+  <a href="{% url 'subscription_list' %}" id="carousel-manage-link" class="carousel-manage-link">
+    Manage{% if all_subs %} [{{ all_subs|length }}]{% endif %} &rsaquo;
+  </a>
 </div>
-<div class="sub-strip">
+
+<!-- Bills Carousel Strip -->
+<div class="sub-strip" id="strip-subs">
   {% for s in all_subs %}
     <div class="sub-chip-card {% if s.is_paid_this_cycle %}is-paid{% endif %}">
       <div class="sub-chip-icon" style="background:{{ s.color }}20;color:{{ s.color }}">
         <svg class="icon"><use href="#icon-{{ s.icon }}"></use></svg>
       </div>
       <div class="sub-chip-info">
-        <strong>{{ s.name }}</strong>
-        <small class="muted">Rp{{ s.amount|floatformat:0|intcomma }} // <span class="sub-status-text">{{ s.status_badge.label }}</span></small>
+        <div class="sub-chip-name-row">
+          <strong class="sub-chip-title">{{ s.name }}</strong>
+          {% if s.installments_progress and s.installments_progress.total %}
+            <span class="sub-inst-badge" title="{{ s.installments_progress.text }}">[{{ s.installments_progress.paid_count }}/{{ s.installments_progress.total }}]</span>
+          {% endif %}
+        </div>
+        <small class="muted">Rp{{ s.amount|floatformat:0|intcomma }} <span class="sub-status-text {{ s.status_badge.class }}">[{{ s.status_badge.short_label }}]</span></small>
       </div>
       {% if s.is_paid_this_cycle %}
-        <div class="icon-btn pay-chip-btn paid-done" title="Paid for this cycle" aria-label="Paid for this cycle">
+        <button class="icon-btn pay-chip-btn paid-done js-undo-sub" type="button"
+          data-sub-name="{{ s.name }}"
+          data-sub-amount="Rp{{ s.amount|floatformat:0|intcomma }}"
+          data-undo-url="{% url 'subscription_undo' s.pk %}"
+          title="Paid! Tap to undo payment"
+          aria-label="Undo {{ s.name }} payment">
           <svg class="icon" style="font-size:16px"><use href="#icon-task_alt"></use></svg>
-        </div>
+        </button>
       {% else %}
         <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0" data-turbo="false">
           {% csrf_token %}
@@ -134,6 +171,42 @@
       <div class="sub-chip-info">
         <strong>Track Bills</strong>
         <small class="muted">Add Netflix, rent, spotify...</small>
+      </div>
+    </a>
+  {% endfor %}
+</div>
+
+<!-- Debts Carousel Strip -->
+<div class="sub-strip" id="strip-debts" style="display:none">
+  {% for d in active_debts %}
+    <div class="sub-chip-card">
+      <div class="sub-chip-icon {% if d.kind == 'lent' %}icon-lent{% else %}icon-borrowed{% endif %}" style="border-radius:10px">
+        <svg class="icon" style="font-size:16px">
+          {% if d.kind == 'lent' %}
+            <use href="#icon-arrow_downward"></use>
+          {% else %}
+            <use href="#icon-arrow_upward"></use>
+          {% endif %}
+        </svg>
+      </div>
+      <div class="sub-chip-info">
+        <strong>{{ d.person_name }}</strong>
+        <small class="muted">
+          Rp{{ d.remaining_amount|floatformat:0|intcomma }} left // <span class="sub-status-text {{ d.status_badge.class }}">{{ d.status_badge.label }}</span>
+        </small>
+      </div>
+      <button type="button" class="icon-btn pay-chip-btn js-open-debt-pay" data-debt-id="{{ d.pk }}" data-debt-person="{{ d.person_name }}" data-debt-remaining="{{ d.remaining_amount|floatformat:0 }}" data-debt-kind="{{ d.kind }}" title="Record repayment" aria-label="Repay {{ d.person_name }}">
+        <svg class="icon" style="font-size:15px"><use href="#icon-payments"></use></svg>
+      </button>
+    </div>
+  {% empty %}
+    <a href="{% url 'debt_create' %}" class="sub-chip-card" style="text-decoration:none;border:1px dashed var(--line);background:transparent">
+      <div class="sub-chip-icon" style="background:var(--surface-chip);color:var(--muted)">
+        <svg class="icon"><use href="#icon-add"></use></svg>
+      </div>
+      <div class="sub-chip-info">
+        <strong>Track Debts</strong>
+        <small class="muted">Lent or borrowed money...</small>
       </div>
     </a>
   {% endfor %}
@@ -183,9 +256,12 @@
       <button type="button"
               class="quick-filter-chip filter-btn-trigger {% if active_filter_count > 0 %}has-filters{% endif %}"
               id="multi-filter-trigger"
-              data-type="{{ active_filter }}"
-              data-wallet="{{ selected_wallet_id|default:'' }}"
-              data-category="{{ selected_category_id|default:'' }}"
+              data-type="{{ filter_kinds_in }}"
+              data-type-exclude="{{ filter_kinds_out }}"
+              data-wallet="{{ wallet_ids_in }}"
+              data-wallet-exclude="{{ wallet_ids_out }}"
+              data-category="{{ cat_ids_in }}"
+              data-category-exclude="{{ cat_ids_out }}"
               data-date-from="{{ date_from }}"
               data-date-to="{{ date_to }}"
               aria-label="Filter transactions"
@@ -281,9 +357,12 @@
     <div class="active-filter-strip">
       <div class="active-filter-pills">
         {% for tag in active_filter_tags %}
-          <span class="active-filter-tag">
+          <span class="active-filter-tag {% if tag.is_exclude %}is-exclude{% endif %}">
+            {% if tag.is_exclude %}
+              <span class="active-filter-prefix" aria-hidden="true">⊘</span>
+            {% endif %}
             {% if tag.icon %}
-              <svg class="icon" style="font-size:13px;{% if tag.color %}color:{{ tag.color }}{% endif %}"><use href="#icon-{{ tag.icon }}"></use></svg>
+              <svg class="icon" style="font-size:13px;{% if tag.color and not tag.is_exclude %}color:{{ tag.color }}{% endif %}"><use href="#icon-{{ tag.icon }}"></use></svg>
             {% endif %}
             <span>{{ tag.label }}</span>
             <a href="{{ tag.remove_url }}" class="active-filter-remove" data-turbo-frame="tx-history" aria-label="Remove {{ tag.label }} filter">✕</a>
@@ -297,7 +376,7 @@
   {% for day, items, day_exp, day_inc in history_groups %}
     <details class="day-group" open>
       <summary class="day-head">
-        <span class="day-date">{{ day|date:"l · M j" }}</span>
+        <span class="day-date">{{ day|date:"l, M j" }}</span>
         <div class="day-totals-wrap">
           {% if day_inc > 0 %}
             <span class="day-badge day-badge-inc" title="Day Income">
@@ -375,7 +454,7 @@
                 {% if t.kind == 'transfer' %}
                   {{ t.from_wallet.name }} → {{ t.to_wallet.name }}
                 {% else %}
-                  <svg class="icon" style="font-size: 12px; margin:2px 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
+                  <svg class="icon" style="font-size: 12px; margin:0 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
                 {% endif %}
               </div>
             </div>

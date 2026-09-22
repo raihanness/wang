@@ -1,0 +1,48 @@
+{% load humanize %}
+<!-- Category Transactions Bottom Sheet Modal -->
+<div class="sheet-overlay" id="cat-tx-overlay"></div>
+<div class="sheet cat-tx-sheet" id="cat-tx-sheet" role="dialog" aria-modal="true" aria-label="Category transactions">
+  <div class="sheet-head" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="cat-tx-sheet-icon" id="cat-tx-icon" style="width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:18px;background:var(--surface-chip);">
+        <svg class="icon" id="cat-tx-symbol"><use href="#icon-label"></use></svg>
+      </div>
+      <div>
+        <div style="font-weight:800;font-size:16px;color:var(--ink);line-height:1.2" id="cat-tx-title">Category</div>
+        <small class="muted" id="cat-tx-sub" style="font-size:11.5px;font-weight:600">Month</small>
+      </div>
+    </div>
+    <button type="button" class="sheet-head-btn" id="cat-tx-close" aria-label="Close modal">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+  </div>
+
+  <div class="cat-tx-sheet-body" style="padding:4px 0 10px">
+    <!-- Hero Summary Card -->
+    <div class="cat-tx-summary-card">
+      <div>
+        <small class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px">Category Total</small>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.4px;color:var(--ink);margin-top:2px" id="cat-tx-total">Rp0</div>
+      </div>
+      <div style="text-align:right;">
+        <span class="badge" id="cat-tx-pct" style="font-weight:700;color:var(--ink);font-size:11.5px;padding: 0">0% of month</span>
+        <div style="font-size:11.5px;font-weight:600;margin-top:4px" class="muted" id="cat-tx-count">0 transactions</div>
+      </div>
+    </div>
+
+    <!-- Section Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 2px 8px;">
+      <small style="font-weight:700;text-transform:uppercase;letter-spacing:.4px" class="muted">Transactions</small>
+      <small class="muted" style="font-size:11px">Tap row to view details</small>
+    </div>
+
+    <!-- Transactions List Container -->
+    <div id="cat-tx-list" class="cat-tx-list" style="overflow-y:auto;max-height:50vh;display:flex;flex-direction:column;gap:8px">
+      <!-- Injected dynamically by JS -->
+    </div>
+
+    <div class="sheet-actions" style="margin-top:14px">
+      <button type="button" class="btn btn-ghost" id="cat-tx-done" style="flex:1">Done</button>
+    </div>
+  </div>
+</div>

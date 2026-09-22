@@ -48,6 +48,27 @@
       </div>
     </div>
 
+    <div class="form-row" style="margin-top:12px">
+      <div>
+        <label for="{{ form.total_installments.id_for_label }}">Total Installments (Optional)</label>
+        {{ form.total_installments }}
+        <!-- <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 12 for 1-year contract</small> -->
+      </div>
+      <div>
+        <label for="{{ form.already_paid_installments.id_for_label }}">Already Paid (Prior)</label>
+        {{ form.already_paid_installments }}
+        <!-- <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 2 if paid before app</small> -->
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top:12px">
+      <div style="flex:1">
+        <label for="{{ form.end_date.id_for_label }}">End Date (Optional)</label>
+        {{ form.end_date }}
+        <!-- <small class="muted" style="display:block;font-size:11px;margin-top:2px">Stop tracking after this date</small> -->
+      </div>
+    </div>
+
     <div style="margin-top:14px;display:flex;align-items:center;gap:8px">
       <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13.5px">
         {{ form.active }}
@@ -61,9 +82,14 @@
       <button class="btn btn-primary" type="submit">Save</button>
       <a class="btn btn-ghost" href="{% url 'subscription_list' %}" style="text-align: center;">Cancel</a>
       {% if is_edit and subscription_pk %}
-        <a class="btn btn-delete" style="text-align: center;" href="{% url 'subscription_delete' subscription_pk %}">
+        <button type="button" class="btn btn-delete js-confirm-delete" style="text-align: center;"
+                data-delete-url="{% url 'subscription_delete' subscription_pk %}"
+                data-delete-title="Delete Subscription?"
+                data-delete-desc="Are you sure you want to delete “{{ form.name.value|default:'this subscription' }}”? Past recorded payment transactions will remain in your history."
+                data-delete-preview="{{ form.name.value|default:'Subscription' }}"
+                aria-label="Delete subscription" title="Delete subscription">
           <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
-        </a>
+        </button>
       {% endif %}
     </div>
   </form>

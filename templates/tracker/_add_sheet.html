@@ -12,15 +12,15 @@
     </div>
   </div>
 
-  <form method="post" action="{% url 'transaction_create' %}" id="add-form" enctype="multipart/form-data" novalidate>
+  <form method="post" action="{% url 'transaction_create' %}" id="add-form" enctype="multipart/form-data" novalidate data-default-wallet="{{ default_wallet.id|default:'' }}">
     {% csrf_token %}
     <input type="hidden" name="kind" id="id_kind" value="expense">
     <input type="hidden" name="amount" id="id_amount" value="0">
     <input type="hidden" name="note" id="id_note" value="">
     <input type="hidden" name="date" id="id_date" value="">
     <input type="hidden" name="category" id="id_category" value="">
-    <input type="hidden" name="wallet" id="id_wallet" value="{{ wallets.0.id|default:'' }}">
-    <input type="hidden" name="from_wallet" id="id_from_wallet" value="">
+    <input type="hidden" name="wallet" id="id_wallet" value="{{ default_wallet.id|default:'' }}">
+    <input type="hidden" name="from_wallet" id="id_from_wallet" value="{{ default_wallet.id|default:'' }}">
     <input type="hidden" name="to_wallet" id="id_to_wallet" value="">
     <input type="hidden" name="image_clear" id="sheet-image-clear" value="0">
 
@@ -34,11 +34,11 @@
 
       <div id="grid-transfer" hidden>
         <div class="transfer-pick">
-          <button type="button" class="wallet-block" id="from-block">
-            <span class="wallet-block-icon" id="from-block-icon">?</span>
+          <button type="button" class="wallet-block {% if default_wallet %}selected{% endif %}" id="from-block">
+            <span class="wallet-block-icon" id="from-block-icon" style="background:{{ default_wallet.color|default:'#FFB5A7' }}20;color:{{ default_wallet.color|default:'#FFB5A7' }}"><svg class="icon"><use href="#icon-{{ default_wallet.icon|default:'account_balance_wallet' }}"></use></svg></span>
             <div class="wallet-block-txt">
               <small>From</small>
-              <strong id="from-block-name">Select wallet</strong>
+              <strong id="from-block-name" data-id="{{ default_wallet.id|default:'' }}">{{ default_wallet.name|default:"Select wallet" }}</strong>
             </div>
           </button>
           <button type="button" class="swap-btn" id="swap-wallets"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></button>
@@ -62,8 +62,8 @@
       <!-- Row 1: Wallet Selector + Note Input with Camera Attachment -->
       <div class="sheet-meta-row">
         <button type="button" class="wallet-chip" id="wallet-chip" title="Select account">
-          <span class="wallet-chip-icon" id="wallet-chip-icon" style="background:{{ wallets.0.color|default:'#FFB5A7' }}20;color:{{ wallets.0.color|default:'#FFB5A7' }}"><svg class="icon"><use href="#icon-{{ wallets.0.icon|default:'account_balance_wallet' }}"></use></svg></span>
-          <span class="wallet-chip-name" id="wallet-chip-name">{{ wallets.0.name|default:"Select account" }}</span>
+          <span class="wallet-chip-icon" id="wallet-chip-icon" style="background:{{ default_wallet.color|default:'#FFB5A7' }}20;color:{{ default_wallet.color|default:'#FFB5A7' }}"><svg class="icon"><use href="#icon-{{ default_wallet.icon|default:'account_balance_wallet' }}"></use></svg></span>
+          <span class="wallet-chip-name" id="wallet-chip-name">{{ default_wallet.name|default:"Select account" }}</span>
           <svg class="icon wallet-chip-chevron"><use href="#icon-expand_more"></use></svg>
         </button>
 
@@ -77,13 +77,27 @@
         </div>
       </div>
 
-      <!-- Attached photo preview thumbnail chip -->
-      <div class="photo-preview-chip" id="photo-preview-chip" style="display:none">
-        <img id="photo-preview-img" src="" alt="Receipt preview">
-        <span id="photo-preview-text">Receipt photo attached</span>
-        <button type="button" class="photo-remove-btn" id="photo-remove-btn" title="Remove photo" aria-label="Remove photo">
-          <svg class="icon"><use href="#icon-close"></use></svg>
+      <!-- Attached photo preview thumbnail chip, AI scan action button, status badge & discount savings badge -->
+      <div class="photo-preview-wrap" id="photo-preview-wrap" style="display:none">
+        <div class="photo-preview-chip" id="photo-preview-chip" style="display:none">
+          <img id="photo-preview-img" src="" alt="Receipt preview">
+          <span id="photo-preview-text">Photo attached</span>
+          <button type="button" class="photo-remove-btn" id="photo-remove-btn" title="Remove photo" aria-label="Remove photo">
+            <svg class="icon"><use href="#icon-close"></use></svg>
+          </button>
+        </div>
+        <button type="button" class="receipt-scan-trigger-btn" id="receipt-scan-trigger-btn" style="display:none" title="Scan receipt with Gemini AI" aria-label="Scan receipt with Gemini AI">
+          <svg class="icon"><use href="#icon-auto_awesome"></use></svg>
+          <span>Scan with AI</span>
         </button>
+        <div class="receipt-scan-badge" id="receipt-scan-badge" style="display:none">
+          <svg class="icon scan-sparkle-icon"><use href="#icon-auto_awesome"></use></svg>
+          <span id="receipt-scan-text">Reading receipt with AI...</span>
+        </div>
+        <div class="receipt-discount-badge" id="receipt-discount-badge" style="display:none">
+          <svg class="icon"><use href="#icon-savings"></use></svg>
+          <span id="receipt-discount-text"></span>
+        </div>
       </div>
 
       <!-- Row 2: Hero Amount Display (Value IDR) -->
@@ -285,6 +299,94 @@
   let selectedCat = null;
   let walletId = (walletHidden && walletHidden.value) || (pickerList && pickerList.querySelector('.picker-item') ? pickerList.querySelector('.picker-item').dataset.wallet : null);
 
+  function getPreferredWalletId() {
+    const turboW = document.getElementById('turbo-default-wallet');
+    if (turboW) {
+      try {
+        const val = JSON.parse(turboW.textContent);
+        if (val) return String(val);
+      } catch(e) {}
+    }
+    try {
+      const stored = localStorage.getItem('wang-last-wallet');
+      if (stored) return stored;
+    } catch(e) {}
+    if (form && form.dataset.defaultWallet) {
+      return form.dataset.defaultWallet;
+    }
+    if (walletHidden && walletHidden.value) {
+      return walletHidden.value;
+    }
+    return null;
+  }
+
+  function setWalletChip(item) {
+    if (!item) return false;
+    const id = item.dataset.wallet;
+    walletId = id;
+    if (walletHidden) walletHidden.value = id;
+    if (walletChipIcon) {
+      walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(item.dataset.icon || 'account_balance_wallet') : ('#icon-' + (item.dataset.icon || 'account_balance_wallet'))) + '"></use></svg>';
+      walletChipIcon.style.background = (item.dataset.color || '#FFB5A7') + '20';
+      walletChipIcon.style.color = item.dataset.color || '#FFB5A7';
+    }
+    if (walletChipName) {
+      walletChipName.textContent = item.querySelector('.picker-name')?.textContent || 'Wallet';
+    }
+    if (pickerList) {
+      pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+    }
+    try { localStorage.setItem('wang-last-wallet', id); } catch(e) {}
+    setTransferBlock('from', item);
+    return true;
+  }
+
+  function selectWalletById(id) {
+    if (!pickerList || !id) return false;
+    const item = pickerList.querySelector(`.picker-item[data-wallet="${id}"]`);
+    if (item) {
+      return setWalletChip(item);
+    }
+    return false;
+  }
+
+  function setTransferBlock(blockType, item) {
+    if (!item) return;
+    const nameEl = (blockType === 'from') ? fromName : toName;
+    const iconEl = (blockType === 'from') ? fromIcon : toIcon;
+    const block = (blockType === 'from') ? fromBlock : toBlock;
+    const id = item.dataset.wallet;
+    if (nameEl) {
+      nameEl.textContent = item.querySelector('.picker-name')?.textContent || 'Wallet';
+      nameEl.dataset.id = id;
+    }
+    if (iconEl) {
+      iconEl.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(item.dataset.icon) : ('#icon-' + item.dataset.icon)) + '"></use></svg>';
+      iconEl.style.background = (item.dataset.color || '#FFB5A7') + '20';
+      iconEl.style.color = item.dataset.color || '#FFB5A7';
+    }
+    if (block) {
+      block.classList.add('selected');
+    }
+    if (blockType === 'from' && fromWalletHidden) {
+      fromWalletHidden.value = id;
+    } else if (blockType === 'to' && toWalletHidden) {
+      toWalletHidden.value = id;
+    }
+    checkTransfer();
+  }
+
+  function setTransferFromById(id) {
+    if (!pickerList || !id) return false;
+    const item = pickerList.querySelector(`.picker-item[data-wallet="${id}"]`);
+    if (item) {
+      setTransferBlock('from', item);
+      return true;
+    }
+    return false;
+  }
+
   const fmt = n => n.toLocaleString('id-ID');
 
   function escapeHtml(s) {
@@ -307,7 +409,7 @@
     }
     let activeId = null;
     if (pickerMode === 'chip') {
-      activeId = (walletHidden && walletHidden.value) || walletId;
+      activeId = (walletHidden && walletHidden.value) || walletId || getPreferredWalletId();
     } else if (pickerMode === 'from') {
       activeId = fromName && fromName.dataset.id;
     } else if (pickerMode === 'to') {
@@ -371,6 +473,32 @@
     sheetNotice.hidden = true;
   }
 
+  function selectCategory(c){
+    document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
+    if (!c) {
+      selectedCat = null;
+      if (catHidden) catHidden.value = '';
+      const amountLabel = document.getElementById('sheet-amount-label');
+      if (amountLabel) {
+        amountLabel.textContent = (kindInput && kindInput.value === 'transfer') ? 'Transfer' : 'Amount';
+      }
+      return;
+    }
+    c.classList.add('selected');
+    selectedCat = c;
+    if (catHidden) catHidden.value = c.dataset.cat || '';
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel && c.dataset.name) amountLabel.textContent = c.dataset.name;
+    hideSheetError();
+  }
+
+  function setDefaultCategory(kind){
+    const grid = (kind === 'income') ? gridIncome : gridExpense;
+    if (!grid) return;
+    const firstCell = grid.querySelector('.cat-cell');
+    selectCategory(firstCell || null);
+  }
+
   /* tabs */
   tabs.forEach(t => t.addEventListener('click', () => {
     tabs.forEach(x => x.classList.remove('active'));
@@ -382,20 +510,24 @@
     gridTransfer.hidden = k !== 'transfer';
     walletChip.hidden = k === 'transfer';
     selectedCat = null;
+    catHidden.value = '';
     document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('selected'));
     const amountLabel = document.getElementById('sheet-amount-label');
     if (amountLabel) amountLabel.textContent = k === 'transfer' ? 'Transfer' : 'Amount';
+    if (k === 'expense' || k === 'income') {
+      setDefaultCategory(k);
+    } else if (k === 'transfer') {
+      const activeWId = walletId || (walletHidden && walletHidden.value) || getPreferredWalletId();
+      if (activeWId) {
+        setTransferFromById(activeWId);
+      }
+    }
     hideSheetError();
   }));
 
   /* categories */
   document.querySelectorAll('.cat-cell').forEach(c => c.addEventListener('click', () => {
-    document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
-    c.classList.add('selected');
-    selectedCat = c;
-    const amountLabel = document.getElementById('sheet-amount-label');
-    if (amountLabel && c.dataset.name) amountLabel.textContent = c.dataset.name;
-    hideSheetError();
+    selectCategory(c);
   }));
 
   /* wallet picker (mode: 'chip' | 'from' | 'to') */
@@ -432,24 +564,9 @@
     if (!item) return;
     const id = item.dataset.wallet;
     if (pickerMode === 'chip'){
-      walletId = id;
-      if (walletHidden) walletHidden.value = id;
-      walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(item.dataset.icon) : ('#icon-' + item.dataset.icon)) + '"></use></svg>';
-      walletChipIcon.style.background = item.dataset.color + '20';
-      walletChipIcon.style.color = item.dataset.color;
-      walletChipName.textContent = item.querySelector('.picker-name').textContent;
-      pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
-      item.classList.add('selected');
+      setWalletChip(item);
     } else {
-      const nameEl = pickerMode === 'from' ? fromName : toName;
-      const iconEl = pickerMode === 'from' ? fromIcon : toIcon;
-      const block = pickerMode === 'from' ? fromBlock : toBlock;
-      nameEl.textContent = item.querySelector('.picker-name').textContent;
-      nameEl.dataset.id = id;
-      iconEl.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(item.dataset.icon) : ('#icon-' + item.dataset.icon)) + '"></use></svg>';
-      iconEl.style.background = item.dataset.color + '20';
-      iconEl.style.color = item.dataset.color;
-      block.classList.add('selected');
+      setTransferBlock(pickerMode, item);
     }
     checkTransfer();
     closePicker();
@@ -465,6 +582,10 @@
     fromIcon.style.background = toIcon.style.background; fromIcon.style.color = toIcon.style.color; fromName.dataset.id = toName.dataset.id;
     toName.textContent = tmpName; toIcon.innerHTML = tmpIcon;
     toIcon.style.background = tmpBg; toIcon.style.color = tmpColor; toName.dataset.id = tmpId;
+    if (fromName.dataset.id) fromBlock.classList.add('selected'); else fromBlock.classList.remove('selected');
+    if (toName.dataset.id) toBlock.classList.add('selected'); else toBlock.classList.remove('selected');
+    fromWalletHidden.value = fromName.dataset.id || '';
+    toWalletHidden.value = toName.dataset.id || '';
     checkTransfer();
   });
   function checkTransfer(){
@@ -901,87 +1022,323 @@
       suggestionsStrip.innerHTML = '';
       suggestionsStrip.style.display = 'none';
     }
-    const amountLabel = document.getElementById('sheet-amount-label');
-    if (amountLabel) amountLabel.textContent = 'Amount';
-
-    // 3. Reset category
-    selectedCat = null;
-    catHidden.value = '';
-    document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('selected'));
+    // 3. Reset category (default to first category in grid)
+    setDefaultCategory('expense');
 
     // 4. Reset date
     selDate = getToday();
     dateHidden.value = formatLocalISO(selDate);
     syncDateUI();
 
-    // 5. Reset wallet chip to first available wallet
-    const firstWallet = pickerList ? pickerList.querySelector('.picker-item') : null;
-    if (firstWallet) {
-      walletId = firstWallet.dataset.wallet;
-      walletHidden.value = walletId;
-      walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(firstWallet.dataset.icon || 'account_balance_wallet') : ('#icon-' + (firstWallet.dataset.icon || 'account_balance_wallet'))) + '"></use></svg>';
-      walletChipIcon.style.background = (firstWallet.dataset.color || '#FFB5A7') + '20';
-      walletChipIcon.style.color = firstWallet.dataset.color || '#FFB5A7';
-      walletChipName.textContent = firstWallet.querySelector('.picker-name')?.textContent || 'Wallet';
-      pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
-      firstWallet.classList.add('selected');
+    // 5. Reset wallet chip to last used wallet (or first available wallet)
+    const preferredWalletId = getPreferredWalletId();
+    let walletSet = false;
+    if (preferredWalletId) {
+      walletSet = selectWalletById(preferredWalletId);
+    }
+    if (!walletSet) {
+      const firstWallet = pickerList ? pickerList.querySelector('.picker-item') : null;
+      if (firstWallet) {
+        setWalletChip(firstWallet);
+      }
     }
 
     // 6. Reset transfer blocks
-    fromName.textContent = 'Select wallet';
-    delete fromName.dataset.id;
     toName.textContent = 'Select wallet';
     delete toName.dataset.id;
-    fromBlock.classList.remove('selected');
     toBlock.classList.remove('selected');
-    fromIcon.innerHTML = '?';
     toIcon.innerHTML = '?';
-    fromIcon.style.background = '';
-    fromIcon.style.color = '';
     toIcon.style.background = '';
     toIcon.style.color = '';
-    fromWalletHidden.value = '';
     toWalletHidden.value = '';
     transferError.hidden = true;
     hideSheetError();
 
-    // 7. Reset photo preview
+    // Auto-populate From wallet from currently selected/preferred wallet
+    const activeFromId = walletId || (walletHidden && walletHidden.value) || preferredWalletId;
+    if (activeFromId) {
+      setTransferFromById(activeFromId);
+    } else {
+      fromName.textContent = 'Select wallet';
+      delete fromName.dataset.id;
+      fromBlock.classList.remove('selected');
+      fromIcon.innerHTML = '?';
+      fromIcon.style.background = '';
+      fromIcon.style.color = '';
+      fromWalletHidden.value = '';
+    }
+
+    // 7. Reset photo preview & AI scanning badge
     const imageInput = document.getElementById('sheet-image-input');
     const imageClear = document.getElementById('sheet-image-clear');
     const photoAttachBtn = document.getElementById('photo-attach-btn');
+    const photoPreviewWrap = document.getElementById('photo-preview-wrap');
     const photoPreviewChip = document.getElementById('photo-preview-chip');
     const photoPreviewImg = document.getElementById('photo-preview-img');
+    const scanTriggerBtn = document.getElementById('receipt-scan-trigger-btn');
+    const scanBadge = document.getElementById('receipt-scan-badge');
+    const discountBadge = document.getElementById('receipt-discount-badge');
     if (imageInput) imageInput.value = '';
     if (imageClear) imageClear.value = '0';
+    if (photoPreviewWrap) photoPreviewWrap.style.display = 'none';
     if (photoPreviewChip) photoPreviewChip.style.display = 'none';
     if (photoPreviewImg) photoPreviewImg.src = '';
+    if (scanTriggerBtn) scanTriggerBtn.style.display = 'none';
+    if (scanBadge) scanBadge.style.display = 'none';
+    if (discountBadge) discountBadge.style.display = 'none';
     if (photoAttachBtn) photoAttachBtn.classList.remove('has-photo');
   }
   window.wangResetSheet = resetSheet;
 
-  // Bind photo attach and remove
+  // Bind photo attach, remove & AI receipt scanning
   (function(){
     const imageInput = document.getElementById('sheet-image-input');
     const imageClear = document.getElementById('sheet-image-clear');
     const photoAttachBtn = document.getElementById('photo-attach-btn');
+    const photoPreviewWrap = document.getElementById('photo-preview-wrap');
     const photoPreviewChip = document.getElementById('photo-preview-chip');
     const photoPreviewImg = document.getElementById('photo-preview-img');
     const photoRemoveBtn = document.getElementById('photo-remove-btn');
+    const scanTriggerBtn = document.getElementById('receipt-scan-trigger-btn');
+    const scanBadge = document.getElementById('receipt-scan-badge');
+    const scanText = document.getElementById('receipt-scan-text');
+    const discountBadge = document.getElementById('receipt-discount-badge');
+    const discountText = document.getElementById('receipt-discount-text');
+
+    let scanAbortController = null;
+    let currentReceiptFile = null;
+
+    async function triggerReceiptScan(file) {
+      if (!file || !scanBadge) return;
+
+      if (scanAbortController) {
+        try { scanAbortController.abort(); } catch(e) {}
+      }
+      scanAbortController = new AbortController();
+
+      if (scanTriggerBtn) scanTriggerBtn.style.display = 'none';
+      if (photoPreviewWrap) photoPreviewWrap.style.display = 'flex';
+      scanBadge.style.display = 'inline-flex';
+      scanBadge.className = 'receipt-scan-badge is-scanning';
+      if (scanText) scanText.textContent = 'Reading receipt with AI...';
+      if (discountBadge) discountBadge.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      let csrf = '';
+      const csrfInput = form ? form.querySelector('input[name="csrfmiddlewaretoken"]') : null;
+      if (csrfInput) {
+        csrf = csrfInput.value;
+      } else {
+        const m = document.cookie.match(/csrftoken=([^;]+)/);
+        if (m) csrf = m[1];
+      }
+
+      try {
+        const res = await fetch('/api/scan-receipt/', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-CSRFToken': csrf,
+          },
+          signal: scanAbortController.signal,
+        });
+
+        const data = await res.json();
+
+        if (data && data.success) {
+          // 1. Total amount
+          if (data.total_amount !== null && data.total_amount !== undefined && !isNaN(data.total_amount)) {
+            rawExpr = String(Math.round(data.total_amount));
+            updateKeypadDisplay();
+            const amountBox = document.querySelector('.amount-edit-box');
+            if (amountBox) {
+              amountBox.classList.remove('pop-anim');
+              void amountBox.offsetWidth;
+              amountBox.classList.add('pop-anim');
+            }
+          }
+
+          // 2. Note
+          if (data.note) {
+            noteInput.value = data.note;
+            noteHidden.value = data.note;
+          }
+
+          // 3. Category matching
+          if (data.category_id && kindInput.value === 'expense') {
+            const catCell = document.querySelector(`.cat-cell[data-cat="${data.category_id}"]`) ||
+                            document.querySelector(`.cat-cell[data-name="${data.category_name}"]`);
+            if (catCell) {
+              selectCategory(catCell);
+            }
+          }
+
+          // 4. Wallet auto-selection
+          if (data.wallet_id && kindInput.value !== 'transfer') {
+            selectWalletById(data.wallet_id);
+          }
+
+          // 5. Discount savings badge
+          if (data.discount_amount && Number(data.discount_amount) > 0) {
+            if (discountText) {
+              discountText.textContent = 'Saved Rp' + Number(data.discount_amount).toLocaleString('id-ID');
+            }
+            if (discountBadge) {
+              discountBadge.style.display = 'inline-flex';
+            }
+          } else {
+            if (discountBadge) discountBadge.style.display = 'none';
+          }
+
+          // 6. Date matching
+          if (data.date) {
+            const [dPart, tPart] = data.date.split('T');
+            if (dPart) {
+              const [y, mo, day] = dPart.split('-').map(Number);
+              const [h, mi] = (tPart || '12:00').split(':').map(Number);
+              if (!isNaN(y) && !isNaN(mo) && !isNaN(day)) {
+                selDate = new Date(y, mo - 1, day, isNaN(h) ? selDate.getHours() : h, isNaN(mi) ? selDate.getMinutes() : mi);
+                dateHidden.value = formatLocalISO(selDate);
+                syncDateUI();
+              }
+            }
+          }
+
+          // Visual & sound feedback
+          const hasParsedData = Boolean(data.total_amount || data.merchant || data.note);
+          if (hasParsedData) {
+            scanBadge.className = 'receipt-scan-badge scan-success';
+            const formattedAmt = (data.total_amount !== null && data.total_amount !== undefined) ? ('Rp' + Number(data.total_amount).toLocaleString('id-ID')) : '';
+            let summary = '';
+            if (data.merchant && formattedAmt) {
+              summary = `${data.merchant} - ${formattedAmt}`;
+            } else if (data.merchant) {
+              summary = data.merchant;
+            } else if (formattedAmt) {
+              summary = `Scanned ${formattedAmt}`;
+            } else {
+              summary = 'Receipt scanned ✓';
+            }
+            if (scanText) scanText.textContent = summary;
+            if (window.wangPlaySound) window.wangPlaySound('success');
+          } else {
+            scanBadge.className = 'receipt-scan-badge scan-muted';
+            if (scanText) scanText.textContent = 'Photo attached (no receipt found)';
+          }
+
+          setTimeout(() => {
+            if (scanBadge && (scanBadge.classList.contains('scan-success') || scanBadge.classList.contains('scan-muted'))) {
+              scanBadge.style.display = 'none';
+            }
+          }, 4500);
+
+        } else {
+          scanBadge.className = 'receipt-scan-badge scan-error';
+          if (scanText) scanText.textContent = (data && data.error) ? data.error : 'Could not read receipt';
+          setTimeout(() => {
+            if (scanBadge && scanBadge.classList.contains('scan-error')) {
+              scanBadge.style.display = 'none';
+              if (currentReceiptFile && scanTriggerBtn && photoPreviewWrap && photoPreviewWrap.style.display !== 'none') {
+                scanTriggerBtn.style.display = 'inline-flex';
+              }
+            }
+          }, 4000);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          if (scanBadge) {
+            scanBadge.className = 'receipt-scan-badge scan-error';
+            if (scanText) scanText.textContent = 'Scan failed. Check connection.';
+            setTimeout(() => {
+              if (scanBadge && scanBadge.classList.contains('scan-error')) {
+                scanBadge.style.display = 'none';
+                if (currentReceiptFile && scanTriggerBtn && photoPreviewWrap && photoPreviewWrap.style.display !== 'none') {
+                  scanTriggerBtn.style.display = 'inline-flex';
+                }
+              }
+            }, 4000);
+          }
+        }
+      }
+    }
 
     if (imageInput && !imageInput.dataset.bound) {
       imageInput.dataset.bound = '1';
       imageInput.addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
         if (file) {
+          currentReceiptFile = file;
           if (imageClear) imageClear.value = '0';
           const reader = new FileReader();
           reader.onload = (re) => {
             if (photoPreviewImg) photoPreviewImg.src = re.target.result;
-            if (photoPreviewChip) photoPreviewChip.style.display = 'flex';
+            if (photoPreviewChip) photoPreviewChip.style.display = 'inline-flex';
+            if (scanTriggerBtn) scanTriggerBtn.style.display = 'inline-flex';
+            if (scanBadge) scanBadge.style.display = 'none';
+            if (discountBadge) discountBadge.style.display = 'none';
+            if (photoPreviewWrap) photoPreviewWrap.style.display = 'flex';
             if (photoAttachBtn) photoAttachBtn.classList.add('has-photo');
             if (window.wangPlaySound) window.wangPlaySound('tap');
+            if (typeof saveSheetDraft === 'function') saveSheetDraft(true);
           };
           reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    function dataURLtoFile(dataurl, filename) {
+      const arr = dataurl.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new File([u8arr], filename, { type: mime });
+    }
+
+    window.wangAttachCapturedPhoto = function(dataUrl) {
+      if (!dataUrl) return false;
+      try {
+        const file = dataURLtoFile(dataUrl, 'receipt_' + Date.now() + '.jpg');
+        currentReceiptFile = file;
+        if (imageInput && typeof DataTransfer !== 'undefined') {
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          imageInput.files = dt.files;
+        }
+        if (imageClear) imageClear.value = '0';
+        if (photoPreviewImg) photoPreviewImg.src = dataUrl;
+        if (photoPreviewChip) photoPreviewChip.style.display = 'inline-flex';
+        if (scanTriggerBtn) scanTriggerBtn.style.display = 'inline-flex';
+        if (scanBadge) scanBadge.style.display = 'none';
+        if (discountBadge) discountBadge.style.display = 'none';
+        if (photoPreviewWrap) photoPreviewWrap.style.display = 'flex';
+        if (photoAttachBtn) photoAttachBtn.classList.add('has-photo');
+
+        if (window.openSheet) {
+          window.openSheet();
+        }
+        if (typeof saveSheetDraft === 'function') saveSheetDraft(true);
+        triggerReceiptScan(file);
+        return true;
+      } catch (err) {
+        console.error('Error attaching photo:', err);
+        return false;
+      }
+    };
+
+    if (scanTriggerBtn && !scanTriggerBtn.dataset.bound) {
+      scanTriggerBtn.dataset.bound = '1';
+      scanTriggerBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (currentReceiptFile) {
+          if (window.wangPlaySound) window.wangPlaySound('tap');
+          triggerReceiptScan(currentReceiptFile);
         }
       });
     }
@@ -990,12 +1347,21 @@
       photoRemoveBtn.dataset.bound = '1';
       photoRemoveBtn.addEventListener('click', (e) => {
         e.preventDefault();
+        if (scanAbortController) {
+          try { scanAbortController.abort(); } catch(e) {}
+        }
+        currentReceiptFile = null;
         if (imageInput) imageInput.value = '';
         if (imageClear) imageClear.value = '1';
         if (photoPreviewChip) photoPreviewChip.style.display = 'none';
+        if (scanTriggerBtn) scanTriggerBtn.style.display = 'none';
+        if (scanBadge) scanBadge.style.display = 'none';
+        if (discountBadge) discountBadge.style.display = 'none';
+        if (photoPreviewWrap) photoPreviewWrap.style.display = 'none';
         if (photoPreviewImg) photoPreviewImg.src = '';
         if (photoAttachBtn) photoAttachBtn.classList.remove('has-photo');
         if (window.wangPlaySound) window.wangPlaySound('tap');
+        if (typeof saveSheetDraft === 'function') saveSheetDraft();
       });
     }
   })();
@@ -1054,13 +1420,15 @@
     syncDateUI();
 
     // 5. Category (expense / income)
-    if (k !== 'transfer' && data.cat){
-      const cell = document.querySelector(`.cat-cell[data-cat="${data.cat}"]`);
+    if (k !== 'transfer'){
+      let cell = data.cat ? document.querySelector(`.cat-cell[data-cat="${data.cat}"]`) : null;
       if (cell){
         document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
         cell.classList.add('selected');
         selectedCat = cell;
         catHidden.value = data.cat;
+      } else {
+        setDefaultCategory(k);
       }
     }
     const amountLabel = document.getElementById('sheet-amount-label');
@@ -1072,18 +1440,12 @@
 
     // 6. Wallets
     if (k !== 'transfer' && data.wallet){
-      walletId = data.wallet;
-      walletHidden.value = data.wallet;
-      const pItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${data.wallet}"]`) : null;
-      if (pItem){
-        walletChipIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(pItem.dataset.icon) : ('#icon-' + pItem.dataset.icon)) + '"></use></svg>';
-        walletChipIcon.style.background = pItem.dataset.color + '20';
-        walletChipIcon.style.color = pItem.dataset.color;
-        walletChipName.textContent = pItem.querySelector('.picker-name')?.textContent || 'Wallet';
-        pickerList.querySelectorAll('.picker-item').forEach(i => i.classList.remove('selected'));
-        pItem.classList.add('selected');
-      } else if (data.walletName) {
-        walletChipName.textContent = data.walletName;
+      if (!selectWalletById(data.wallet)){
+        walletId = data.wallet;
+        if (walletHidden) walletHidden.value = data.wallet;
+        if (data.walletName && walletChipName) {
+          walletChipName.textContent = data.walletName;
+        }
       }
     } else if (k === 'transfer'){
       if (data.from){
@@ -1128,12 +1490,14 @@
     const imageClear = document.getElementById('sheet-image-clear');
     if (imageClear) imageClear.value = '0';
     if (data.image){
+      const pWrap = document.getElementById('photo-preview-wrap');
       const pChip = document.getElementById('photo-preview-chip');
       const pImg = document.getElementById('photo-preview-img');
       const pBtn = document.getElementById('photo-attach-btn');
+      if (pWrap) pWrap.style.display = 'flex';
       if (pChip && pImg){
         pImg.src = data.image;
-        pChip.style.display = 'flex';
+        pChip.style.display = 'inline-flex';
         if (pBtn) pBtn.classList.add('has-photo');
       }
     }
@@ -1349,6 +1713,13 @@
 
   /* submit */
   form.addEventListener('submit', function(e){
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      showSheetError("You're offline — please reconnect to save");
+      if (window.showToast) window.showToast("You're offline — reconnect to save changes", 'warning', 3500);
+      if (window.wangPlaySound) window.wangPlaySound('knock');
+      e.preventDefault();
+      return;
+    }
     commitMathEvaluation();
     const kind = kindInput.value;
     const amt = parseFloat(amountHidden.value);
@@ -1377,6 +1748,7 @@
       }
       catHidden.value = selectedCat.dataset.cat;
       walletHidden.value = walletId;
+      try { localStorage.setItem('wang-last-wallet', walletId); } catch(e) {}
       fromWalletHidden.value = '';
       toWalletHidden.value = '';
     } else {
@@ -1396,12 +1768,100 @@
       fromWalletHidden.value = fromId;
       toWalletHidden.value = toId;
     }
+    clearSheetDraft();
     hideSheetError();
   });
 
+  function saveSheetDraft(forceOpen) {
+    try {
+      const addSheet = document.getElementById('add-sheet');
+      const isOpen = forceOpen || (addSheet && addSheet.classList.contains('open'));
+      if (!isOpen) return;
+      const draft = {
+        kind: kindInput ? kindInput.value : 'expense',
+        rawExpr: rawExpr || '0',
+        note: noteInput ? noteInput.value : '',
+        catId: selectedCat ? selectedCat.dataset.cat : '',
+        walletId: walletId || '',
+        fromId: fromName?.dataset?.id || '',
+        toId: toName?.dataset?.id || '',
+      };
+      sessionStorage.setItem('wang_sheet_draft', JSON.stringify(draft));
+      sessionStorage.setItem('wang_sheet_is_open', '1');
+    } catch(e) {}
+  }
+
+  function clearSheetDraft() {
+    try {
+      sessionStorage.removeItem('wang_sheet_draft');
+      sessionStorage.removeItem('wang_sheet_is_open');
+    } catch(e) {}
+  }
+  window.wangClearSheetDraft = clearSheetDraft;
+  window.wangSaveSheetDraft = saveSheetDraft;
+
+  function restoreSheetDraft() {
+    try {
+      const wasOpen = sessionStorage.getItem('wang_sheet_is_open') === '1';
+      const raw = sessionStorage.getItem('wang_sheet_draft');
+      if (!wasOpen && !raw) return;
+
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.kind) {
+          const tab = document.querySelector(`.sheet-tab[data-kind="${draft.kind}"]`);
+          if (tab) tab.click();
+        }
+        if (draft.rawExpr && draft.rawExpr !== '0') {
+          rawExpr = draft.rawExpr;
+          updateKeypadDisplay();
+        }
+        if (draft.note) {
+          noteInput.value = draft.note;
+          noteHidden.value = draft.note;
+        }
+        if (draft.catId) {
+          const catCell = document.querySelector(`.cat-cell[data-cat="${draft.catId}"]`);
+          if (catCell) selectCategory(catCell);
+        }
+        if (draft.walletId) {
+          selectWalletById(draft.walletId);
+        }
+        if (draft.fromId) setTransferFromById(draft.fromId);
+        if (draft.toId) setTransferToById(draft.toId);
+      }
+
+      if (wasOpen && window.openSheet) {
+        window.openSheet();
+      }
+    } catch(e) {}
+  }
+
+  noteInput?.addEventListener('input', () => saveSheetDraft());
+  document.getElementById('photo-attach-btn')?.addEventListener('click', () => saveSheetDraft(true));
+
   document.getElementById('sheet-cancel')?.addEventListener('click', () => {
+    clearSheetDraft();
     resetSheet();
     if (window.closeSheet) window.closeSheet();
   });
+
+  // Initialize default sheet state (default to "Food" category, today's date, and primary wallet)
+  resetSheet();
+  restoreSheetDraft();
+
+  // Check if AndroidBridge has a pending captured photo from process restart
+  if (window.AndroidBridge && typeof window.AndroidBridge.getPendingCapturedPhoto === 'function') {
+    try {
+      const pendingPhoto = window.AndroidBridge.getPendingCapturedPhoto();
+      if (pendingPhoto && pendingPhoto.length > 50) {
+        setTimeout(() => {
+          if (window.wangAttachCapturedPhoto) {
+            window.wangAttachCapturedPhoto(pendingPhoto);
+          }
+        }, 200);
+      }
+    } catch(e) {}
+  }
 })();
 </script>

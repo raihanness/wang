@@ -1,7 +1,7 @@
 // Wang — Service Worker (sw.js)
 // Specialized PWA caching for instant mobile startup & offline resilience
 
-const STATIC_CACHE = 'wang-static-v6';
+const STATIC_CACHE = 'wang-static-v7';
 const FONT_CACHE = 'wang-fonts-v2';
 const PAGE_CACHE = 'wang-pages-v1';
 

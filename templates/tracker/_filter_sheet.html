@@ -14,18 +14,27 @@
     <div class="filter-section">
       <div class="filter-section-title">Transaction Type</div>
       <div class="filter-chips-wrap" id="filter-type-group">
-        <button type="button" class="filter-choice-chip active" data-type="">
-          <span>All Types</span>
-        </button>
-        <button type="button" class="filter-choice-chip" data-type="expense">
+        <button type="button" class="filter-choice-chip" data-type="expense" data-state="neutral">
+          <span class="filter-chip-status" aria-hidden="true">
+            <svg class="icon filter-chip-check"><use href="#icon-check"></use></svg>
+            <svg class="icon filter-chip-close"><use href="#icon-close"></use></svg>
+          </span>
           <svg class="icon" style="font-size:14px;color:var(--red)"><use href="#icon-trending_down"></use></svg>
           <span>Expense</span>
         </button>
-        <button type="button" class="filter-choice-chip" data-type="income">
+        <button type="button" class="filter-choice-chip" data-type="income" data-state="neutral">
+          <span class="filter-chip-status" aria-hidden="true">
+            <svg class="icon filter-chip-check"><use href="#icon-check"></use></svg>
+            <svg class="icon filter-chip-close"><use href="#icon-close"></use></svg>
+          </span>
           <svg class="icon" style="font-size:14px;color:var(--green)"><use href="#icon-trending_up"></use></svg>
           <span>Income</span>
         </button>
-        <button type="button" class="filter-choice-chip" data-type="transfer">
+        <button type="button" class="filter-choice-chip" data-type="transfer" data-state="neutral">
+          <span class="filter-chip-status" aria-hidden="true">
+            <svg class="icon filter-chip-check"><use href="#icon-check"></use></svg>
+            <svg class="icon filter-chip-close"><use href="#icon-close"></use></svg>
+          </span>
           <svg class="icon" style="font-size:14px;color:var(--lilac)"><use href="#icon-send_money"></use></svg>
           <span>Transfer</span>
         </button>
@@ -36,11 +45,12 @@
     <div class="filter-section">
       <div class="filter-section-title">Account / Wallet</div>
       <div class="filter-chips-wrap" id="filter-wallet-group">
-        <button type="button" class="filter-choice-chip active" data-wallet="">
-          <span>All Accounts</span>
-        </button>
         {% for w in wallets %}
-          <button type="button" class="filter-choice-chip" data-wallet="{{ w.id }}">
+          <button type="button" class="filter-choice-chip" data-wallet="{{ w.id }}" data-state="neutral">
+            <span class="filter-chip-status" aria-hidden="true">
+              <svg class="icon filter-chip-check"><use href="#icon-check"></use></svg>
+              <svg class="icon filter-chip-close"><use href="#icon-close"></use></svg>
+            </span>
             <svg class="icon" style="font-size:14px;color:{{ w.color }}"><use href="#icon-{{ w.icon }}"></use></svg>
             <span>{{ w.name }}</span>
           </button>
@@ -52,11 +62,12 @@
     <div class="filter-section">
       <div class="filter-section-title">Category</div>
       <div class="filter-chips-wrap filter-cats-wrap" id="filter-cat-group">
-        <button type="button" class="filter-choice-chip active" data-category="">
-          <span>All Categories</span>
-        </button>
         {% for c in all_cats %}
-          <button type="button" class="filter-choice-chip" data-category="{{ c.id }}" data-kind="{{ c.kind }}">
+          <button type="button" class="filter-choice-chip" data-category="{{ c.id }}" data-kind="{{ c.kind }}" data-state="neutral">
+            <span class="filter-chip-status" aria-hidden="true">
+              <svg class="icon filter-chip-check"><use href="#icon-check"></use></svg>
+              <svg class="icon filter-chip-close"><use href="#icon-close"></use></svg>
+            </span>
             <svg class="icon" style="font-size:14px;color:{{ c.color }}"><use href="#icon-{{ c.icon }}"></use></svg>
             <span>{{ c.name }}</span>
           </button>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block page_name %}debt_form{% endblock %}
+{% block title %}{{ title }} — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h2>{{ title }}</h2>
+</div>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      <div>
+        <label for="{{ form.kind.id_for_label }}">Debt Type</label>
+        {{ form.kind }}
+      </div>
+      <div>
+        <label for="{{ form.person_name.id_for_label }}">Person's Name</label>
+        {{ form.person_name }}
+      </div>
+      <div>
+        <label for="{{ form.amount.id_for_label }}">Amount (Rp)</label>
+        {{ form.amount }}
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top:14px">
+      <div>
+        <label for="{{ form.due_date.id_for_label }}">Due Date (Optional)</label>
+        {{ form.due_date }}
+      </div>
+      <div>
+        <label for="{{ form.wallet.id_for_label }}" id="debt-form-wallet-label">Funded Account (Optional)</label>
+        {{ form.wallet }}
+        <!-- <small class="muted" id="debt-form-wallet-hint" style="display:block;margin-top:3px;font-size:11px">
+          Selecting an account will sync your balance. Leave blank for pure ledger.
+        </small> -->
+      </div>
+    </div>
+
+    <div class="form-field" style="margin-top:14px">
+      <label class="form-label" for="{{ form.note.id_for_label }}">Note/Context (Optional)</label>
+      {{ form.note }}
+    </div>
+
+    {% if form.errors %}
+      <div class="msg" style="margin-top:14px">{{ form.errors }}</div>
+    {% endif %}
+
+    <div class="sheet-actions" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">Save Debt</button>
+      <a class="btn btn-ghost" href="{% url 'debt_list' %}" style="text-align: center;">Cancel</a>
+      {% if is_edit and debt_pk %}
+        <button type="button" class="btn btn-delete js-confirm-delete" style="text-align: center;"
+                data-delete-url="{% url 'debt_delete' debt_pk %}"
+                data-delete-title="Delete Debt Record?"
+                data-delete-desc="Are you sure you want to delete this debt record for “{{ form.person_name.value|default:'this person' }}”? Linked repayment transactions will remain in your history."
+                data-delete-preview="{{ form.person_name.value|default:'Debt' }} · Rp{{ form.amount.value|default:'' }}"
+                aria-label="Delete debt" title="Delete debt">
+          <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+        </button>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<script>
+(function(){
+  const kindSelect = document.getElementById('{{ form.kind.id_for_label }}');
+  const walletHint = document.getElementById('debt-form-wallet-hint');
+  const walletLabel = document.getElementById('debt-form-wallet-label');
+  function updateHint() {
+    if (!kindSelect || !walletHint) return;
+    const isLent = kindSelect.value === 'lent';
+    if (walletLabel) {
+      walletLabel.textContent = isLent ? 'Lending Account (Optional)' : 'Receiving Account (Optional)';
+    }
+    walletHint.textContent = isLent
+      ? 'Selecting an account deducts money (-Expense) as cash/funds lent.'
+      : 'Selecting an account deposits money (+Income) as borrowed funds received.';
+  }
+  if (kindSelect) {
+    kindSelect.addEventListener('change', updateHint);
+    updateHint();
+  }
+})();
+</script>
+{% endblock %}

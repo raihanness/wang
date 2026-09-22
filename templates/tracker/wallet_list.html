@@ -8,11 +8,39 @@
 </div>
 
 <div class="balance-card">
-  <small>Total balance</small>
-  <div class="amount">Rp{{ total_balance|floatformat:0|intcomma }}</div>
+  <div class="hero-card-head" style="margin-bottom:6px">
+    <div class="hero-head-left">
+      <div class="hero-toggle-pill" id="hero-mode-toggle" role="tablist" aria-label="Balance mode switcher">
+        <button type="button" class="hero-toggle-btn active" id="hero-btn-spendable" data-mode="spendable" role="tab" aria-selected="true" title="Spendables (Cash, Bank, E-Wallet)">
+          <svg class="icon"><use href="#icon-payments"></use></svg> Spendables
+        </button>
+        <button type="button" class="hero-toggle-btn" id="hero-btn-savings" data-mode="savings" role="tab" aria-selected="false" title="Savings">
+          <svg class="icon"><use href="#icon-savings"></use></svg> Savings
+        </button>
+        <button type="button" class="hero-toggle-btn" id="hero-btn-networth" data-mode="networth" role="tab" aria-selected="false" title="Net Worth (Spendables + Savings)">
+          <svg class="icon"><use href="#icon-trending_up"></use></svg> Net
+        </button>
+      </div>
+    </div>
+    <button type="button" class="hero-privacy-toggle" id="hero-privacy-toggle" title="Hide/show balance" aria-label="Toggle balance visibility">
+      <svg class="icon" id="hero-privacy-icon"><use href="#icon-visibility"></use></svg>
+    </button>
+  </div>
+
+  <div class="amount hero-balance-amount" id="hero-balance-amount"
+       data-raw-spendable="Rp{{ spendable_balance|floatformat:0|intcomma }}"
+       data-raw-savings="Rp{{ savings_balance|floatformat:0|intcomma }}"
+       data-raw-networth="Rp{{ net_worth|floatformat:0|intcomma }}"
+       data-raw-balance="Rp{{ spendable_balance|floatformat:0|intcomma }}"
+       data-mode="spendable">
+    <span class="currency">Rp</span><span class="value">{{ spendable_balance|floatformat:0|intcomma }}</span>
+  </div>
+
   <div class="balance-trend {% if balance_change >= 0 %}trend-up{% else %}trend-down{% endif %}">
     <svg class="icon" style="font-size:15px"><use href="#icon-{% if balance_change >= 0 %}trending_up{% else %}trending_down{% endif %}"></use></svg>
-    {% if balance_change >= 0 %}+{% endif %}Rp{{ balance_change|floatformat:0|intcomma }}
+    <span id="hero-cashflow-val" data-raw-cashflow="{% if balance_change >= 0 %}+{% endif %}Rp{{ balance_change|floatformat:0|intcomma }}">
+      {% if balance_change >= 0 %}+{% endif %}Rp{{ balance_change|floatformat:0|intcomma }}
+    </span>
     <span class="muted" style="font-weight:600">this month</span>
   </div>
   <div class="balance-chips">
@@ -64,9 +92,15 @@
              aria-label="{% if w.include_in_total %}Exclude from total balance{% else %}Include in total balance{% endif %}">
             <svg class="icon" style="font-size:16px"><use href="#icon-{% if w.include_in_total %}visibility{% else %}visibility_off{% endif %}"></use></svg>
           </a>
-          <a class="icon-btn w-action-btn w-action-delete" href="{% url 'wallet_delete' w.pk %}" aria-label="Delete {{ w.name }}" title="Delete {{ w.name }}">
+          <button type="button" class="icon-btn w-action-btn w-action-delete js-confirm-delete"
+                  data-delete-url="{% url 'wallet_delete' w.pk %}"
+                  data-delete-title="Delete Wallet?"
+                  data-delete-desc="Are you sure you want to delete “{{ w.name }}”? All transactions associated with this wallet will also be permanently deleted."
+                  data-delete-preview="{{ w.name }} · Rp{{ w.current_balance|floatformat:0|intcomma }}"
+                  data-delete-icon="{{ w.icon }}"
+                  aria-label="Delete {{ w.name }}" title="Delete {{ w.name }}">
             <svg class="icon" style="font-size:16px"><use href="#icon-delete"></use></svg>
-          </a>
+          </button>
         </div>
       </div>
 
@@ -107,6 +141,8 @@
     const toggleBtn = document.getElementById('btn-reorder-wallets');
     const grid = document.querySelector('.wallet-grid');
     if (!toggleBtn || !grid) return;
+    if (grid.dataset.reorderBound) return;
+    grid.dataset.reorderBound = 'true';
 
     let isReordering = false;
 
@@ -151,7 +187,8 @@
     }
 
     // Toggle button handler
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       isReordering = !isReordering;
       grid.classList.toggle('is-reordering', isReordering);
       toggleBtn.classList.toggle('active', isReordering);
@@ -160,7 +197,7 @@
 
       const cards = getCards();
       cards.forEach(card => {
-        card.setAttribute('draggable', isReordering ? 'true' : 'false');
+        card.removeAttribute('draggable');
       });
 
       if (isReordering) {
@@ -170,6 +207,7 @@
           if (use) use.setAttribute('href', '#icon-check');
         }
         updateCardBadges();
+        if (window.wangPlaySound) window.wangPlaySound('tap');
       } else {
         if (label) label.textContent = 'Reorder';
         if (icon) {
@@ -177,6 +215,7 @@
           if (use) use.setAttribute('href', '#icon-swap_vert');
         }
         saveOrder();
+        if (window.wangPlaySound) window.wangPlaySound('pop');
       }
     });
 
@@ -186,6 +225,8 @@
       const prevBtn = e.target.closest('.w-arrow-prev');
       const nextBtn = e.target.closest('.w-arrow-next');
       if (!prevBtn && !nextBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
 
       const card = e.target.closest('.w-grid-card');
       if (!card) return;
@@ -193,87 +234,109 @@
       if (prevBtn) {
         const prevCard = card.previousElementSibling;
         if (prevCard && prevCard.classList.contains('w-grid-card')) {
-          grid.insertBefore(card, prevCard);
+          prevCard.before(card);
           updateCardBadges();
           saveOrder();
+          if (window.wangPlaySound) window.wangPlaySound('tap');
         }
       } else if (nextBtn) {
         const nextCard = card.nextElementSibling;
         if (nextCard && nextCard.classList.contains('w-grid-card')) {
-          grid.insertBefore(nextCard, card);
+          nextCard.after(card);
           updateCardBadges();
           saveOrder();
+          if (window.wangPlaySound) window.wangPlaySound('tap');
         }
       }
     });
 
-    // Drag and drop handlers
-    let draggedCard = null;
+    // Pointer-based Drag and Drop Reordering (Zero layout thrashing, zero browser freeze)
+    let activeDragCard = null;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
 
-    grid.addEventListener('dragstart', (e) => {
-      if (!isReordering) {
-        e.preventDefault();
-        return;
-      }
+    function onPointerDown(e) {
+      if (!isReordering) return;
+      if (e.target.closest('.w-arrow-btn') || e.target.closest('.w-reorder-arrows')) return;
+
       const card = e.target.closest('.w-grid-card');
       if (!card) return;
-      draggedCard = card;
-      card.classList.add('dragging');
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', card.dataset.id);
-      }
-    });
 
-    grid.addEventListener('dragend', () => {
-      if (draggedCard) {
-        draggedCard.classList.remove('dragging');
-        draggedCard = null;
-      }
-      grid.querySelectorAll('.w-grid-card').forEach(c => c.classList.remove('drag-over'));
-      updateCardBadges();
-      saveOrder();
-    });
+      activeDragCard = card;
+      isDragging = false;
+      startX = e.clientX;
+      startY = e.clientY;
+    }
 
-    grid.addEventListener('dragover', (e) => {
-      if (!isReordering || !draggedCard) return;
+    function onPointerMove(e) {
+      if (!isReordering || !activeDragCard) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (!isDragging && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        isDragging = true;
+        activeDragCard.classList.add('dragging');
+        try {
+          activeDragCard.setPointerCapture(e.pointerId);
+        } catch (err) {}
+      }
+
+      if (!isDragging) return;
       e.preventDefault();
-      const targetCard = e.target.closest('.w-grid-card');
-      if (targetCard && targetCard !== draggedCard) {
-        targetCard.classList.add('drag-over');
-      }
-    });
 
-    grid.addEventListener('dragleave', (e) => {
-      const targetCard = e.target.closest('.w-grid-card');
-      if (targetCard) {
-        targetCard.classList.remove('drag-over');
-      }
-    });
+      activeDragCard.style.visibility = 'hidden';
+      const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+      activeDragCard.style.visibility = '';
 
-    grid.addEventListener('drop', (e) => {
-      if (!isReordering || !draggedCard) return;
-      e.preventDefault();
-      const targetCard = e.target.closest('.w-grid-card');
-      if (targetCard && targetCard !== draggedCard) {
-        targetCard.classList.remove('drag-over');
+      const targetCard = elemBelow?.closest('.w-grid-card');
+      if (targetCard && targetCard !== activeDragCard && targetCard.parentNode === grid) {
         const cards = getCards();
-        const draggedIndex = cards.indexOf(draggedCard);
-        const targetIndex = cards.indexOf(targetCard);
-        if (draggedIndex < targetIndex) {
-          grid.insertBefore(draggedCard, targetCard.nextSibling);
-        } else {
-          grid.insertBefore(draggedCard, targetCard);
+        const fromIdx = cards.indexOf(activeDragCard);
+        const toIdx = cards.indexOf(targetCard);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          if (fromIdx < toIdx) {
+            targetCard.after(activeDragCard);
+          } else {
+            targetCard.before(activeDragCard);
+          }
+          updateCardBadges();
+          if (window.wangPlaySound) window.wangPlaySound('tap');
         }
-        updateCardBadges();
-        saveOrder();
       }
-    });
+    }
+
+    function onPointerUp(e) {
+      if (activeDragCard) {
+        if (isDragging) {
+          activeDragCard.classList.remove('dragging');
+          updateCardBadges();
+          saveOrder();
+          if (window.wangPlaySound) window.wangPlaySound('pop');
+        }
+        try {
+          if (activeDragCard.hasPointerCapture(e.pointerId)) {
+            activeDragCard.releasePointerCapture(e.pointerId);
+          }
+        } catch (err) {}
+        activeDragCard = null;
+        isDragging = false;
+      }
+    }
+
+    grid.addEventListener('pointerdown', onPointerDown);
+    grid.addEventListener('pointermove', onPointerMove);
+    grid.addEventListener('pointerup', onPointerUp);
+    grid.addEventListener('pointercancel', onPointerUp);
   }
 
+  if (!window.wangWalletReorderInit) {
+    window.wangWalletReorderInit = true;
+    document.addEventListener('turbo:load', initWalletReordering);
+    document.addEventListener('turbo:render', initWalletReordering);
+  }
   initWalletReordering();
-  document.addEventListener('turbo:render', initWalletReordering);
-  document.addEventListener('turbo:load', initWalletReordering);
 })();
 </script>
 {% endblock %}

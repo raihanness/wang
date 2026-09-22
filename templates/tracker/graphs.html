@@ -38,7 +38,7 @@
 
       <div class="year-stepper-label">
         <svg class="icon" style="font-size:18px;color:var(--primary)"><use href="#icon-calendar_today"></use></svg>
-        <strong>{{ sel_year }} Year-in-Review</strong>
+        <span>{{ sel_year }} Year-in-Review</span>
       </div>
 
       {% if next_year %}
@@ -219,7 +219,7 @@
     </div>
 
     <div class="card" style="margin-top:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;align-items:start;">
         <div>
           <small class="muted" style="font-weight:700;letter-spacing:.4px;text-transform:uppercase">Total {{ kind|title }}</small>
           <div style="font-size:22px;font-weight:800;letter-spacing:-.3px">Rp{{ total|floatformat:0|intcomma }}</div>
@@ -233,7 +233,7 @@
         </div>
 
         <!-- Spending Insights Grid -->
-        <div class="metrics-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;margin-bottom:8px">
+        <div class="metrics-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;margin-bottom:12px">
           <div class="metric-card">
             <small class="muted">Daily Avg</small>
             <strong>Rp{{ daily_avg|floatformat:0|intcomma }}</strong>
@@ -250,7 +250,7 @@
             <span class="metric-sub">{% if peak_info %}{{ peak_info.date }}{% else %}no data{% endif %}</span>
           </div>
         </div>
-        <div class="divider"></div>
+        <!-- <div class="divider"></div> -->
         <div id="cat-legend" style="display:grid;gap:8px"></div>
       {% else %}
         <div class="card muted center" style="box-shadow:none;border:1px dashed var(--line);background:var(--surface-muted);color:var(--muted);margin-top:10px">No {{ kind }} recorded for {{ sel_month|date:"F Y" }}.</div>
@@ -260,7 +260,7 @@
 
     <!-- 6-Month Dual Cashflow & Trend Chart -->
     <div class="card" style="margin-top:12px;margin-bottom:14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;align-items: end;">
         <div>
           <h3 style="margin:0;font-size:15px">6-Month Cashflow</h3>
           <small class="muted" style="font-size:11px">Income vs. Expense comparison</small>
@@ -275,7 +275,7 @@
         <canvas id="trendChart"></canvas>
       </div>
 
-      <div class="divider" style="margin:10px 0"></div>
+      <!-- <div class="divider" style="margin:10px 0"></div> -->
       <div class="cashflow-summary-strip">
         <div class="cashflow-stat">
           <span class="muted">Avg Income</span>
@@ -318,6 +318,7 @@
     {{ pie_json|json_script:"pie-data" }}
     {{ trend_json|json_script:"trend-data" }}
     {{ net_worth_trend_json|json_script:"net-worth-data" }}
+    {{ cat_tx_json|json_script:"cat-tx-data" }}
   {% endif %}
 
   <script data-turbo-eval="always">

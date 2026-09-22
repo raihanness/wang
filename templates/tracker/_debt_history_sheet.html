@@ -1,0 +1,31 @@
+{% load humanize %}
+<!-- Debt Repayment History Bottom Sheet Modal -->
+<div class="sheet-overlay" id="debt-history-overlay"></div>
+<div class="sheet debt-history-sheet" id="debt-history-sheet" role="dialog" aria-modal="true" aria-label="Repayment history">
+  <div class="sheet-head" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px;">
+    <div style="font-weight:800;font-size:16px;color:var(--ink)" id="debt-history-title">Payment History</div>
+    <button type="button" class="btn btn-sm sheet-close-btn" id="debt-history-close" aria-label="Close modal"><svg class="icon"><use href="#icon-close"></use></svg></button>
+  </div>
+
+  <div style="padding:4px 0 10px">
+    <div style="margin-bottom:12px;background:var(--surface-chip);padding:10px 12px;border-radius:12px">
+      <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px" id="debt-history-person">Person</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px" class="muted">
+        <span id="debt-history-rem">Remaining: Rp0</span>
+        <span id="debt-history-total">Total: Rp0</span>
+      </div>
+    </div>
+
+    <div class="debt-payments-head" style="margin-bottom:8px">
+      <small style="font-weight:700;text-transform:uppercase;letter-spacing:.3px">Recorded Payments</small>
+    </div>
+
+    <div id="debt-history-list" class="debt-payments-list" style="overflow-y:auto;max-height:55vh;display:flex;flex-direction:column;gap:8px">
+      <!-- Injected dynamically from card data -->
+    </div>
+
+    <div class="sheet-actions" style="margin-top:16px">
+      <button type="button" class="btn btn-ghost" id="debt-history-done" style="flex:1">Done</button>
+    </div>
+  </div>
+</div>

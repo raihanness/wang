@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block page_name %}more{% endblock %}
+{% block title %}More — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h2><span class="title-script">M</span>ore</h2>
+</div>
+
+<!-- Profile Hero Card -->
+<a href="{% url 'profile_edit' %}" class="card more-profile-card" data-turbo-preload aria-label="Edit Profile">
+  <div class="more-avatar-wrap">
+    {% if profile.avatar %}
+      <img src="{{ profile.avatar.url }}" alt="{{ profile.get_display_name }}" class="more-avatar-img">
+    {% else %}
+      <div class="more-avatar-placeholder">
+        <!-- <span>{{ profile.get_initials }}</span> -->
+      </div>
+    {% endif %}
+    <!-- <span class="more-avatar-edit-badge" aria-hidden="true">
+      <svg class="icon"><use href="#icon-edit"></use></svg>
+    </span> -->
+  </div>
+  <div class="more-profile-info">
+    <div class="more-profile-title-row">
+      <strong class="more-profile-name">{{ profile.get_display_name }}</strong>
+      <span class="muted">@{{ request.user.username }}</span>
+      <!-- <span class="more-profile-tag">Edit</span> -->
+    </div>
+    <div class="more-profile-sub">
+      {% if profile.bio %}
+        <span class="more-profile-bio">{{ profile.bio }}</span>
+      {% else %}
+        <span class="muted">Joined {{ request.user.date_joined|date:"M Y" }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="more-profile-arrow">
+    <svg class="icon"><use href="#icon-chevron_right"></use></svg>
+  </div>
+</a>
+
+<!-- Group 1: Finance & Management -->
+<div class="more-group">
+  <div class="more-group-title">Finance &amp; Management</div>
+  <div class="card more-card">
+    <!-- Categories -->
+    <a href="{% url 'category_list' %}" class="more-row" data-turbo-preload>
+      <div class="more-icon-box" style="background:rgba(165, 166, 246, 0.18);color:var(--lilac)">
+        <svg class="icon"><use href="#icon-grid_view"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Categories</strong>
+        <!-- <small class="muted">Income &amp; expenses categories</small> -->
+        <small class="muted">{{ categories_count }} total categories</small>
+      </div>
+      <div class="more-badge-wrap">
+        <!-- <span class="badge">{{ categories_count }}</span> -->
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </a>
+
+    <!-- Recurring Payments -->
+    <a href="{% url 'subscription_list' %}" class="more-row" data-turbo-preload>
+      <div class="more-icon-box" style="background:rgba(108, 108, 224, 0.15);color:#6C6CE0">
+        <svg class="icon"><use href="#icon-event_repeat"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Recurring Payments</strong>
+        <!-- <small class="muted">Bills, rent &amp; memberships</small> -->
+        <small class="muted">{% if active_subs_count > 0 %}{{ active_subs_count }} active{% else %}0 active{% endif %}</small>
+      </div>
+      <div class="more-badge-wrap">
+        <!-- {% if active_subs_count %}<span class="badge" style="color:#6C6CE0">{{ active_subs_count }} active</span>{% endif %} -->
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </a>
+
+    <!-- Debts & Loans -->
+    <a href="{% url 'debt_list' %}" class="more-row" data-turbo-preload>
+      <div class="more-icon-box" style="background:rgba(255, 133, 89, 0.18);color:var(--coral)">
+        <svg class="icon"><use href="#icon-handshake"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Debts &amp; Loans</strong>
+        <!-- <small class="muted">Track lent &amp; borrowed money</small> -->
+        <small class="muted">{% if active_debts_count > 0 %}{{ active_debts_count }} open{% else %}0 open{% endif %}</small>
+      </div>
+      <div class="more-badge-wrap">
+        <!-- {% if active_debts_count %}<span class="badge" style="color:var(--coral)">{{ active_debts_count }} open</span>{% endif %} -->
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </a>
+
+    <!-- Daily Spending Target -->
+    <div class="more-row" id="budget-edit-trigger" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(42, 181, 115, 0.15);color:var(--green)">
+        <svg class="icon"><use href="#icon-pie_chart"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Daily Spending Limit</strong>
+        <small class="muted">
+          {% if overall_budget and overall_budget.amount > 0 %}
+            Rp{{ overall_budget.amount|floatformat:0|intcomma }}/day
+          {% else %}
+            Not yet set
+          {% endif %}
+        </small>
+      </div>
+      <div class="more-badge-wrap">
+        <!-- <span class="badge">{% if overall_budget and overall_budget.amount > 0 %}Active{% else %}Set{% endif %}</span> -->
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Group 2: Data & Tools -->
+<div class="more-group">
+  <div class="more-group-title">Data &amp; Backup</div>
+  <div class="card more-card">
+    <a href="{% url 'export_csv' %}?all=1" class="more-row js-export-csv" data-turbo="false" download title="Download all transactions as CSV">
+      <div class="more-icon-box" style="background:rgba(42, 181, 115, 0.15);color:var(--green)">
+        <svg class="icon"><use href="#icon-table_view"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Export Data to CSV</strong>
+        <!-- <small class="muted">Excel UTF-8 BOM compatible backup</small> -->
+        <small class="muted">{{ total_tx_count }} logs</small> 
+      </div>
+      <div class="more-badge-wrap">
+        <!-- <span class="badge">{{ total_tx_count }} logs</span> -->
+        <svg class="icon more-arrow"><use href="#icon-file_download"></use></svg>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Group 3: Preferences & System -->
+<div class="more-group">
+  <div class="more-group-title">Preferences &amp; System</div>
+  <div class="card more-card">
+    <!-- Theme Switcher -->
+    <div class="more-row js-theme-toggle" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(247, 208, 112, 0.22);color:#D4981E">
+        <svg class="icon"><use href="#icon-dark_mode"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Appearance</strong>
+        <small class="muted">Toggle light/dark theme</small>
+      </div>
+      <div class="more-badge-wrap">
+        <!-- <span class="badge">Switch</span> -->
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </div>
+
+    <!-- Sound Effects Toggle -->
+    <div class="more-row js-sound-toggle" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(165, 166, 246, 0.18);color:var(--lilac)">
+        <svg class="icon"><use href="#icon-volume_up"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Toggle Sound Effects</strong>
+        <small class="muted">Audio on taps</small>
+      </div>
+      <div class="more-badge-wrap">
+        <!-- <span class="badge">Toggle</span> -->
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </div>
+
+    <!-- Log Out -->
+    <form method="post" action="{% url 'logout' %}" style="margin:0;display:block" data-turbo="false">
+      {% csrf_token %}
+      <button type="submit" class="more-row more-row-btn" style="width:100%;text-align:left;background:none;border:none;cursor:pointer">
+        <div class="more-icon-box" style="background:rgba(255, 90, 95, 0.14);color:var(--red)">
+          <svg class="icon"><use href="#icon-logout"></use></svg>
+        </div>
+        <div class="more-info">
+          <strong style="color:var(--red)">Log Out</strong>
+          <!-- <small class="muted">Signed in as {{ request.user.username }}</small> -->
+        </div>
+        <div class="more-badge-wrap">
+          <svg class="icon more-arrow" style="color:var(--red)"><use href="#icon-chevron_right"></use></svg>
+        </div>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- <div class="muted center" style="margin:24px 0 16px;font-size:11.5px;letter-spacing:.3px">
+  Wang • Cute Mobile Finance
+</div> -->
+{% endblock %}

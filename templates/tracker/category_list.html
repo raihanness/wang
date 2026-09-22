@@ -2,37 +2,20 @@
 {% block page_name %}category_list{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h2><span class="title-script">C</span>ategories</h2>
+  <div style="display:flex;align-items:center;gap:10px">
+    <a href="{% url 'more' %}" class="icon-btn" aria-label="Back to More" title="Back to More" style="width:34px;height:34px;border-radius:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">
+      <svg class="icon" style="font-size:18px"><use href="#icon-arrow_back"></use></svg>
+    </a>
+    <h2 style="margin:0"><span class="title-script">C</span>ategories</h2>
+  </div>
   <a class="btn btn-sm" href="{% url 'category_create' %}">+ New</a>
 </div>
-
-<a href="{% url 'subscription_list' %}" class="card sub-banner-card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 10px;text-decoration:none">
-  <div style="display:flex;align-items:center;gap:12px">
-    <div class="sub-icon" style="background:rgba(108, 108, 224, 0.15);color:#6C6CE0"><svg class="icon"><use href="#icon-event_repeat"></use></svg></div>
-    <div>
-      <strong style="display:block;font-size:13.5px;color:var(--ink)">Recurring Payments</strong>
-      <small class="muted" style="font-size: 11.5px;">Manage bills, Spotify, rent & memberships</small>
-    </div>
-  </div>
-  <svg class="icon muted" style="font-size:20px"><use href="#icon-chevron_right"></use></svg>
-</a>
-
-<a href="{% url 'export_csv' %}?all=1" class="card sub-banner-card export-banner-card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;text-decoration:none" data-turbo="false" download title="Download all transactions as CSV">
-  <div style="display:flex;align-items:center;gap:12px">
-    <div class="sub-icon" style="background:rgba(42, 181, 115, 0.15);color:var(--green)"><svg class="icon"><use href="#icon-table_view"></use></svg></div>
-    <div>
-      <strong style="display:block;font-size:13.5px;color:var(--ink)">Export Data to CSV</strong>
-      <small class="muted" style="font-size: 11.5px;">Download transactions in CSV format</small>
-    </div>
-  </div>
-  <svg class="icon muted" style="font-size:20px"><use href="#icon-file_download"></use></svg>
-</a>
 {% regroup cats by get_kind_display as kind_groups %}
 {% for group in kind_groups %}
   <div class="section-title"><h3>{{ group.grouper }}</h3></div>
-  <div class="cat-grid" style="grid-template-columns:repeat(3,1fr)">
+  <div class="cat-grid">
     {% for c in group.list %}
-      <a class="cat-cell" href="{% url 'category_edit' c.pk %}" style="text-decoration:none">
+      <a class="cat-cell" href="{% url 'category_edit' c.pk %}" style="text-decoration:none;font-size:11px;">
         <span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><svg class="icon"><use href="#icon-{{ c.icon }}"></use></svg></span>
         <span>{{ c.name }}</span>
       </a>

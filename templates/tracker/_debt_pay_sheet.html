@@ -1,0 +1,52 @@
+{% load humanize %}
+<!-- Partial Repayment Bottom Sheet Modal -->
+<div class="sheet-overlay" id="debt-pay-overlay"></div>
+<div class="sheet debt-pay-sheet" id="debt-pay-sheet" role="dialog" aria-modal="true" aria-label="Record repayment">
+  <div class="sheet-head" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px;">
+    <div style="font-weight:800;font-size:16px;color:var(--ink)">Record Repayment</div>
+    <button type="button" class="sheet-head-btn" id="debt-pay-close" aria-label="Close modal"><svg class="icon"><use href="#icon-close"></use></svg></button>
+  </div>
+
+  <form method="post" id="debt-pay-form" action="" style="padding:4px 0 10px">
+    {% csrf_token %}
+    <div style="margin-bottom:14px;background:var(--surface-chip);padding:10px 12px;border-radius:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:2px" id="debt-pay-person-title">Repayment for Person</div>
+      <small class="muted" id="debt-pay-rem-info">Remaining: Rp0</small>
+    </div>
+
+    <div class="form-field">
+      <label for="debt-pay-amount">Repaid Amount (Rp)</label>
+      <input type="number" name="amount" id="debt-pay-amount" class="input" placeholder="0" required step="any" min="1" inputmode="numeric">
+    </div>
+
+    <div class="form-field" style="margin-top:12px">
+      <label for="debt-pay-wallet" id="debt-pay-wallet-label">Funded Account (Optional)</label>
+      <select name="wallet" id="debt-pay-wallet" class="input">
+        <option value="">None (pure ledger)</option>
+        {% for w in wallets %}
+          <option value="{{ w.id }}">{{ w.name }} (Rp{{ w.current_balance|floatformat:0|intcomma }})</option>
+        {% endfor %}
+      </select>
+      <small class="muted" id="debt-pay-wallet-hint" style="display:block;margin-top:4px;font-size:11px">
+        Selecting an account automatically updates its balance with an Income / Expense transaction.
+      </small>
+    </div>
+
+    <div class="form-field" style="margin-top:12px">
+      <label for="debt-pay-note">Note / Reference (Optional)</label>
+      <input type="text" name="note" id="debt-pay-note" class="input" placeholder="e.g. Bank transfer, Cash, Lunch offset..." maxlength="200">
+    </div>
+
+    <div class="sheet-actions" style="margin-top:18px">
+      <button type="submit" class="btn btn-primary" id="debt-pay-submit" style="flex:1">Save Repayment</button>
+      <button type="button" class="btn btn-ghost" id="debt-pay-cancel" style="flex:1">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('debt-pay-form')?.addEventListener('submit', function() {
+  if (window.closeDebtPaySheet) window.closeDebtPaySheet();
+});
+</script>
+

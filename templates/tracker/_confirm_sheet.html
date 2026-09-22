@@ -15,6 +15,7 @@
     <p class="confirm-sheet-desc" id="confirm-sheet-desc">
       Are you sure you want to delete this transaction? This action cannot be undone.
     </p>
+    <!-- <div class="confirm-sheet-preview" id="confirm-sheet-preview" style="display:none"></div> -->
   </div>
 
   <form id="confirm-sheet-form" method="post" action="" style="margin:0;">
@@ -22,7 +23,7 @@
     <div class="sheet-actions" style="margin: 14px 0 10px;">
       <button type="button" class="btn btn-ghost" id="confirm-sheet-cancel-btn" style="flex:1;">Cancel</button>
       <button type="submit" class="btn btn-delete" id="confirm-sheet-submit-btn" style="flex:1; justify-content:center; gap:6px;">
-        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+        <svg class="icon" id="confirm-sheet-submit-icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
         <span id="confirm-sheet-submit-text">Delete</span>
       </button>
     </div>

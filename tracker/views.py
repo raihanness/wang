@@ -5,9 +5,10 @@ from urllib.parse import quote_plus
 from django.http import JsonResponse, HttpResponse, FileResponse
 from django.contrib.humanize.templatetags.humanize import intcomma
 from django.contrib import messages
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
-from django.db.models import Sum, Q, Max
+from django.db.models import Sum, Q, Max, Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -16,8 +17,9 @@ import calendar
 import json
 
 from django.conf import settings
-from .forms import WalletForm, CategoryForm, TransactionForm, SubscriptionForm
-from .models import Wallet, Category, Transaction, Subscription, Budget
+from .forms import WalletForm, CategoryForm, TransactionForm, SubscriptionForm, DebtForm, DebtPaymentForm, ProfileForm
+from .models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Budget, Debt, DebtPayment, UserProfile
+from .receipt_scanner import scan_receipt_with_gemini
 
 
 def _month_bounds(d):
@@ -208,12 +210,30 @@ def _sheet_context(user):
         if len(recent_notes) >= 60:
             break
 
+    wallets = _get_wallets_with_balances(user, archived=False)
+
+    # Determine default wallet from user's last added transaction
+    last_tx = (
+        Transaction.objects.filter(user=user)
+        .order_by("-id")
+        .select_related("wallet", "from_wallet")
+        .first()
+    )
+    default_wallet = None
+    if last_tx:
+        cand = last_tx.wallet or last_tx.from_wallet
+        if cand and not cand.archived:
+            default_wallet = next((w for w in wallets if w.id == cand.id), cand)
+    if not default_wallet and wallets:
+        default_wallet = wallets[0]
+
     overall_budget = Budget.objects.filter(user=user, category__isnull=True).first()
     return {
         "expense_cats": cats.filter(kind=Category.Kind.EXPENSE),
         "income_cats": cats.filter(kind=Category.Kind.INCOME),
         "all_cats": list(cats),
-        "wallets": _get_wallets_with_balances(user, archived=False),
+        "wallets": wallets,
+        "default_wallet": default_wallet,
         "recent_notes": recent_notes,
         "overall_budget": overall_budget,
     }
@@ -260,35 +280,74 @@ def dashboard(request):
     else:
         qs = Transaction.objects.filter(user=request.user, date__gte=m_start, date__lte=m_end)
 
-    filter_kind = request.GET.get("filter") or ""
-    if filter_kind in ("expense", "income", "transfer"):
-        qs = qs.filter(kind=filter_kind)
+    def _parse_csv_list(val):
+        if not val:
+            return []
+        if isinstance(val, (list, tuple)):
+            items = []
+            for v in val:
+                items.extend(str(v).split(","))
+            return [x.strip() for x in items if x.strip()]
+        return [x.strip() for x in str(val).split(",") if x.strip()]
 
-    wallet_id = request.GET.get("wallet") or ""
-    selected_wallet = None
-    if wallet_id:
-        try:
-            w_id = int(wallet_id)
-            selected_wallet = Wallet.objects.filter(user=request.user, pk=w_id).first()
-            if selected_wallet:
-                qs = qs.filter(Q(wallet_id=w_id) | Q(from_wallet_id=w_id) | Q(to_wallet_id=w_id))
-            else:
-                wallet_id = ""
-        except ValueError:
-            wallet_id = ""
+    # Type / Kind filters
+    raw_filter = request.GET.getlist("filter") or request.GET.get("filter")
+    raw_filter_exclude = request.GET.getlist("filter_exclude") or request.GET.get("filter_exclude")
+    filter_kinds_in = [k for k in _parse_csv_list(raw_filter) if k in ("expense", "income", "transfer")]
+    filter_kinds_out = [k for k in _parse_csv_list(raw_filter_exclude) if k in ("expense", "income", "transfer")]
 
-    category_id = request.GET.get("category") or ""
-    selected_category = None
-    if category_id:
+    if filter_kinds_in:
+        qs = qs.filter(kind__in=filter_kinds_in)
+    if filter_kinds_out:
+        qs = qs.exclude(kind__in=filter_kinds_out)
+
+    # Wallet filters
+    raw_wallets = request.GET.getlist("wallet") or request.GET.get("wallet")
+    raw_wallets_exclude = request.GET.getlist("wallet_exclude") or request.GET.get("wallet_exclude")
+    wallet_ids_in = []
+    for w in _parse_csv_list(raw_wallets):
         try:
-            c_id = int(category_id)
-            selected_category = Category.objects.filter(user=request.user, pk=c_id).first()
-            if selected_category:
-                qs = qs.filter(category_id=c_id)
-            else:
-                category_id = ""
+            wallet_ids_in.append(int(w))
         except ValueError:
-            category_id = ""
+            pass
+    wallet_ids_out = []
+    for w in _parse_csv_list(raw_wallets_exclude):
+        try:
+            wallet_ids_out.append(int(w))
+        except ValueError:
+            pass
+
+    selected_wallets_in = list(Wallet.objects.filter(user=request.user, pk__in=wallet_ids_in)) if wallet_ids_in else []
+    selected_wallets_out = list(Wallet.objects.filter(user=request.user, pk__in=wallet_ids_out)) if wallet_ids_out else []
+
+    if wallet_ids_in:
+        qs = qs.filter(Q(wallet_id__in=wallet_ids_in) | Q(from_wallet_id__in=wallet_ids_in) | Q(to_wallet_id__in=wallet_ids_in))
+    if wallet_ids_out:
+        qs = qs.exclude(Q(wallet_id__in=wallet_ids_out) | Q(from_wallet_id__in=wallet_ids_out) | Q(to_wallet_id__in=wallet_ids_out))
+
+    # Category filters
+    raw_cats = request.GET.getlist("category") or request.GET.get("category")
+    raw_cats_exclude = request.GET.getlist("category_exclude") or request.GET.get("category_exclude")
+    cat_ids_in = []
+    for c in _parse_csv_list(raw_cats):
+        try:
+            cat_ids_in.append(int(c))
+        except ValueError:
+            pass
+    cat_ids_out = []
+    for c in _parse_csv_list(raw_cats_exclude):
+        try:
+            cat_ids_out.append(int(c))
+        except ValueError:
+            pass
+
+    selected_cats_in = list(Category.objects.filter(user=request.user, pk__in=cat_ids_in)) if cat_ids_in else []
+    selected_cats_out = list(Category.objects.filter(user=request.user, pk__in=cat_ids_out)) if cat_ids_out else []
+
+    if cat_ids_in:
+        qs = qs.filter(category_id__in=cat_ids_in)
+    if cat_ids_out:
+        qs = qs.exclude(category_id__in=cat_ids_out)
 
     q = request.GET.get("q") or ""
     if q:
@@ -321,24 +380,49 @@ def dashboard(request):
         income_month = qs_month.filter(kind=Transaction.Kind.INCOME).aggregate(s=Sum("amount"))["s"] or Decimal("0")
         expense_month = qs_month.filter(kind=Transaction.Kind.EXPENSE).aggregate(s=Sum("amount"))["s"] or Decimal("0")
         month_label = month.strftime("%B %Y")
-    total_balance = sum((w.current_balance for w in wallets if w.include_in_total and not w.archived), Decimal("0"))
+    spendable_balance = sum((w.current_balance for w in wallets if w.include_in_total and w.type != Wallet.WalletType.SAVINGS and not w.archived), Decimal("0"))
+    savings_balance = sum((w.current_balance for w in wallets if (not w.include_in_total or w.type == Wallet.WalletType.SAVINGS) and not w.archived), Decimal("0"))
+    net_worth = spendable_balance + savings_balance
+    total_balance = spendable_balance
 
     # month paging: back always when older data exists, forward only when past the current month
     is_current = month == current
 
-    def _build_filter_url(exclude_key=None):
+    def _build_filter_url(remove_type=None, remove_type_exclude=None,
+                          remove_wallet=None, remove_wallet_exclude=None,
+                          remove_cat=None, remove_cat_exclude=None,
+                          remove_dates=False):
         p = []
         if not custom_dates and not is_current:
             p.append(f"month={month.strftime('%Y-%m')}")
         if q:
             p.append(f"q={quote_plus(q)}")
-        if filter_kind and exclude_key != "filter":
-            p.append(f"filter={filter_kind}")
-        if wallet_id and exclude_key != "wallet":
-            p.append(f"wallet={wallet_id}")
-        if category_id and exclude_key != "category":
-            p.append(f"category={category_id}")
-        if custom_dates and exclude_key != "dates":
+
+        rem_t_in = [t for t in filter_kinds_in if t != remove_type]
+        if rem_t_in:
+            p.append(f"filter={','.join(rem_t_in)}")
+
+        rem_t_out = [t for t in filter_kinds_out if t != remove_type_exclude]
+        if rem_t_out:
+            p.append(f"filter_exclude={','.join(rem_t_out)}")
+
+        rem_w_in = [w for w in wallet_ids_in if w != remove_wallet]
+        if rem_w_in:
+            p.append(f"wallet={','.join(map(str, rem_w_in))}")
+
+        rem_w_out = [w for w in wallet_ids_out if w != remove_wallet_exclude]
+        if rem_w_out:
+            p.append(f"wallet_exclude={','.join(map(str, rem_w_out))}")
+
+        rem_c_in = [c for c in cat_ids_in if c != remove_cat]
+        if rem_c_in:
+            p.append(f"category={','.join(map(str, rem_c_in))}")
+
+        rem_c_out = [c for c in cat_ids_out if c != remove_cat_exclude]
+        if rem_c_out:
+            p.append(f"category_exclude={','.join(map(str, rem_c_out))}")
+
+        if custom_dates and not remove_dates:
             if date_from_str:
                 p.append(f"date_from={date_from_str}")
             if date_to_str:
@@ -349,33 +433,68 @@ def dashboard(request):
     active_filter_tags = []
     active_filter_count = 0
 
-    if filter_kind in ("expense", "income", "transfer"):
+    for k in filter_kinds_in:
         active_filter_count += 1
         active_filter_tags.append({
             "key": "filter",
-            "label": filter_kind.title(),
-            "icon": "trending_down" if filter_kind == "expense" else ("trending_up" if filter_kind == "income" else "send_money"),
-            "remove_url": _build_filter_url(exclude_key="filter"),
+            "is_exclude": False,
+            "label": k.title(),
+            "icon": "trending_down" if k == "expense" else ("trending_up" if k == "income" else "send_money"),
+            "remove_url": _build_filter_url(remove_type=k),
         })
 
-    if selected_wallet:
+    for k in filter_kinds_out:
+        active_filter_count += 1
+        active_filter_tags.append({
+            "key": "filter",
+            "is_exclude": True,
+            "label": f"Exclude {k.title()}",
+            "icon": "trending_down" if k == "expense" else ("trending_up" if k == "income" else "send_money"),
+            "remove_url": _build_filter_url(remove_type_exclude=k),
+        })
+
+    for w in selected_wallets_in:
         active_filter_count += 1
         active_filter_tags.append({
             "key": "wallet",
-            "label": selected_wallet.name,
-            "icon": selected_wallet.icon,
-            "color": selected_wallet.color,
-            "remove_url": _build_filter_url(exclude_key="wallet"),
+            "is_exclude": False,
+            "label": w.name,
+            "icon": w.icon,
+            "color": w.color,
+            "remove_url": _build_filter_url(remove_wallet=w.id),
         })
 
-    if selected_category:
+    for w in selected_wallets_out:
+        active_filter_count += 1
+        active_filter_tags.append({
+            "key": "wallet",
+            "is_exclude": True,
+            "label": f"Exclude {w.name}",
+            "icon": w.icon,
+            "color": w.color,
+            "remove_url": _build_filter_url(remove_wallet_exclude=w.id),
+        })
+
+    for c in selected_cats_in:
         active_filter_count += 1
         active_filter_tags.append({
             "key": "category",
-            "label": selected_category.name,
-            "icon": selected_category.icon,
-            "color": selected_category.color,
-            "remove_url": _build_filter_url(exclude_key="category"),
+            "is_exclude": False,
+            "label": c.name,
+            "icon": c.icon,
+            "color": c.color,
+            "remove_url": _build_filter_url(remove_cat=c.id),
+        })
+
+    for c in selected_cats_out:
+        active_filter_count += 1
+        active_filter_tags.append({
+            "key": "category",
+            "is_exclude": True,
+            "label": f"Exclude {c.name}",
+            "icon": c.icon,
+            "color": c.color,
+            "remove_url": _build_filter_url(remove_cat_exclude=c.id),
         })
 
     if custom_dates:
@@ -383,9 +502,10 @@ def dashboard(request):
         d_lbl = f"{date_from_str or '...'} → {date_to_str or '...'}"
         active_filter_tags.append({
             "key": "dates",
+            "is_exclude": False,
             "label": d_lbl,
             "icon": "calendar_month",
-            "remove_url": _build_filter_url(exclude_key="dates"),
+            "remove_url": _build_filter_url(remove_dates=True),
         })
     prev_month = (month - timedelta(days=1)).replace(day=1)
     next_month = (month + timedelta(days=32)).replace(day=1)
@@ -445,10 +565,24 @@ def dashboard(request):
     today_expense = qs_today.filter(kind=Transaction.Kind.EXPENSE).aggregate(s=Sum("amount"))["s"] or Decimal("0")
     today_net = today_income - today_expense
 
-    # active subscriptions sorted by upcoming due date
-    all_subs = list(Subscription.objects.filter(user=request.user, active=True).select_related("wallet", "category"))
+    # active subscriptions sorted by upcoming due date (excluding finished/completed)
+    all_subs = list(
+        Subscription.objects.filter(user=request.user, active=True)
+        .select_related("wallet", "category")
+        .prefetch_related("payments", "payments__wallet")
+    )
+    all_subs = [s for s in all_subs if not s.is_completed]
     all_subs.sort(key=lambda s: s.days_until_due)
     upcoming_subs = [s for s in all_subs if s.days_until_due <= 7]
+
+    # active debts (unsettled) sorted by upcoming deadline
+    active_debts = list(
+        Debt.objects.filter(user=request.user)
+        .exclude(status=Debt.Status.SETTLED)
+        .select_related("wallet")
+        .prefetch_related("payments")
+    )
+    active_debts.sort(key=lambda d: (0 if d.days_until_due is not None else 1, d.days_until_due if d.days_until_due is not None else 9999))
 
     # daily budget calculation
     overall_budget = Budget.objects.filter(user=request.user, category__isnull=True).first()
@@ -502,6 +636,9 @@ def dashboard(request):
     ctx.update({
         "wallets": wallets,
         "total_balance": total_balance,
+        "spendable_balance": spendable_balance,
+        "net_worth": net_worth,
+        "savings_balance": savings_balance,
         "income_month": income_month,
         "expense_month": expense_month,
         "month_label": month_label,
@@ -509,8 +646,14 @@ def dashboard(request):
         "balance_change_abs": balance_change_abs,
         "cashflow_inc_pct": cashflow_inc_pct,
         "cashflow_exp_pct": cashflow_exp_pct,
-        "selected_wallet_id": int(wallet_id) if wallet_id else None,
-        "selected_category_id": int(category_id) if category_id else None,
+        "filter_kinds_in": ",".join(filter_kinds_in),
+        "filter_kinds_out": ",".join(filter_kinds_out),
+        "wallet_ids_in": ",".join(map(str, wallet_ids_in)),
+        "wallet_ids_out": ",".join(map(str, wallet_ids_out)),
+        "cat_ids_in": ",".join(map(str, cat_ids_in)),
+        "cat_ids_out": ",".join(map(str, cat_ids_out)),
+        "selected_wallet_id": ",".join(map(str, wallet_ids_in)) if wallet_ids_in else "",
+        "selected_category_id": ",".join(map(str, cat_ids_in)) if cat_ids_in else "",
         "date_from": date_from_str,
         "date_to": date_to_str,
         "custom_dates": custom_dates,
@@ -522,7 +665,7 @@ def dashboard(request):
         "today_date": today,
         "history_groups": groups,
         "q": q or "",
-        "active_filter": filter_kind,
+        "active_filter": ",".join(filter_kinds_in) if filter_kinds_in else "",
         "view_month": month,
         "is_current": is_current,
         "prev_month": prev_month,
@@ -538,6 +681,7 @@ def dashboard(request):
         "edit_tx": edit_tx,
         "all_subs": all_subs,
         "upcoming_subs": upcoming_subs,
+        "active_debts": active_debts,
         "overall_budget": overall_budget,
         "budget_info": budget_info,
     })
@@ -690,14 +834,47 @@ def graphs(request):
     qs_month = Transaction.objects.filter(user=request.user, date__gte=s, date__lte=e)
     by_cat = (
         qs_month.filter(kind=kind)
-        .values("category__name", "category__color", "category__icon")
-        .annotate(total=Sum("amount"))
+        .values("category__id", "category__name", "category__color", "category__icon")
+        .annotate(total=Sum("amount"), count=Count("id"))
         .order_by("-total")
     )
     total = sum((r["total"] for r in by_cat), Decimal("0"))
     by_cat_list = list(by_cat)
     for r in by_cat_list:
         r["pct"] = round(float(r["total"] / total * 100), 1) if total > 0 else 0
+
+    # Group transactions for the category drill-down sheet
+    month_txs = (
+        qs_month.filter(kind=kind)
+        .select_related("category", "wallet")
+        .order_by("-date", "-id")
+    )
+    from collections import defaultdict
+    cat_tx_map = defaultdict(list)
+    for t in month_txs:
+        cat_key = str(t.category_id or 0)
+        loc_dt = timezone.localtime(t.date) if timezone.is_aware(t.date) else t.date
+        cat_tx_map[cat_key].append({
+            "id": t.pk,
+            "amount": float(t.amount),
+            "formatted_amount": f"Rp{int(t.amount):,}".replace(",", "."),
+            "note": t.note or "",
+            "date": loc_dt.strftime("%Y-%m-%dT%H:%M"),
+            "date_display": loc_dt.strftime("%A, %B %d, %Y"),
+            "time_display": loc_dt.strftime("%H:%M"),
+            "datetime_display": loc_dt.strftime("%b %d, %Y · %H:%M"),
+            "cat_id": t.category_id or "",
+            "cat_name": t.category.name if t.category else "Uncategorized",
+            "cat_icon": t.category.icon if t.category else "label",
+            "cat_color": t.category.color if t.category else "#FFB5A7",
+            "wallet_id": t.wallet_id or "",
+            "wallet_name": t.wallet.name if t.wallet else "Account",
+            "wallet_icon": t.wallet.icon if t.wallet else "account_balance_wallet",
+            "kind": t.kind,
+            "image": t.image.url if t.image else "",
+            "edit_url": reverse("transaction_edit", args=[t.pk]),
+            "delete_url": reverse("transaction_delete", args=[t.pk]),
+        })
 
     # Month-over-Month (MoM) Category Comparison
     prev_m = (sel - timedelta(days=1)).replace(day=1)
@@ -817,7 +994,10 @@ def graphs(request):
         "trend_json": trend,
         "pie_json": [
             {
+                "id": r["category__id"],
                 "label": r["category__name"],
+                "icon": r["category__icon"],
+                "count": r["count"],
                 "value": float(r["total"]),
                 "color": r["category__color"],
                 "pct": r["pct"],
@@ -829,6 +1009,7 @@ def graphs(request):
             }
             for r in by_cat_list
         ],
+        "cat_tx_json": dict(cat_tx_map),
         "avg_6m_income": avg_6m_income,
         "avg_6m_expense": avg_6m_expense,
         "avg_6m_net": avg_6m_net,
@@ -874,7 +1055,10 @@ def wallet_list(request):
     _ensure_defaults(request.user)
     ctx = _sheet_context(request.user)
     wallets = _get_wallets_with_balances(request.user, archived=None)
-    total_balance = sum((w.current_balance for w in wallets if w.include_in_total and not w.archived), Decimal("0"))
+    spendable_balance = sum((w.current_balance for w in wallets if w.include_in_total and w.type != Wallet.WalletType.SAVINGS and not w.archived), Decimal("0"))
+    savings_balance = sum((w.current_balance for w in wallets if (not w.include_in_total or w.type == Wallet.WalletType.SAVINGS) and not w.archived), Decimal("0"))
+    net_worth = spendable_balance + savings_balance
+    total_balance = spendable_balance
 
     now = timezone.localdate()
     current_m = date(now.year, now.month, 1)
@@ -886,6 +1070,9 @@ def wallet_list(request):
     ctx.update({
         "wallets": wallets,
         "total_balance": total_balance,
+        "spendable_balance": spendable_balance,
+        "savings_balance": savings_balance,
+        "net_worth": net_worth,
         "income_month": income_month,
         "expense_month": expense_month,
         "balance_change": income_month - expense_month,
@@ -1012,7 +1199,7 @@ def category_edit(request, pk):
         messages.success(request, "Category updated.")
         return redirect("category_list")
     ctx = _sheet_context(request.user)
-    ctx.update(form=form, title=f"Edit {c.name}", category_pk=c.pk)
+    ctx.update(form=form, title=f"Edit {c.name}", category_pk=c.pk, category=c)
     return render(request, "tracker/category_form.html", ctx)
 
 @login_required
@@ -1113,11 +1300,16 @@ def transaction_delete(request, pk):
 def subscription_list(request):
     _ensure_defaults(request.user)
     ctx = _sheet_context(request.user)
-    subs = list(Subscription.objects.filter(user=request.user).select_related("wallet", "category"))
-    # sort by days_until_due ascending
+    subs = list(
+        Subscription.objects.filter(user=request.user)
+        .select_related("wallet", "category")
+        .prefetch_related("payments", "payments__wallet")
+    )
+    # Sort: active upcoming first, then completed or inactive, then by due date
+    subs.sort(key=lambda s: (1 if s.is_completed else 0, 1 if not s.active else 0, s.days_until_due))
     monthly_total = Decimal("0")
     for s in subs:
-        if not s.active:
+        if not s.active or s.is_completed:
             continue
         if s.cycle == Subscription.Cycle.MONTHLY:
             monthly_total += s.amount
@@ -1186,24 +1378,79 @@ def subscription_delete(request, pk):
 @require_POST
 def subscription_pay(request, pk):
     sub = get_object_or_404(Subscription, pk=pk, user=request.user)
+    if sub.is_completed:
+        messages.info(request, f"Subscription '{sub.name}' is already completed.")
+        referer = request.META.get("HTTP_REFERER", "")
+        return redirect("subscription_list" if "subscriptions" in referer else "dashboard")
+
     wallet = sub.wallet or Wallet.objects.filter(user=request.user, archived=False).first()
     category = sub.category or Category.objects.filter(user=request.user, kind=Category.Kind.EXPENSE).first()
     if not wallet or not category:
         messages.error(request, "Need at least one wallet and category to record transaction.")
         return redirect("subscription_list")
-    Transaction.objects.create(
+
+    note_text = f"{sub.name} payment"
+    if sub.total_installments:
+        current_num = (sub.already_paid_installments or 0) + sub.payments.count() + 1
+        note_text = f"{sub.name} installment ({current_num}/{sub.total_installments})"
+
+    tx = Transaction.objects.create(
         user=request.user,
         kind=Transaction.Kind.EXPENSE,
         wallet=wallet,
         category=category,
         amount=sub.amount,
-        note=f"{sub.name} payment",
+        note=note_text,
         date=timezone.now(),
+    )
+    SubscriptionPayment.objects.create(
+        subscription=sub,
+        amount=sub.amount,
+        wallet=wallet,
+        transaction=tx,
+        date=tx.date,
+        note=note_text,
     )
     sub.last_paid_date = timezone.localdate()
     sub.save(update_fields=["last_paid_date"])
 
-    messages.success(request, f"Recorded payment of Rp{int(sub.amount):,} for {sub.name}! Marked as paid.")
+    if sub.is_completed:
+        messages.success(request, f"Recorded final payment for {sub.name}! Subscription completed ✓")
+    else:
+        messages.success(request, f"Recorded payment of Rp{int(sub.amount):,} for {sub.name}! Marked as paid.")
+
+    referer = request.META.get("HTTP_REFERER", "")
+    if "subscriptions" in referer:
+        return redirect("subscription_list")
+    return redirect("dashboard")
+
+
+@login_required
+@require_POST
+def subscription_undo(request, pk):
+    sub = get_object_or_404(Subscription, pk=pk, user=request.user)
+    payment = sub.payments.first()
+    if payment:
+        payment.delete()  # post_delete receiver deletes linked transaction, restoring wallet balance
+        messages.success(request, f"Undid payment for {sub.name}. Wallet balance restored.")
+    else:
+        sub.last_paid_date = None
+        sub.save(update_fields=["last_paid_date"])
+        messages.success(request, f"Payment status for {sub.name} reset.")
+
+    referer = request.META.get("HTTP_REFERER", "")
+    if "subscriptions" in referer:
+        return redirect("subscription_list")
+    return redirect("dashboard")
+
+
+@login_required
+@require_POST
+def subscription_payment_delete(request, pk, payment_pk):
+    sub = get_object_or_404(Subscription, pk=pk, user=request.user)
+    payment = get_object_or_404(SubscriptionPayment, pk=payment_pk, subscription=sub)
+    payment.delete()  # cascades to transaction, syncs last_paid_date
+    messages.success(request, f"Deleted payment of Rp{int(payment.amount):,} for {sub.name}.")
     referer = request.META.get("HTTP_REFERER", "")
     if "subscriptions" in referer:
         return redirect("subscription_list")
@@ -1289,5 +1536,491 @@ def offline_view(request):
     if request.user.is_authenticated:
         ctx.update(_sheet_context(request.user))
     return render(request, "tracker/offline.html", ctx)
+
+
+# ── Debts & Loans (Utang & Piutang) ──────────────────────────
+@login_required
+def debt_list(request):
+    _ensure_defaults(request.user)
+    tab = request.GET.get("tab", "all")  # all | lent | borrowed | settled
+
+    all_debts = list(
+        Debt.objects.filter(user=request.user)
+        .select_related("wallet")
+        .prefetch_related("payments__wallet")
+    )
+
+    total_lent_remaining = Decimal("0")
+    total_borrowed_remaining = Decimal("0")
+    active_count = 0
+    settled_count = 0
+
+    for d in all_debts:
+        if d.is_settled:
+            settled_count += 1
+        else:
+            active_count += 1
+            if d.kind == Debt.Kind.LENT:
+                total_lent_remaining += d.remaining_amount
+            elif d.kind == Debt.Kind.BORROWED:
+                total_borrowed_remaining += d.remaining_amount
+
+    net_debt = total_lent_remaining - total_borrowed_remaining
+
+    # Filter for display
+    if tab == "lent":
+        displayed_debts = [d for d in all_debts if d.kind == Debt.Kind.LENT and not d.is_settled]
+    elif tab == "borrowed":
+        displayed_debts = [d for d in all_debts if d.kind == Debt.Kind.BORROWED and not d.is_settled]
+    elif tab == "settled":
+        displayed_debts = [d for d in all_debts if d.is_settled]
+    else:  # 'all'
+        displayed_debts = all_debts
+
+    wallets = Wallet.objects.filter(user=request.user, archived=False)
+
+    ctx = _sheet_context(request.user)
+    ctx.update({
+        "debts": displayed_debts,
+        "all_debts_count": len(all_debts),
+        "total_lent_remaining": total_lent_remaining,
+        "total_borrowed_remaining": total_borrowed_remaining,
+        "net_debt": net_debt,
+        "active_count": active_count,
+        "settled_count": settled_count,
+        "current_tab": tab,
+        "wallets": wallets,
+    })
+    return render(request, "tracker/debt_list.html", ctx)
+
+
+def _get_or_create_utangs_category(user, kind):
+    """
+    Finds or creates the 'Utangs' category for the given user and transaction kind (expense or income).
+    """
+    cat = Category.objects.filter(user=user, kind=kind, name__iexact="Utangs").first()
+    if not cat:
+        cat = Category.objects.filter(user=user, kind=kind, name__iexact="Utang").first()
+    if not cat:
+        default_color = "#B5EAD7" if kind == Transaction.Kind.EXPENSE else "#C7CEEA"
+        cat, _ = Category.objects.get_or_create(
+            user=user,
+            name="Utangs",
+            kind=kind,
+            defaults={"icon": "handshake", "color": default_color},
+        )
+    return cat
+
+
+def _sync_debt_origin_transaction(user, debt):
+    if not debt.wallet:
+        if debt.transaction:
+            tx = debt.transaction
+            debt.transaction = None
+            debt.save(update_fields=["transaction"])
+            try:
+                tx.delete()
+            except Exception:
+                pass
+        return None
+
+    if debt.kind == Debt.Kind.LENT:
+        tx_kind = Transaction.Kind.EXPENSE
+        base_desc = f"Lent to {debt.person_name}"
+    else:
+        tx_kind = Transaction.Kind.INCOME
+        base_desc = f"Borrowed from {debt.person_name}"
+
+    tx_note = f"{base_desc} - {debt.note}" if debt.note else base_desc
+    category = _get_or_create_utangs_category(user, tx_kind)
+
+    if debt.transaction:
+        tx = debt.transaction
+        tx.wallet = debt.wallet
+        tx.kind = tx_kind
+        tx.category = category
+        tx.amount = debt.amount
+        tx.note = tx_note
+        tx.save()
+        return tx
+    else:
+        tx = Transaction.objects.create(
+            user=user,
+            kind=tx_kind,
+            wallet=debt.wallet,
+            category=category,
+            amount=debt.amount,
+            note=tx_note,
+            date=timezone.now(),
+        )
+        debt.transaction = tx
+        debt.save(update_fields=["transaction"])
+        return tx
+
+
+@login_required
+def debt_create(request):
+    _ensure_defaults(request.user)
+    form = DebtForm(request.POST or None, user=request.user)
+    if request.method == "POST":
+        if form.is_valid():
+            debt = form.save(commit=False)
+            debt.user = request.user
+            debt.save()
+            _sync_debt_origin_transaction(request.user, debt)
+            wallet_msg = f" (synced with {debt.wallet.name})" if debt.wallet else ""
+            messages.success(request, f"Debt for '{debt.person_name}' added{wallet_msg}.")
+            return redirect("debt_list")
+        else:
+            for field, errs in form.errors.items():
+                for err in errs:
+                    messages.error(request, f"{field.capitalize()}: {err}" if field != '__all__' else err)
+    ctx = _sheet_context(request.user)
+    ctx.update(form=form, title="New Debt/Loan", is_edit=False)
+    return render(request, "tracker/debt_form.html", ctx)
+
+
+@login_required
+def debt_edit(request, pk):
+    debt = get_object_or_404(Debt, pk=pk, user=request.user)
+    form = DebtForm(request.POST or None, instance=debt, user=request.user)
+    if request.method == "POST":
+        if form.is_valid():
+            debt = form.save()
+            _sync_debt_origin_transaction(request.user, debt)
+            messages.success(request, f"Debt for '{debt.person_name}' updated.")
+            return redirect("debt_list")
+        else:
+            for field, errs in form.errors.items():
+                for err in errs:
+                    messages.error(request, f"{field.capitalize()}: {err}" if field != '__all__' else err)
+    ctx = _sheet_context(request.user)
+    ctx.update(form=form, title=f"Edit {debt.person_name}", debt_pk=pk, is_edit=True)
+    return render(request, "tracker/debt_form.html", ctx)
+
+
+
+@login_required
+def debt_delete(request, pk):
+    debt = get_object_or_404(Debt, pk=pk, user=request.user)
+    if request.method == "POST":
+        name = debt.person_name
+        debt.delete()
+        messages.success(request, f"Debt for '{name}' deleted.")
+        return redirect("debt_list")
+    ctx = _sheet_context(request.user)
+    ctx.update(obj=debt, back="debt_list")
+    return render(request, "tracker/confirm_delete.html", ctx)
+
+
+def _create_debt_payment_transaction(user, debt, amount, wallet, note):
+    if not wallet or amount <= 0:
+        return None
+
+    if debt.kind == Debt.Kind.BORROWED:
+        tx_kind = Transaction.Kind.EXPENSE
+        base_desc = f"Debt repayment to {debt.person_name}"
+    else:
+        tx_kind = Transaction.Kind.INCOME
+        base_desc = f"Debt repayment from {debt.person_name}"
+
+    tx_note = f"{base_desc} - {note}" if note else base_desc
+    category = _get_or_create_utangs_category(user, tx_kind)
+
+    return Transaction.objects.create(
+        user=user,
+        kind=tx_kind,
+        wallet=wallet,
+        category=category,
+        amount=amount,
+        note=tx_note,
+        date=timezone.now(),
+    )
+
+
+@login_required
+@require_POST
+def debt_payment_create(request, pk):
+    debt = get_object_or_404(Debt, pk=pk, user=request.user)
+    amount_raw = request.POST.get("amount", "").strip().replace(",", "").replace(".", "")
+    try:
+        amount = Decimal(amount_raw)
+    except Exception:
+        amount = Decimal("0")
+
+    if amount <= 0:
+        messages.error(request, "Please enter a valid repayment amount.")
+        return redirect("debt_list")
+
+    wallet_id = request.POST.get("wallet") or None
+    wallet = None
+    if wallet_id:
+        wallet = Wallet.objects.filter(user=request.user, pk=wallet_id).first()
+
+    note = request.POST.get("note", "").strip()
+
+    tx = _create_debt_payment_transaction(request.user, debt, amount, wallet, note)
+
+    DebtPayment.objects.create(
+        debt=debt,
+        amount=amount,
+        wallet=wallet,
+        transaction=tx,
+        date=timezone.now(),
+        note=note,
+    )
+    debt.refresh_from_db()
+
+    wallet_sync_txt = f" (synced with {wallet.name})" if wallet else ""
+    status_txt = "Marked as fully settled ✓!" if debt.is_settled else f"Remaining balance: Rp{int(debt.remaining_amount):,}."
+    messages.success(request, f"Recorded repayment of Rp{int(amount):,} for {debt.person_name}{wallet_sync_txt}. {status_txt}")
+    referer = request.META.get("HTTP_REFERER", "")
+    if referer and "debts" not in referer:
+        return redirect("dashboard")
+    return redirect("debt_list")
+
+
+@login_required
+@require_POST
+def debt_settle(request, pk):
+    debt = get_object_or_404(Debt, pk=pk, user=request.user)
+    rem = debt.remaining_amount
+    wallet = debt.wallet
+    if rem > 0:
+        tx = _create_debt_payment_transaction(request.user, debt, rem, wallet, "Full settlement") if wallet else None
+        DebtPayment.objects.create(
+            debt=debt,
+            amount=rem,
+            wallet=wallet,
+            transaction=tx,
+            date=timezone.now(),
+            note="Full settlement",
+        )
+    debt.status = Debt.Status.SETTLED
+    debt.save(update_fields=["status", "updated_at"])
+
+    wallet_sync_txt = f" (synced with {wallet.name})" if wallet else ""
+    messages.success(request, f"Debt with {debt.person_name} marked as fully settled ✓{wallet_sync_txt}!")
+    referer = request.META.get("HTTP_REFERER", "")
+    if referer and "debts" not in referer:
+        return redirect("dashboard")
+    return redirect("debt_list")
+
+
+@login_required
+@require_POST
+def debt_payment_delete(request, pk, payment_pk):
+    debt = get_object_or_404(Debt, pk=pk, user=request.user)
+    payment = get_object_or_404(DebtPayment, pk=payment_pk, debt=debt)
+    amount_val = payment.amount
+    payment.delete()  # post_delete signal deletes linked transaction, and delete() syncs debt status
+    debt.refresh_from_db()
+    messages.success(request, f"Deleted payment of Rp{int(amount_val):,} for {debt.person_name}.")
+    referer = request.META.get("HTTP_REFERER", "")
+    if "debts" in referer:
+        return redirect("debt_list")
+    return redirect("dashboard")
+
+
+def _get_or_create_profile(user):
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    return profile
+
+
+@login_required
+def more_view(request):
+    _ensure_defaults(request.user)
+    ctx = _sheet_context(request.user)
+    profile = _get_or_create_profile(request.user)
+    active_subs_count = Subscription.objects.filter(user=request.user, active=True).count()
+    active_debts_count = Debt.objects.filter(user=request.user).exclude(status=Debt.Status.SETTLED).count()
+    categories_count = Category.objects.filter(user=request.user).count()
+    total_tx_count = Transaction.objects.filter(user=request.user).count()
+    overall_budget = Budget.objects.filter(user=request.user, category__isnull=True).first()
+    ctx.update({
+        "profile": profile,
+        "active_subs_count": active_subs_count,
+        "active_debts_count": active_debts_count,
+        "categories_count": categories_count,
+        "total_tx_count": total_tx_count,
+        "overall_budget": overall_budget,
+    })
+    return render(request, "tracker/more.html", ctx)
+
+
+@login_required
+def profile_edit_view(request):
+    _ensure_defaults(request.user)
+    ctx = _sheet_context(request.user)
+    profile = _get_or_create_profile(request.user)
+    if request.method == "POST":
+        form = ProfileForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profile updated successfully ✨")
+            return redirect("more")
+    else:
+        form = ProfileForm(instance=profile)
+
+    total_tx_count = Transaction.objects.filter(user=request.user).count()
+    wallets_count = Wallet.objects.filter(user=request.user, archived=False).count()
+
+    ctx.update({
+        "profile": profile,
+        "form": form,
+        "total_tx_count": total_tx_count,
+        "wallets_count": wallets_count,
+    })
+    return render(request, "tracker/profile_form.html", ctx)
+
+
+@require_POST
+@login_required
+def profile_remove_avatar(request):
+    profile = _get_or_create_profile(request.user)
+    if profile.avatar:
+        from .image_utils import delete_file_safely
+        delete_file_safely(profile.avatar)
+        profile.avatar = None
+        profile.save(update_fields=["avatar", "updated_at"])
+        messages.success(request, "Profile photo removed.")
+    return redirect("profile_edit")
+
+
+@require_POST
+@login_required
+def api_scan_receipt(request):
+    """
+    Analyzes an uploaded receipt image using Google Gemini Vision API.
+    Returns structured JSON with total_amount, merchant, note, suggested category, and date.
+    """
+    image_file = request.FILES.get("image")
+    if not image_file:
+        return JsonResponse({"success": False, "error": "No receipt image provided."}, status=400)
+
+    # Fetch user's active expense categories for category matching
+    categories = Category.objects.filter(user=request.user, kind="expense")
+    category_map = {c.name.strip().lower(): c for c in categories}
+    category_names = [c.name for c in categories]
+
+    # Fetch user's active wallets for wallet matching
+    wallets = list(Wallet.objects.filter(user=request.user, archived=False))
+    wallet_options = [{"name": w.name, "type": w.type} for w in wallets]
+
+    result = scan_receipt_with_gemini(
+        image_file_or_bytes=image_file,
+        category_names=category_names,
+        wallet_options=wallet_options,
+    )
+
+    if not result.get("success"):
+        return JsonResponse(result, status=200)
+
+    # Match suggested category against user's categories
+    suggested = (result.get("suggested_category") or "").strip().lower()
+    matched_cat = None
+    if suggested:
+        if suggested in category_map:
+            matched_cat = category_map[suggested]
+        else:
+            for name_lower, cat_obj in category_map.items():
+                if name_lower in suggested or suggested in name_lower:
+                    matched_cat = cat_obj
+                    break
+
+    # Match suggested wallet or payment method against user's wallets
+    suggested_w_name = (result.get("suggested_wallet") or "").strip().lower()
+    pm_raw = (result.get("payment_method") or "").strip().lower()
+    matched_wallet = None
+
+    # 1. Direct name match from AI suggested wallet
+    if suggested_w_name:
+        for w in wallets:
+            if w.name.strip().lower() == suggested_w_name:
+                matched_wallet = w
+                break
+        if not matched_wallet:
+            for w in wallets:
+                w_name_l = w.name.strip().lower()
+                if suggested_w_name in w_name_l or w_name_l in suggested_w_name:
+                    matched_wallet = w
+                    break
+
+    # 2. Match from payment_method string if suggested wallet didn't match
+    if not matched_wallet and pm_raw:
+        # Check direct wallet name substring
+        for w in wallets:
+            w_name_l = w.name.strip().lower()
+            if w_name_l in pm_raw or pm_raw in w_name_l:
+                matched_wallet = w
+                break
+
+        # Check bank names specifically
+        if not matched_wallet:
+            bank_keywords = ["bca", "mandiri", "bri", "bni", "cimb", "jago", "seabank", "blu", "jenius", "permata", "bsi"]
+            for bkw in bank_keywords:
+                if bkw in pm_raw:
+                    matched_wallet = next((w for w in wallets if bkw in w.name.lower()), None)
+                    if matched_wallet:
+                        break
+
+        # Check e-wallet brand names specifically
+        if not matched_wallet:
+            ewallet_keywords = ["gopay", "ovo", "shopeepay", "dana", "linkaja", "qris"]
+            for ekw in ewallet_keywords:
+                if ekw in pm_raw:
+                    matched_wallet = next((w for w in wallets if ekw in w.name.lower()), None)
+                    if matched_wallet:
+                        break
+
+        # Fallback to wallet type matching
+        if not matched_wallet:
+            if any(kw in pm_raw for kw in ["cash", "tunai", "uang pas", "kembali"]):
+                matched_wallet = next((w for w in wallets if w.type == Wallet.WalletType.CASH), None)
+            elif any(kw in pm_raw for kw in ["qris", "ewallet", "e-wallet", "dompet digital"]):
+                matched_wallet = next((w for w in wallets if w.type == Wallet.WalletType.EWALLET), None)
+            elif any(kw in pm_raw for kw in ["debit", "kartu debit", "card", "kartu kredit", "credit card", "bank", "transfer"]):
+                matched_wallet = next((w for w in wallets if w.type == Wallet.WalletType.BANK), None)
+
+    response_data = {
+        "success": True,
+        "total_amount": result.get("total_amount"),
+        "merchant": result.get("merchant"),
+        "note": result.get("note"),
+        "category_id": matched_cat.id if matched_cat else None,
+        "category_name": matched_cat.name if matched_cat else (result.get("suggested_category") or None),
+        "wallet_id": matched_wallet.id if matched_wallet else None,
+        "wallet_name": matched_wallet.name if matched_wallet else None,
+        "payment_method": result.get("payment_method"),
+        "discount_amount": result.get("discount_amount", 0),
+        "date": result.get("date"),
+    }
+    return JsonResponse(response_data)
+
+
+class WangLoginView(auth_views.LoginView):
+    template_name = "registration/login.html"
+
+    def form_invalid(self, form):
+        if form.non_field_errors():
+            error_msg = form.non_field_errors()[0]
+            if "Please enter a correct username and password" in error_msg:
+                error_msg = "Invalid username or password. Please try again."
+        elif "username" in form.errors and "password" in form.errors:
+            error_msg = "Username and password are required."
+        elif "username" in form.errors:
+            error_msg = "Please enter your username."
+        elif "password" in form.errors:
+            error_msg = "Please enter your password."
+        else:
+            error_msg = "Login failed. Please check your credentials and try again."
+
+        messages.error(self.request, error_msg)
+        response = super().form_invalid(form)
+        response.status_code = 422
+        return response
+
+
+
 
 

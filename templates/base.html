@@ -23,7 +23,7 @@
   <title>{% block title %}Wang{% endblock %}</title>
   <!-- Self-Hosted Fonts (GDPR Compliant) -->
   <link rel="preload" href="{% static 'fonts/plus-jakarta-sans-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/wang.css' %}">
+  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=7">
   <link rel="prefetch" href="{% static 'img/icons.svg' %}">
   <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
   <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
@@ -35,7 +35,7 @@
   <meta name="turbo-cache-control" content="no-preview">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.4/dist/turbo.es2017-umd.js"></script>
-  <script src="{% static 'js/app.js' %}?v=4"></script>
+  <script src="{% static 'js/app.js' %}?v=7"></script>
 </head>
 <body data-page="{% block page_name %}{% endblock %}">
   {% include "tracker/_svg_symbols.html" %}
@@ -67,6 +67,7 @@
 
     <main class="content turbo-enter">
       {{ recent_notes|json_script:"turbo-recent-notes" }}
+      {{ default_wallet.id|default:''|json_script:"turbo-default-wallet" }}
       {% if messages %}
         <div class="toast-container" id="toast-container" aria-live="polite">
           {% for m in messages %}
@@ -97,10 +98,10 @@
         <svg class="icon"><use href="#icon-add"></use></svg>
       </button>
       <a href="{% url 'graphs' %}" class="bn-item {% if request.resolver_match.url_name == 'graphs' %}active{% endif %}" data-nav="graphs" data-turbo-preload>
-        <svg class="icon"><use href="#icon-pie_chart"></use></svg><small>Graphs</small>
+        <svg class="icon" style="font-size:24px;"><use href="#icon-pie_chart"></use></svg><small>Graphs</small>
       </a>
-      <a href="{% url 'category_list' %}" class="bn-item {% if 'category' in request.resolver_match.url_name %}active{% endif %}" data-nav="categories" data-turbo-preload>
-        <svg class="icon"><use href="#icon-grid_view"></use></svg><small>Categories</small>
+      <a href="{% url 'more' %}" class="bn-item {% if request.resolver_match.url_name == 'more' or 'category' in request.resolver_match.url_name or 'subscription' in request.resolver_match.url_name or 'debt' in request.resolver_match.url_name %}active{% endif %}" data-nav="more" data-turbo-preload>
+        <svg class="icon"><use href="#icon-apps"></use></svg><small>More</small>
       </a>
     </nav>
 
@@ -110,6 +111,10 @@
       {% include "tracker/_budget_sheet.html" %}
       {% include "tracker/_confirm_sheet.html" %}
       {% include "tracker/_filter_sheet.html" %}
+      {% include "tracker/_debt_pay_sheet.html" %}
+      {% include "tracker/_debt_history_sheet.html" %}
+      {% include "tracker/_sub_history_sheet.html" %}
+      {% include "tracker/_cat_tx_sheet.html" %}
     </div>
 
     <!-- Receipt Lightbox Modal -->

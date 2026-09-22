@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block page_name %}debt_list{% endblock %}
+{% block title %}Debts &amp; Loans — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div style="display:flex;align-items:center;gap:10px">
+    <a href="{% url 'more' %}" class="icon-btn" aria-label="Back to More" title="Back to More" style="width:34px;height:34px;border-radius:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">
+      <svg class="icon" style="font-size:18px"><use href="#icon-arrow_back"></use></svg>
+    </a>
+    <div>
+      <h2 style="margin:0"><span class="title-script">D</span>ebts &amp; Loans</h2>
+      <!-- <small class="muted">Track money lent &amp; borrowed</small> -->
+    </div>
+  </div>
+  <a class="btn btn-sm" href="{% url 'debt_create' %}">+ New</a>
+</div>
+
+<!-- Summary Hero Grid -->
+<div class="debt-hero-grid">
+  <div class="card debt-hero-card card-lent">
+    <div class="debt-hero-icon-wrap icon-lent">
+      <svg class="icon"><use href="#icon-arrow_downward"></use></svg>
+    </div>
+    <div>
+      <small class="debt-hero-label">Owed to Me</small>
+      <div class="debt-hero-amount color-lent">
+        Rp{{ total_lent_remaining|floatformat:0|intcomma }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card debt-hero-card card-borrowed">
+    <div class="debt-hero-icon-wrap icon-borrowed">
+      <svg class="icon"><use href="#icon-arrow_upward"></use></svg>
+    </div>
+    <div>
+      <small class="debt-hero-label">I Owe</small>
+      <div class="debt-hero-amount color-borrowed">
+        Rp{{ total_borrowed_remaining|floatformat:0|intcomma }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Net Balance Position Chip -->
+<div class="card debt-net-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+    <div style="display:flex;align-items:center;gap:8px">
+      <svg class="icon" style="color:var(--muted);font-size:18px"><use href="#icon-handshake"></use></svg>
+      <span style="font-size:12.5px;font-weight:600;color:var(--muted)">Net Position:</span>
+    </div>
+    <span class="badge {% if net_debt > 0 %}badge-income{% elif net_debt < 0 %}badge-expense{% else %}badge-transfer{% endif %}" style="font-weight:700;font-size:12.5px">
+      {% if net_debt > 0 %}
+        +Rp{{ net_debt|floatformat:0|intcomma }} to receive
+      {% elif net_debt < 0 %}
+        -Rp{{ total_borrowed_remaining|floatformat:0|intcomma }} to pay
+      {% else %}
+        All balanced
+      {% endif %}
+    </span>
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="debt-tabs">
+  <a href="?tab=all" class="debt-tab {% if current_tab == 'all' %}active{% endif %}" data-turbo-preload>
+    All <span class="tab-count">{{ all_debts_count }}</span>
+  </a>
+  <a href="?tab=lent" class="debt-tab {% if current_tab == 'lent' %}active{% endif %}" data-turbo-preload>
+    Owed to Me
+  </a>
+  <a href="?tab=borrowed" class="debt-tab {% if current_tab == 'borrowed' %}active{% endif %}" data-turbo-preload>
+    I Owe
+  </a>
+  <a href="?tab=settled" class="debt-tab {% if current_tab == 'settled' %}active{% endif %}" data-turbo-preload>
+    Settled<span class="tab-count">{{ settled_count }}</span>
+  </a>
+</div>
+
+<!-- Debts List (1x2 Compact Grid) -->
+<div class="debt-list">
+  {% for d in debts %}
+    <div class="card debt-card {% if d.is_settled %}is-settled{% endif %}" id="debt-card-{{ d.pk }}">
+      <!-- Top Row: Kind Icon + Status Badge -->
+      <div class="debt-card-head">
+        <div style="display:flex; gap:8px;align-items:center">
+          <div class="debt-kind-icon {% if d.kind == 'lent' %}icon-lent{% else %}icon-borrowed{% endif %}">
+            <svg class="icon">
+              {% if d.kind == 'lent' %}
+                <use href="#icon-arrow_downward"></use>
+              {% else %}
+                <use href="#icon-arrow_upward"></use>
+              {% endif %}
+            </svg>
+          </div>
+        </div>
+        {% with badge=d.status_badge %}
+          <span class="sub-badge {{ badge.class }}" style="font-size:10px">{{ badge.label }}</span>
+        {% endwith %}
+      </div>
+
+      <!-- Body: Person Name + Kind Tag + Note -->
+      <div class="debt-card-body">
+        {% if d.kind == 'lent' %}
+          <strong class="debt-person-name" title="{{ d.person_name }}">{{ d.person_name }} owe me</strong>
+        {% else %}
+          <strong class="debt-person-name" title="{{ d.person_name }}">I owe {{ d.person_name }}</strong>
+        {% endif %}
+        {% if d.note %}
+          <div class="debt-card-note" title="{{ d.note }}">“{{ d.note }}”</div>
+        {% endif %}
+      </div>
+
+      <!-- Amount Section (Compact, No Progress Bar!) -->
+      <div class="debt-amount-section">
+        <div class="debt-rem-amount">
+          {% if not d.is_settled %}
+            Rp{{ d.remaining_amount|floatformat:0|intcomma }}
+            <small class="muted" style="font-size:10px;font-weight:600">left</small>
+          {% else %}
+            Rp{{ d.amount|floatformat:0|intcomma }}
+          {% endif %}
+        </div>
+        <div class="debt-total-amount">
+          {% if not d.is_settled %}
+            Total: Rp{{ d.amount|floatformat:0|intcomma }}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Action Buttons Row -->
+      <div class="debt-actions-row">
+        {% if not d.is_settled %}
+          <button type="button" class="btn btn-debt-pay js-open-debt-pay" data-debt-id="{{ d.pk }}" data-debt-person="{{ d.person_name }}" data-debt-remaining="{{ d.remaining_amount|floatformat:0 }}" data-debt-kind="{{ d.kind }}" title="Record repayment">
+            <svg class="icon" style="font-size:12px"><use href="#icon-payments"></use></svg>
+            <span>Repay</span>
+          </button>
+          <form method="post" action="{% url 'debt_settle' d.pk %}" style="margin:0" data-turbo="false">
+            {% csrf_token %}
+            <button type="submit" class="btn-debt-icon" title="Settle in full" aria-label="Settle debt with {{ d.person_name }}">
+              <svg class="icon" style="font-size:13px"><use href="#icon-check"></use></svg>
+            </button>
+          </form>
+        {% else %}
+          <div class="btn-debt-paid">
+            <svg class="icon" style="font-size:12px"><use href="#icon-payments"></use></svg>
+            <span>Paid</span>
+          </div>
+        {% endif %}
+
+        {% if d.payments.all %}
+          <button type="button" class="btn-debt-icon js-open-debt-history" data-debt-id="{{ d.pk }}" data-debt-person="{{ d.person_name }}" data-debt-total="Rp{{ d.amount|floatformat:0|intcomma }}" data-debt-rem="Rp{{ d.remaining_amount|floatformat:0|intcomma }}" title="View payment history" aria-label="View payment history">
+            <svg class="icon" style="font-size:13px"><use href="#icon-history"></use></svg>
+          </button>
+          <!-- Hidden payment items template for bottom sheet modal -->
+          <template id="history-items-{{ d.pk }}">
+            {% for p in d.payments.all %}
+              <div class="debt-payment-item">
+                <div>
+                  <div style="display:flex;flex-direction:row;align-items:center;gap:6px;">
+                    <strong style="font-size:13px;color:var(--ink)">Rp{{ p.amount|floatformat:0|intcomma }}</strong>
+                    <div style="font-size:11px" class="muted">
+                      {{ p.date|date:"j M Y, H:i" }}
+                    </div>
+                  </div>
+                  {% if p.wallet or p.note %}
+                    <div style="font-size:11px;display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap">
+                      {% if p.wallet %}
+                        <span style="display:inline-flex;align-items:center;gap:3px;color:{{ p.wallet.color|default:'var(--ink-muted)' }};font-weight:600">
+                          <svg class="icon" style="font-size:12px"><use href="#icon-{{ p.wallet.icon|default:'account_balance_wallet' }}"></use></svg>
+                          {{ p.wallet.name }}
+                        </span>
+                      {% endif %}
+                      {% if p.note %}
+                        <span style="color:var(--ink)">{{ p.note }}</span>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+                <div>
+                  <button class="icon-btn js-delete-debt-payment" type="button"
+                    data-debt-person="{{ d.person_name }}"
+                    data-payment-amount="Rp{{ p.amount|floatformat:0|intcomma }}"
+                    data-delete-url="{% url 'debt_payment_delete' d.pk p.pk %}"
+                    style="width:30px;height:30px;color:var(--coral)"
+                    title="Delete payment and restore balance"
+                    aria-label="Delete payment">
+                    <svg class="icon" style="font-size:15px"><use href="#icon-delete"></use></svg>
+                  </button>
+                </div>
+              </div>
+            {% endfor %}
+          </template>
+        {% endif %}
+
+        <a class="btn-debt-icon" href="{% url 'debt_edit' d.pk %}" aria-label="Edit debt" title="Edit">
+          <svg class="icon" style="font-size:13px"><use href="#icon-edit"></use></svg>
+        </a>
+      </div>
+       <span style="font-size:9px;color:var(--muted)">{{ d.created_at|date:"d M Y, H:i" }}</span>
+    </div>
+  {% empty %}
+    <div class="card muted center" style="grid-column:span 2;padding:32px 16px">
+      <svg class="icon" style="font-size:40px;color:var(--muted);margin-bottom:8px"><use href="#icon-handshake"></use></svg>
+      <div style="font-weight:700;color:var(--ink);margin-bottom:4px">No debts or loans tracked</div>
+      <p style="margin:0 0 16px;font-size:13px">Keep track of money you borrowed or lent to friends with clean partial repayments and status tracking.</p>
+      <a class="btn btn-primary btn-sm" href="{% url 'debt_create' %}">+ Add First Debt</a>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+

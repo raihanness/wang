@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block page_name %}profile_edit{% endblock %}
+{% block title %}Edit Profile — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <div style="display:flex;align-items:center;gap:8px">
+    <a href="{% url 'more' %}" class="icon-btn" aria-label="Back to More" title="Back to More" style="width:34px;height:34px;border-radius:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">
+      <svg class="icon" style="font-size:18px"><use href="#icon-arrow_back"></use></svg>
+    </a>
+    <h2 style="margin:0"><span class="title-script">E</span>dit Profile</h2>
+  </div>
+</div>
+
+<div class="card profile-edit-card">
+  <form method="post" enctype="multipart/form-data" id="profile-form">
+    {% csrf_token %}
+
+    <!-- Avatar Upload Section -->
+    <div class="profile-avatar-center-section">
+      <div class="profile-avatar-picker-wrap" id="avatar-picker-trigger" role="button" tabindex="0" title="Click to change profile picture" aria-label="Change profile photo">
+        <div class="profile-avatar-preview" id="profile-avatar-preview">
+          {% if profile.avatar %}
+            <img src="{{ profile.avatar.url }}" alt="{{ profile.get_display_name }}" class="profile-avatar-img" id="avatar-img-el">
+          {% else %}
+            <div class="profile-avatar-monogram" id="avatar-monogram-el">
+              <span>{{ profile.get_initials }}</span>
+            </div>
+          {% endif %}
+        </div>
+        <div class="profile-camera-badge" aria-hidden="true">
+          <svg class="icon"><use href="#icon-photo_camera"></use></svg>
+        </div>
+        {{ form.avatar }}
+      </div>
+      <div class="profile-avatar-hints">
+        <span class="profile-avatar-hint-title">Tap to choose photo</span>
+        <span class="profile-avatar-hint-sub">Auto-cropped &amp; optimized to WebP</span>
+      </div>
+      {% if profile.avatar %}
+        <button type="submit" form="remove-avatar-form" class="btn btn-ghost btn-sm profile-remove-avatar-btn" style="color:var(--red);margin-top:6px;font-size:11.5px" aria-label="Remove profile photo">
+          <svg class="icon" style="font-size:13px"><use href="#icon-delete"></use></svg>
+          <span>Remove Photo</span>
+        </button>
+      {% endif %}
+    </div>
+
+    <!-- Form Fields -->
+    <div class="form-fields" style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div class="form-field">
+        <label for="{{ form.display_name.id_for_label }}" style="font-weight:700;font-size:12px;color:var(--ink);margin-bottom:4px;display:block">Display Name</label>
+        {{ form.display_name }}
+        <!-- <small class="muted" style="font-size:10.5px;margin-top:2px;display:block">How your name appears across the app</small> -->
+      </div>
+
+      <div class="form-field">
+        <label for="{{ form.bio.id_for_label }}" style="font-weight:700;font-size:12px;color:var(--ink);margin-bottom:4px;display:block">Bio / Motto</label>
+        {{ form.bio }}
+        <!-- <small class="muted" style="font-size:10.5px;margin-top:2px;display:block">Your personal spending motto or note</small> -->
+      </div>
+
+      <div class="form-field">
+        <label for="{{ form.currency_symbol.id_for_label }}" style="font-weight:700;font-size:12px;color:var(--ink);margin-bottom:4px;display:block">Currency Symbol</label>
+        {{ form.currency_symbol }}
+        <small class="muted" style="font-size:10.5px;margin-top:2px;display:block">Preferred currency prefix (e.g. Rp, $, IDR)</small>
+      </div>
+    </div>
+
+    {% if form.errors %}
+      <div class="msg error" style="margin-top:12px">{{ form.errors }}</div>
+    {% endif %}
+
+    <div class="sheet-actions" style="margin-top:20px">
+      <button type="submit" class="btn btn-primary" style="flex:1">Save Changes</button>
+      <a class="btn btn-ghost" href="{% url 'more' %}" style="text-align:center">Cancel</a>
+    </div>
+  </form>
+
+  <!-- Separate Form for Removing Avatar -->
+  {% if profile.avatar %}
+    <form id="remove-avatar-form" method="post" action="{% url 'profile_remove_avatar' %}" style="display:none">
+      {% csrf_token %}
+    </form>
+  {% endif %}
+</div>
+
+<!-- Account Metadata Card -->
+<div class="card" style="margin-top:12px;padding:14px 16px">
+  <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Account Overview</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="background:var(--surface-muted);padding:10px;border-radius:10px">
+      <div class="muted" style="font-size:10.5px;font-weight:600">Username</div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-top:2px">@{{ request.user.username }}</div>
+    </div>
+    <div style="background:var(--surface-muted);padding:10px;border-radius:10px">
+      <div class="muted" style="font-size:10.5px;font-weight:600">Member Since</div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-top:2px">{{ request.user.date_joined|date:"M j, Y" }}</div>
+    </div>
+    <div style="background:var(--surface-muted);padding:10px;border-radius:10px">
+      <div class="muted" style="font-size:10.5px;font-weight:600">Transactions</div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-top:2px">{{ total_tx_count|intcomma }} logged</div>
+    </div>
+    <div style="background:var(--surface-muted);padding:10px;border-radius:10px">
+      <div class="muted" style="font-size:10.5px;font-weight:600">Active Accounts</div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-top:2px">{{ wallets_count }} wallets</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function initAvatarPicker() {
+    const trigger = document.getElementById('avatar-picker-trigger');
+    const input = document.getElementById('id_avatar');
+    const previewContainer = document.getElementById('profile-avatar-preview');
+    if (!trigger || !input || trigger.dataset.bound) return;
+    trigger.dataset.bound = '1';
+
+    trigger.addEventListener('click', (e) => {
+      if (e.target !== input) {
+        input.click();
+      }
+    });
+
+    trigger.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        input.click();
+      }
+    });
+
+    input.addEventListener('change', () => {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview" class="profile-avatar-img">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    });
+  }
+
+  initAvatarPicker();
+  document.addEventListener('turbo:load', initAvatarPicker);
+  document.addEventListener('turbo:render', initAvatarPicker);
+})();
+</script>
+{% endblock %}

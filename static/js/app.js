@@ -65,7 +65,7 @@
     if (window.AndroidBridge && typeof window.AndroidBridge.setSystemTheme === 'function') {
       try {
         window.AndroidBridge.setSystemTheme(current === 'dark');
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -80,9 +80,45 @@
     mountGraphs();
   }
 
-  // ── Total Balance Privacy (Eye Toggle) ────────────────────
+  // ── Total Balance Privacy & Dual Header (Spendable / Net Worth) ──
+  function getHeroBalanceMode() {
+    return localStorage.getItem('wang-hero-mode') || 'spendable';
+  }
+
+  function setHeroBalanceMode(mode) {
+    try {
+      localStorage.setItem('wang-hero-mode', mode);
+    } catch (e) { }
+    syncHeroBalanceUI();
+  }
+
   function isBalanceHidden() {
     return localStorage.getItem('wang-balance-hidden') === '1';
+  }
+
+  function syncHeroBalanceUI() {
+    const mode = getHeroBalanceMode();
+    const amountEl = document.getElementById('hero-balance-amount');
+    const modeBtns = document.querySelectorAll('.hero-toggle-btn');
+
+    modeBtns.forEach(btn => {
+      const isActive = btn.dataset.mode === mode;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    if (amountEl) {
+      amountEl.dataset.mode = mode;
+      let raw = amountEl.dataset.rawSpendable || amountEl.dataset.rawBalance || '';
+      if (mode === 'savings') {
+        raw = amountEl.dataset.rawSavings || amountEl.dataset.rawBalance || '';
+      } else if (mode === 'networth') {
+        raw = amountEl.dataset.rawNetworth || amountEl.dataset.rawBalance || '';
+      }
+      amountEl.dataset.rawBalance = raw;
+    }
+
+    syncBalancePrivacy();
   }
 
   function syncBalancePrivacy() {
@@ -100,7 +136,14 @@
       btn.setAttribute('title', label);
     }
     if (amountEl) {
-      const raw = amountEl.dataset.rawBalance || '';
+      const mode = amountEl.dataset.mode || getHeroBalanceMode();
+      let raw = amountEl.dataset.rawSpendable || amountEl.dataset.rawBalance || '';
+      if (mode === 'savings') {
+        raw = amountEl.dataset.rawSavings || amountEl.dataset.rawBalance || '';
+      } else if (mode === 'networth') {
+        raw = amountEl.dataset.rawNetworth || amountEl.dataset.rawBalance || '';
+      }
+
       if (hidden) {
         amountEl.innerHTML = '<span class="currency">Rp</span><span class="value masked">••••••</span>';
       } else {
@@ -125,6 +168,15 @@
   }
 
   document.addEventListener('click', (e) => {
+    const modeBtn = e.target.closest('.hero-toggle-btn');
+    if (modeBtn && modeBtn.dataset.mode) {
+      e.preventDefault();
+      const mode = modeBtn.dataset.mode;
+      setHeroBalanceMode(mode);
+      if (window.wangPlaySound) window.wangPlaySound('click');
+      return;
+    }
+
     if (e.target.closest('#hero-privacy-toggle')) {
       e.preventDefault();
       toggleBalancePrivacy();
@@ -276,7 +328,7 @@
         active = true;
       } else if (target === 'graphs' && page === 'graphs') {
         active = true;
-      } else if (target === 'categories' && page.startsWith('category')) {
+      } else if (target === 'more' && (page === 'more' || page.startsWith('category') || page.startsWith('subscription') || page.startsWith('debt'))) {
         active = true;
       }
       item.classList.toggle('active', active);
@@ -285,7 +337,7 @@
 
   function syncSheetStateWithAndroid() {
     if (!window.AndroidBridge || !window.AndroidBridge.setScrollableActive) return;
-    const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .confirm-sheet.open, .picker.open, .date-sheet.open, .month-popover.open, #lightbox.active');
+    const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .confirm-sheet.open, .picker.open, .date-sheet.open, .month-popover.open, #lightbox.active, .cat-tx-sheet.open');
     window.AndroidBridge.setScrollableActive(!!anyOpen);
   }
   window.syncSheetStateWithAndroid = syncSheetStateWithAndroid;
@@ -313,6 +365,9 @@
     sheet.classList.remove('open');
     overlay.classList.remove('show');
     document.body.style.overflow = '';
+    if (window.wangClearSheetDraft) {
+      window.wangClearSheetDraft();
+    }
     if (window.wangResetSheet) {
       window.wangResetSheet();
     }
@@ -453,7 +508,9 @@
     if (!sheet || !overlay) return;
     sheet.classList.remove('open');
     overlay.classList.remove('show');
-    document.body.style.overflow = '';
+    if (!document.querySelector('.sheet.open, .cat-tx-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-history-sheet.open')) {
+      document.body.style.overflow = '';
+    }
   }
   window.openDetailSheet = openDetailSheet;
   window.closeDetailSheet = closeDetailSheet;
@@ -497,6 +554,8 @@
     actionUrl = '',
     submitText = 'Delete',
     icon = 'delete',
+    submitIcon = null,
+    btnClass = 'btn-delete',
     onConfirm = null,
   } = {}) {
     const sheet = document.getElementById('confirm-sheet');
@@ -508,12 +567,22 @@
     const previewEl = document.getElementById('confirm-sheet-preview');
     const formEl = document.getElementById('confirm-sheet-form');
     const iconEl = document.getElementById('confirm-sheet-icon');
+    const submitBtnEl = document.getElementById('confirm-sheet-submit-btn');
+    const submitIconEl = document.getElementById('confirm-sheet-submit-icon');
     const submitTextEl = document.getElementById('confirm-sheet-submit-text');
 
     if (titleEl) titleEl.textContent = title;
     if (descEl) descEl.textContent = desc;
     if (iconEl) setSvgIcon(iconEl, icon);
     if (submitTextEl) submitTextEl.textContent = submitText;
+    if (submitIconEl) setSvgIcon(submitIconEl, submitIcon || icon);
+
+    if (submitBtnEl) {
+      submitBtnEl.className = `btn ${btnClass}`;
+      submitBtnEl.style.flex = '1';
+      submitBtnEl.style.justifyContent = 'center';
+      submitBtnEl.style.gap = '6px';
+    }
 
     if (previewEl) {
       if (preview) {
@@ -536,9 +605,6 @@
       window.AndroidBridge.setScrollableActive(true);
     }
     document.body.style.overflow = 'hidden';
-    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
-      window.AndroidBridge.setScrollableActive(true);
-    }
   }
 
   function closeConfirmSheet() {
@@ -551,7 +617,9 @@
     const addOpen = document.getElementById('add-sheet')?.classList.contains('open');
     const budgetOpen = document.getElementById('budget-sheet')?.classList.contains('open');
     const filterOpen = document.getElementById('filter-sheet')?.classList.contains('open');
-    if (!detailOpen && !addOpen && !budgetOpen && !filterOpen) {
+    const subHistOpen = document.getElementById('sub-history-sheet')?.classList.contains('open');
+    const debtHistOpen = document.getElementById('debt-history-sheet')?.classList.contains('open');
+    if (!detailOpen && !addOpen && !budgetOpen && !filterOpen && !subHistOpen && !debtHistOpen) {
       document.body.style.overflow = '';
     }
     syncSheetStateWithAndroid();
@@ -575,7 +643,53 @@
     }
   }
 
-  // ── Multi-Filter Bottom Sheet ─────────────────────────────
+  // ── Multi-Filter Bottom Sheet (Tri-State: Neutral -> Include -> Exclude -> Neutral) ──
+  function setChipState(chip, state) {
+    if (!chip) return;
+    chip.dataset.state = state;
+    chip.classList.toggle('is-include', state === 'include');
+    chip.classList.toggle('is-exclude', state === 'exclude');
+    chip.classList.toggle('active', state === 'include');
+  }
+
+  function updateCategoryFilterVisibility() {
+    const incTypes = Array.from(document.querySelectorAll('#filter-type-group .filter-choice-chip[data-state="include"]')).map(c => c.dataset.type).filter(Boolean);
+    const excTypes = Array.from(document.querySelectorAll('#filter-type-group .filter-choice-chip[data-state="exclude"]')).map(c => c.dataset.type).filter(Boolean);
+    const catChips = document.querySelectorAll('#filter-cat-group .filter-choice-chip');
+
+    catChips.forEach(c => {
+      const kind = c.dataset.kind;
+      if (incTypes.length > 0) {
+        c.style.display = incTypes.includes(kind) ? '' : 'none';
+      } else if (excTypes.includes(kind)) {
+        c.style.display = 'none';
+      } else {
+        c.style.display = '';
+      }
+    });
+  }
+
+  function cycleFilterChip(chip) {
+    if (!chip) return;
+    const curState = chip.dataset.state || 'neutral';
+    let nextState = 'neutral';
+    if (curState === 'neutral') {
+      nextState = 'include';
+      playSound('tap');
+      if (navigator.vibrate) navigator.vibrate(8);
+    } else if (curState === 'include') {
+      nextState = 'exclude';
+      playSound('delete');
+      if (navigator.vibrate) navigator.vibrate([10, 25, 10]);
+    } else {
+      nextState = 'neutral';
+      playSound('tap');
+      if (navigator.vibrate) navigator.vibrate(5);
+    }
+    setChipState(chip, nextState);
+    updateCategoryFilterVisibility();
+  }
+
   function openFilterSheet() {
     const sheet = document.getElementById('filter-sheet');
     const overlay = document.getElementById('filter-overlay');
@@ -584,34 +698,42 @@
     // Read current state from trigger dataset or URL
     const trigger = document.getElementById('multi-filter-trigger');
     const urlParams = new URLSearchParams(window.location.search);
-    const activeType = trigger?.dataset.type || urlParams.get('filter') || '';
-    const activeWallet = trigger?.dataset.wallet || urlParams.get('wallet') || '';
-    const activeCategory = trigger?.dataset.category || urlParams.get('category') || '';
+    const parseList = (str) => (str ? str.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+    const incTypes = parseList(trigger?.dataset.type || urlParams.get('filter'));
+    const excTypes = parseList(trigger?.dataset.typeExclude || urlParams.get('filter_exclude'));
+    const incWallets = parseList(trigger?.dataset.wallet || urlParams.get('wallet'));
+    const excWallets = parseList(trigger?.dataset.walletExclude || urlParams.get('wallet_exclude'));
+    const incCats = parseList(trigger?.dataset.category || urlParams.get('category'));
+    const excCats = parseList(trigger?.dataset.categoryExclude || urlParams.get('category_exclude'));
     const activeDateFrom = trigger?.dataset.dateFrom || urlParams.get('date_from') || '';
     const activeDateTo = trigger?.dataset.dateTo || urlParams.get('date_to') || '';
 
     // Sync Type chips
-    const typeChips = document.querySelectorAll('#filter-type-group .filter-choice-chip');
-    typeChips.forEach(chip => {
-      chip.classList.toggle('active', chip.dataset.type === activeType);
+    document.querySelectorAll('#filter-type-group .filter-choice-chip').forEach(chip => {
+      const t = chip.dataset.type;
+      if (incTypes.includes(t)) setChipState(chip, 'include');
+      else if (excTypes.includes(t)) setChipState(chip, 'exclude');
+      else setChipState(chip, 'neutral');
     });
 
     // Sync Wallet chips
-    const walletChips = document.querySelectorAll('#filter-wallet-group .filter-choice-chip');
-    walletChips.forEach(chip => {
-      chip.classList.toggle('active', chip.dataset.wallet === activeWallet);
+    document.querySelectorAll('#filter-wallet-group .filter-choice-chip').forEach(chip => {
+      const w = chip.dataset.wallet;
+      if (incWallets.includes(w)) setChipState(chip, 'include');
+      else if (excWallets.includes(w)) setChipState(chip, 'exclude');
+      else setChipState(chip, 'neutral');
     });
 
     // Sync Category chips
-    const catChips = document.querySelectorAll('#filter-cat-group .filter-choice-chip');
-    catChips.forEach(chip => {
-      chip.classList.toggle('active', chip.dataset.category === activeCategory);
-      if (!chip.dataset.category || !activeType || activeType === 'transfer') {
-        chip.style.display = '';
-      } else {
-        chip.style.display = (chip.dataset.kind === activeType) ? '' : 'none';
-      }
+    document.querySelectorAll('#filter-cat-group .filter-choice-chip').forEach(chip => {
+      const c = chip.dataset.category;
+      if (incCats.includes(c)) setChipState(chip, 'include');
+      else if (excCats.includes(c)) setChipState(chip, 'exclude');
+      else setChipState(chip, 'neutral');
     });
+
+    updateCategoryFilterVisibility();
 
     // Sync Date inputs
     const fromInput = document.getElementById('filter-date-from');
@@ -625,9 +747,6 @@
       window.AndroidBridge.setScrollableActive(true);
     }
     document.body.style.overflow = 'hidden';
-    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
-      window.AndroidBridge.setScrollableActive(true);
-    }
   }
 
   function closeFilterSheet() {
@@ -666,56 +785,21 @@
       overlay.addEventListener('click', closeFilterSheet);
     }
 
-    // Type chip selection
+    const handleChipClick = (e) => {
+      const chip = e.target.closest('.filter-choice-chip');
+      if (!chip) return;
+      cycleFilterChip(chip);
+    };
+
+    // Chip selection groups
     const typeGroup = document.getElementById('filter-type-group');
-    if (typeGroup) {
-      typeGroup.addEventListener('click', (e) => {
-        const chip = e.target.closest('.filter-choice-chip');
-        if (!chip) return;
-        playSound('tap');
-        typeGroup.querySelectorAll('.filter-choice-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
+    if (typeGroup) typeGroup.addEventListener('click', handleChipClick);
 
-        // Filter category visibility based on selected type
-        const selType = chip.dataset.type;
-        const catChips = document.querySelectorAll('#filter-cat-group .filter-choice-chip');
-        catChips.forEach(c => {
-          if (!c.dataset.category) {
-            c.style.display = '';
-            return;
-          }
-          if (!selType || selType === 'transfer') {
-            c.style.display = '';
-          } else {
-            c.style.display = (c.dataset.kind === selType) ? '' : 'none';
-          }
-        });
-      });
-    }
-
-    // Wallet chip selection
     const walletGroup = document.getElementById('filter-wallet-group');
-    if (walletGroup) {
-      walletGroup.addEventListener('click', (e) => {
-        const chip = e.target.closest('.filter-choice-chip');
-        if (!chip) return;
-        playSound('tap');
-        walletGroup.querySelectorAll('.filter-choice-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-      });
-    }
+    if (walletGroup) walletGroup.addEventListener('click', handleChipClick);
 
-    // Category chip selection
     const catGroup = document.getElementById('filter-cat-group');
-    if (catGroup) {
-      catGroup.addEventListener('click', (e) => {
-        const chip = e.target.closest('.filter-choice-chip');
-        if (!chip) return;
-        playSound('tap');
-        catGroup.querySelectorAll('.filter-choice-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-      });
-    }
+    if (catGroup) catGroup.addEventListener('click', handleChipClick);
 
     // Date range presets
     sheet.querySelectorAll('.filter-preset-btn').forEach(btn => {
@@ -761,10 +845,8 @@
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         playSound('tap');
-        typeGroup?.querySelectorAll('.filter-choice-chip').forEach((c, idx) => c.classList.toggle('active', idx === 0));
-        walletGroup?.querySelectorAll('.filter-choice-chip').forEach((c, idx) => c.classList.toggle('active', idx === 0));
-        catGroup?.querySelectorAll('.filter-choice-chip').forEach((c, idx) => {
-          c.classList.toggle('active', idx === 0);
+        sheet.querySelectorAll('.filter-choice-chip').forEach(c => {
+          setChipState(c, 'neutral');
           c.style.display = '';
         });
         const fromInput = document.getElementById('filter-date-from');
@@ -779,15 +861,14 @@
     if (applyBtn) {
       applyBtn.addEventListener('click', () => {
         playSound('tap');
-        const activeTypeChip = typeGroup?.querySelector('.filter-choice-chip.active');
-        const activeWalletChip = walletGroup?.querySelector('.filter-choice-chip.active');
-        const activeCatChip = catGroup?.querySelector('.filter-choice-chip.active');
+        const incTypes = Array.from(document.querySelectorAll('#filter-type-group .filter-choice-chip[data-state="include"]')).map(c => c.dataset.type).filter(Boolean);
+        const excTypes = Array.from(document.querySelectorAll('#filter-type-group .filter-choice-chip[data-state="exclude"]')).map(c => c.dataset.type).filter(Boolean);
+        const incWallets = Array.from(document.querySelectorAll('#filter-wallet-group .filter-choice-chip[data-state="include"]')).map(c => c.dataset.wallet).filter(Boolean);
+        const excWallets = Array.from(document.querySelectorAll('#filter-wallet-group .filter-choice-chip[data-state="exclude"]')).map(c => c.dataset.wallet).filter(Boolean);
+        const incCats = Array.from(document.querySelectorAll('#filter-cat-group .filter-choice-chip[data-state="include"]')).map(c => c.dataset.category).filter(Boolean);
+        const excCats = Array.from(document.querySelectorAll('#filter-cat-group .filter-choice-chip[data-state="exclude"]')).map(c => c.dataset.category).filter(Boolean);
         const fromVal = document.getElementById('filter-date-from')?.value || '';
         const toVal = document.getElementById('filter-date-to')?.value || '';
-
-        const typeVal = activeTypeChip?.dataset.type || '';
-        const walletVal = activeWalletChip?.dataset.wallet || '';
-        const catVal = activeCatChip?.dataset.category || '';
 
         const currentUrl = new URL(window.location.href);
         const searchInput = document.querySelector('.search-input');
@@ -795,9 +876,12 @@
 
         const params = new URLSearchParams();
         if (qVal) params.set('q', qVal);
-        if (typeVal) params.set('filter', typeVal);
-        if (walletVal) params.set('wallet', walletVal);
-        if (catVal) params.set('category', catVal);
+        if (incTypes.length) params.set('filter', incTypes.join(','));
+        if (excTypes.length) params.set('filter_exclude', excTypes.join(','));
+        if (incWallets.length) params.set('wallet', incWallets.join(','));
+        if (excWallets.length) params.set('wallet_exclude', excWallets.join(','));
+        if (incCats.length) params.set('category', incCats.join(','));
+        if (excCats.length) params.set('category_exclude', excCats.join(','));
 
         if (fromVal) params.set('date_from', fromVal);
         if (toVal) params.set('date_to', toVal);
@@ -837,6 +921,290 @@
     bindFilterSheet();
   }
 
+  function openDebtPaySheet(debtId, person, remaining, kind) {
+    const sheet = document.getElementById('debt-pay-sheet');
+    const overlay = document.getElementById('debt-pay-overlay');
+    const form = document.getElementById('debt-pay-form');
+    const personTitle = document.getElementById('debt-pay-person-title');
+    const remInfo = document.getElementById('debt-pay-rem-info');
+    const amountInput = document.getElementById('debt-pay-amount');
+    const walletLabel = document.getElementById('debt-pay-wallet-label');
+    const walletHint = document.getElementById('debt-pay-wallet-hint');
+    if (!sheet || !overlay || !form) return;
+
+    form.action = `/debts/${debtId}/pay/`;
+    if (personTitle) personTitle.textContent = `Repayment for ${person}`;
+    const cleanNum = parseFloat(String(remaining).replace(/[^0-9.]/g, '')) || 0;
+    if (remInfo) remInfo.textContent = `Remaining balance: Rp${cleanNum.toLocaleString('id-ID')}`;
+    if (amountInput) {
+      amountInput.value = cleanNum > 0 ? cleanNum : '';
+      setTimeout(() => amountInput.focus(), 120);
+    }
+    if (walletLabel) {
+      walletLabel.textContent = kind === 'lent' ? 'Receiving Account (Optional)' : 'Paying Account (Optional)';
+    }
+    if (walletHint) {
+      walletHint.textContent = kind === 'lent'
+        ? 'Selecting an account deposits funds into it (+Income).'
+        : 'Selecting an account deducts funds from it (-Expense).';
+    }
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openDebtPaySheet = openDebtPaySheet;
+
+  function openDebtHistorySheet(debtId, person, total, rem) {
+    const sheet = document.getElementById('debt-history-sheet');
+    const overlay = document.getElementById('debt-history-overlay');
+    const personEl = document.getElementById('debt-history-person');
+    const totalEl = document.getElementById('debt-history-total');
+    const remEl = document.getElementById('debt-history-rem');
+    const listEl = document.getElementById('debt-history-list');
+    const template = document.getElementById('history-items-' + debtId);
+    if (!sheet || !overlay) return;
+
+    if (personEl) personEl.textContent = `Repayment History for ${person}`;
+    if (totalEl) totalEl.textContent = `Total: ${total}`;
+    if (remEl) remEl.textContent = `Remaining: ${rem}`;
+    if (listEl) {
+      listEl.innerHTML = template ? template.innerHTML : '<div class="muted center" style="padding:16px;font-size:12px">No payments recorded yet.</div>';
+    }
+
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openDebtHistorySheet = openDebtHistorySheet;
+
+  function closeDebtPaySheet() {
+    const s = document.getElementById('debt-pay-sheet');
+    const o = document.getElementById('debt-pay-overlay');
+    if (s) s.classList.remove('open');
+    if (o) o.classList.remove('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeDebtPaySheet = closeDebtPaySheet;
+
+  function closeDebtHistorySheet() {
+    const s = document.getElementById('debt-history-sheet');
+    const o = document.getElementById('debt-history-overlay');
+    if (s) s.classList.remove('open');
+    if (o) o.classList.remove('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeDebtHistorySheet = closeDebtHistorySheet;
+
+  function openSubHistorySheet(subId, name, amount, info, total, isCompleted) {
+    const sheet = document.getElementById('sub-history-sheet');
+    const overlay = document.getElementById('sub-history-overlay');
+    const nameEl = document.getElementById('sub-history-name');
+    const infoEl = document.getElementById('sub-history-info');
+    const totalEl = document.getElementById('sub-history-total');
+    const badgeEl = document.getElementById('sub-history-badge');
+    const listEl = document.getElementById('sub-history-list');
+    const template = document.getElementById('sub-history-items-' + subId);
+    if (!sheet || !overlay) return;
+
+    if (nameEl) nameEl.textContent = name;
+    if (infoEl) infoEl.textContent = info || amount;
+    if (totalEl) totalEl.textContent = `Total: ${total}`;
+    if (badgeEl) {
+      if (isCompleted === '1') {
+        badgeEl.style.display = 'inline-block';
+        badgeEl.textContent = 'Completed';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+    }
+    if (listEl) {
+      listEl.innerHTML = template ? template.innerHTML : '<div class="muted center" style="padding:16px;font-size:12px">No payments recorded yet.</div>';
+    }
+
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openSubHistorySheet = openSubHistorySheet;
+
+  function closeSubHistorySheet() {
+    const s = document.getElementById('sub-history-sheet');
+    const o = document.getElementById('sub-history-overlay');
+    if (s) s.classList.remove('open');
+    if (o) o.classList.remove('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeSubHistorySheet = closeSubHistorySheet;
+
+  // ── Category Transactions Bottom Sheet ─────────────────────
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function openCatTxSheet(catData) {
+    if (!catData) return;
+    const sheet = document.getElementById('cat-tx-sheet');
+    const overlay = document.getElementById('cat-tx-overlay');
+    if (!sheet || !overlay) return;
+
+    const symbolEl = document.getElementById('cat-tx-symbol');
+    const iconEl = document.getElementById('cat-tx-icon');
+    const titleEl = document.getElementById('cat-tx-title');
+    const subEl = document.getElementById('cat-tx-sub');
+    const totalEl = document.getElementById('cat-tx-total');
+    const pctEl = document.getElementById('cat-tx-pct');
+    const countEl = document.getElementById('cat-tx-count');
+    const listEl = document.getElementById('cat-tx-list');
+
+    const catName = catData.label || 'Category';
+    const catColor = catData.color || '#FFB5A7';
+    const catIcon = catData.icon || 'label';
+    const catVal = Math.round(catData.value || 0);
+    const catPct = catData.pct !== undefined ? catData.pct : 0;
+
+    if (symbolEl) setSvgIcon(symbolEl, catIcon);
+    if (iconEl) {
+      iconEl.style.backgroundColor = catColor + '25';
+      iconEl.style.color = catColor;
+    }
+    if (titleEl) titleEl.textContent = catName;
+
+    // Month text from current view
+    const monthBadge = document.querySelector('.card .badge-expense, .card .badge-income, .month-chip.active');
+    if (subEl) {
+      subEl.textContent = monthBadge ? monthBadge.textContent.trim() : 'This Month';
+    }
+
+    if (totalEl) totalEl.textContent = 'Rp' + catVal.toLocaleString('id-ID');
+    if (pctEl) pctEl.textContent = `${catPct}% of month`;
+
+    // Load category transactions
+    let catTxMap = {};
+    const catTxEl = document.getElementById('cat-tx-data');
+    if (catTxEl) {
+      try {
+        catTxMap = JSON.parse(catTxEl.textContent);
+        if (typeof catTxMap === 'string') catTxMap = JSON.parse(catTxMap);
+      } catch (e) {
+        console.error('Failed to parse cat-tx-data', e);
+      }
+    }
+
+    let txs = [];
+    if (catData.id && catTxMap[String(catData.id)]) {
+      txs = catTxMap[String(catData.id)];
+    } else if (catData.label) {
+      for (const k in catTxMap) {
+        const arr = catTxMap[k];
+        if (Array.isArray(arr) && arr.length && arr[0].cat_name === catData.label) {
+          txs = arr;
+          break;
+        }
+      }
+    }
+
+    if (countEl) {
+      countEl.textContent = `${txs.length} transaction${txs.length === 1 ? '' : 's'}`;
+    }
+
+    if (listEl) {
+      if (!txs || !txs.length) {
+        listEl.innerHTML = '<div class="muted center" style="padding:28px 16px;font-size:12.5px">No transactions recorded for this category in this month.</div>';
+      } else {
+        listEl.innerHTML = txs.map(t => {
+          const isExpense = t.kind === 'expense';
+          const isIncome = t.kind === 'income';
+          const amtSign = isExpense ? '-' : (isIncome ? '+' : '');
+          const amtColor = isExpense ? 'var(--red)' : (isIncome ? 'var(--green)' : 'var(--ink)');
+          const noteOrName = t.note ? escapeHtml(t.note) : escapeHtml(t.cat_name || 'Transaction');
+          const subText = t.datetime_display ? escapeHtml(t.datetime_display) : escapeHtml(t.date_display || '');
+          const receiptBadge = t.image ? '<span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size:11px"><use href="#icon-receipt_long"></use></svg></span>' : '';
+
+          return `
+            <div class="list-item js-detail-tx" style="cursor:pointer"
+                 data-id="${t.id}"
+                 data-url="${t.edit_url || ''}"
+                 data-delete-url="${t.delete_url || ''}"
+                 data-kind="${t.kind}"
+                 data-amount="${t.amount}"
+                 data-formatted-amount="${t.formatted_amount}"
+                 data-note="${escapeHtml(t.note || '')}"
+                 data-date="${t.date}"
+                 data-date-display="${escapeHtml(t.date_display || '')}"
+                 data-time-display="${escapeHtml(t.time_display || '')}"
+                 data-datetime-display="${escapeHtml(t.datetime_display || '')}"
+                 data-cat="${t.cat_id || ''}"
+                 data-cat-name="${escapeHtml(t.cat_name || '')}"
+                 data-cat-icon="${t.cat_icon || 'label'}"
+                 data-cat-color="${t.cat_color || '#FFB5A7'}"
+                 data-wallet="${t.wallet_id || ''}"
+                 data-wallet-name="${escapeHtml(t.wallet_name || '')}"
+                 data-image="${t.image || ''}">
+              <div class="li-icon" style="background:${t.cat_color}20;color:${t.cat_color}">
+                <svg class="icon"><use href="#icon-${t.cat_icon || 'label'}"></use></svg>
+              </div>
+              <div class="li-main">
+                <div class="li-title">
+                  <span>${noteOrName}</span>
+                  ${receiptBadge}
+                </div>
+                <div class="li-sub">${subText}</div>
+              </div>
+              <div class="li-right">
+                <div class="li-amt" style="color:${amtColor}">
+                  ${amtSign}${t.formatted_amount}
+                </div>
+                <div class="li-sub" style="display:flex;justify-content:right;align-items:center;">
+                  <svg class="icon" style="font-size:12px;margin:0 4px 0 0;"><use href="#icon-${t.wallet_icon || 'account_balance_wallet'}"></use></svg>${escapeHtml(t.wallet_name || '')}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openCatTxSheet = openCatTxSheet;
+
+  function closeCatTxSheet() {
+    const s = document.getElementById('cat-tx-sheet');
+    const o = document.getElementById('cat-tx-overlay');
+    if (s) s.classList.remove('open');
+    if (o) o.classList.remove('show');
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-history-sheet.open')) {
+      document.body.style.overflow = '';
+    }
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeCatTxSheet = closeCatTxSheet;
+
   function resetOverlays() {
     document.body.style.overflow = '';
     const s = document.getElementById('add-sheet');
@@ -848,6 +1216,9 @@
     closeBudgetSheet();
     closeConfirmSheet();
     closeFilterSheet();
+    closeDebtPaySheet();
+    closeDebtHistorySheet();
+    closeCatTxSheet();
     if (window.wangResetSheet) window.wangResetSheet();
     syncSheetStateWithAndroid();
   }
@@ -1131,15 +1502,30 @@
             datasets: [{
               data: pie.map(p => p.value),
               backgroundColor: pie.map(p => p.color),
-              borderWidth: 3,
+              borderWidth: 0,
               borderColor: pieBorder,
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: '68%',
-            plugins: { legend: { display: false } }
+            cutout: '60%',
+            plugins: { legend: { display: false } },
+            onClick: function (event, elements) {
+              if (elements && elements.length > 0) {
+                const idx = elements[0].index;
+                const catItem = pie[idx];
+                if (catItem && window.openCatTxSheet) {
+                  playSound('tap');
+                  window.openCatTxSheet(catItem);
+                }
+              }
+            },
+            onHover: function (event, elements) {
+              if (event.native && event.native.target) {
+                event.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default';
+              }
+            }
           }
         });
 
@@ -1148,7 +1534,7 @@
           legend.innerHTML = '';
           const totalVal = pie.reduce((acc, p) => acc + (p.value || 0), 0);
           const isExpense = !window.location.search.includes('kind=income');
-          pie.forEach(p => {
+          pie.forEach((p, idx) => {
             const pct = (p.pct !== undefined) ? p.pct : (totalVal > 0 ? ((p.value / totalVal) * 100).toFixed(1) : 0);
 
             let momBadgeHtml = '';
@@ -1169,6 +1555,11 @@
 
             const row = document.createElement('div');
             row.className = 'cat-legend-item';
+            row.setAttribute('role', 'button');
+            row.setAttribute('tabindex', '0');
+            row.setAttribute('aria-label', `View ${p.label} transactions`);
+            row.dataset.catId = p.id || '';
+            row.dataset.catIndex = idx;
             row.innerHTML = `
               <div class="cat-legend-top">
                 <div class="cat-legend-label">
@@ -1177,12 +1568,30 @@
                   <span class="cat-legend-pct">${pct}%</span>
                   ${momBadgeHtml}
                 </div>
-                <strong class="cat-legend-amt">Rp${Math.round(p.value).toLocaleString('id-ID')}</strong>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <strong class="cat-legend-amt">Rp${Math.round(p.value).toLocaleString('id-ID')}</strong>
+                  <svg class="icon cat-legend-arrow"><use href="#icon-chevron_right"></use></svg>
+                </div>
               </div>
               <div class="cat-pct-track">
                 <div class="cat-pct-bar" style="width:${pct}%;background:${p.color}"></div>
               </div>
             `;
+            row.addEventListener('click', () => {
+              playSound('tap');
+              if (window.openCatTxSheet) {
+                window.openCatTxSheet(p);
+              }
+            });
+            row.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                playSound('tap');
+                if (window.openCatTxSheet) {
+                  window.openCatTxSheet(p);
+                }
+              }
+            });
             legend.appendChild(row);
           });
         }
@@ -1329,12 +1738,12 @@
               legend: { display: false },
               tooltip: {
                 callbacks: {
-                  title: function(items) {
+                  title: function (items) {
                     if (!items.length) return '';
                     const idx = items[0].dataIndex;
                     return nwData[idx]?.label || items[0].label;
                   },
-                  label: function(ctx) {
+                  label: function (ctx) {
                     const val = ctx.raw || 0;
                     return `Net Worth: Rp${Math.round(val).toLocaleString('id-ID')}`;
                   }
@@ -1356,7 +1765,7 @@
                 ticks: {
                   color: textColor,
                   font: { family: 'Plus Jakarta Sans', size: 11 },
-                  callback: function(v) {
+                  callback: function (v) {
                     if (Math.abs(v) >= 1000000) return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
                     if (Math.abs(v) >= 1000) return (v / 1000).toFixed(0) + 'k';
                     return v;
@@ -1371,8 +1780,76 @@
   }
   window.wangMountGraphs = mountGraphs;
 
+  // Handle CSV Export on web & WebView
+  async function handleCsvExport(e, link) {
+    // 1. If running inside Android WebView and AndroidBridge.downloadUrl is available:
+    if (window.AndroidBridge && typeof window.AndroidBridge.downloadUrl === 'function') {
+      e.preventDefault();
+      playSound('tap');
+      window.AndroidBridge.downloadUrl(link.href);
+      return;
+    }
+
+    // 2. If Web Share API is available with file support (modern mobile WebView / Android Chrome):
+    if (navigator.share && navigator.canShare) {
+      e.preventDefault();
+      playSound('tap');
+      try {
+        if (window.showToast) showToast('Preparing CSV file...', 'info', 2500);
+        const resp = await fetch(link.href);
+        if (!resp.ok) throw new Error('Failed to fetch CSV');
+        const csvText = await resp.text();
+        const filename = `wang_transactions_${new Date().toISOString().slice(0, 10)}.csv`;
+        const file = new File([csvText], filename, { type: 'text/csv;charset=utf-8' });
+
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'Wang Transactions Export',
+            files: [file]
+          });
+          if (window.showToast) showToast('Export ready!', 'success');
+          return;
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User cancelled share dialog
+        console.warn('Web Share failed, falling back to Blob download:', err);
+      }
+    }
+
+    // 3. Fallback: Client-side Blob download
+    if (window.showToast) showToast('Downloading CSV file...', 'info', 2500);
+    try {
+      e.preventDefault();
+      playSound('tap');
+      const resp = await fetch(link.href);
+      if (!resp.ok) throw new Error('Failed to fetch CSV');
+      const blob = await resp.blob();
+      const filename = `wang_transactions_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blobUrl = URL.createObjectURL(blob);
+      const tempLink = document.createElement('a');
+      tempLink.href = blobUrl;
+      tempLink.download = filename;
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      setTimeout(() => {
+        document.body.removeChild(tempLink);
+        URL.revokeObjectURL(blobUrl);
+      }, 300);
+      if (window.showToast) showToast('CSV downloaded!', 'success');
+    } catch (err) {
+      window.location.href = link.href;
+    }
+  }
+
   // Delegated click handler
   document.addEventListener('click', (e) => {
+    // CSV Export trigger (WebView & Mobile aware)
+    const exportBtn = e.target.closest('.js-export-csv, a[href*="/export/csv/"]');
+    if (exportBtn) {
+      handleCsvExport(e, exportBtn);
+      return;
+    }
+
     // Multi-filter trigger
     const filterTrigger = e.target.closest('#multi-filter-trigger');
     if (filterTrigger) {
@@ -1382,7 +1859,7 @@
       return;
     }
     // Sound toggle
-    const soundToggle = e.target.closest('#sound-toggle');
+    const soundToggle = e.target.closest('#sound-toggle, .js-sound-toggle');
     if (soundToggle) {
       e.preventDefault();
       toggleSound();
@@ -1390,7 +1867,7 @@
     }
 
     // Theme toggle
-    const themeToggle = e.target.closest('#theme-toggle');
+    const themeToggle = e.target.closest('#theme-toggle, .js-theme-toggle');
     if (themeToggle) {
       e.preventDefault();
       playSound('click');
@@ -1473,9 +1950,13 @@
       const data = activeDetailData;
       if (!data || !data.deleteUrl) return;
       const preview = `${data.catName || 'Transaction'} · ${data.note || '-'} · ${data.formattedAmount || ('Rp' + data.amount)}`;
+      const note = data.note ? data.note.trim() : '';
+      const desc = note
+        ? `Are you sure you want to delete “${note}”? This action cannot be undone.`
+        : 'Are you sure you want to delete this transaction? This action cannot be undone.';
       openConfirmSheet({
         title: 'Delete Transaction?',
-        desc: 'Are you sure you want to delete this transaction? This action cannot be undone.',
+        desc: desc,
         preview: preview,
         actionUrl: data.deleteUrl,
         onConfirm: () => {
@@ -1553,6 +2034,210 @@
         input.value = '0';
         form.submit();
       }
+      return;
+    }
+
+    // Carousel Tab Switcher (Bills vs Debts on Home)
+    const carouselTab = e.target.closest('.carousel-tab-btn');
+    if (carouselTab) {
+      e.preventDefault();
+      playSound('click');
+      const target = carouselTab.dataset.target; // 'subs' or 'debts'
+      document.querySelectorAll('.carousel-tab-btn').forEach(btn => btn.classList.remove('active'));
+      carouselTab.classList.add('active');
+      const stripSubs = document.getElementById('strip-subs');
+      const stripDebts = document.getElementById('strip-debts');
+      const manageLink = document.getElementById('carousel-manage-link');
+      if (target === 'debts') {
+        if (stripSubs) stripSubs.style.display = 'none';
+        if (stripDebts) stripDebts.style.display = 'flex';
+        if (manageLink) {
+          manageLink.href = '/debts/';
+          const debtsCount = carouselTab.querySelector('.badge-count');
+          manageLink.innerHTML = debtsCount ? `Manage (${debtsCount.textContent.trim()}) &rsaquo;` : 'Manage &rsaquo;';
+        }
+      } else {
+        if (stripDebts) stripDebts.style.display = 'none';
+        if (stripSubs) stripSubs.style.display = 'flex';
+        if (manageLink) {
+          manageLink.href = '/subscriptions/';
+          const subsCount = carouselTab.querySelector('.badge-count');
+          manageLink.innerHTML = subsCount ? `Manage (${subsCount.textContent.trim()}) &rsaquo;` : 'Manage &rsaquo;';
+        }
+      }
+      return;
+    }
+
+    // Debt Pay button trigger
+    const debtPayBtn = e.target.closest('.js-open-debt-pay');
+    if (debtPayBtn) {
+      e.preventDefault();
+      playSound('click');
+      openDebtPaySheet(
+        debtPayBtn.dataset.debtId,
+        debtPayBtn.dataset.debtPerson,
+        debtPayBtn.dataset.debtRemaining,
+        debtPayBtn.dataset.debtKind
+      );
+      return;
+    }
+
+    // Debt Pay Sheet close
+    if (e.target.closest('#debt-pay-close, #debt-pay-cancel') || e.target.id === 'debt-pay-overlay') {
+      e.preventDefault();
+      playSound('click');
+      closeDebtPaySheet();
+      return;
+    }
+
+    // Debt History button trigger
+    const debtHistBtn = e.target.closest('.js-open-debt-history');
+    if (debtHistBtn) {
+      e.preventDefault();
+      playSound('click');
+      openDebtHistorySheet(
+        debtHistBtn.dataset.debtId,
+        debtHistBtn.dataset.debtPerson,
+        debtHistBtn.dataset.debtTotal,
+        debtHistBtn.dataset.debtRem
+      );
+      return;
+    }
+
+    // Debt History Sheet close
+    if (e.target.closest('#debt-history-close, #debt-history-done') || e.target.id === 'debt-history-overlay') {
+      e.preventDefault();
+      playSound('click');
+      closeDebtHistorySheet();
+      return;
+    }
+
+    // Sub History button trigger
+    const subHistBtn = e.target.closest('.js-open-sub-history');
+    if (subHistBtn) {
+      e.preventDefault();
+      playSound('click');
+      openSubHistorySheet(
+        subHistBtn.dataset.subId,
+        subHistBtn.dataset.subName,
+        subHistBtn.dataset.subAmount,
+        subHistBtn.dataset.subInfo,
+        subHistBtn.dataset.subTotal,
+        subHistBtn.dataset.subCompleted
+      );
+      return;
+    }
+
+    // Sub History Sheet close
+    if (e.target.closest('#sub-history-close, #sub-history-done') || e.target.id === 'sub-history-overlay') {
+      e.preventDefault();
+      playSound('click');
+      closeSubHistorySheet();
+      return;
+    }
+
+    // Subscription Undo button trigger (opens Wang confirmation bottom sheet)
+    const undoSubBtn = e.target.closest('.js-undo-sub');
+    if (undoSubBtn) {
+      e.preventDefault();
+      playSound('click');
+      const name = undoSubBtn.dataset.subName || 'subscription';
+      const amount = undoSubBtn.dataset.subAmount || '';
+      const url = undoSubBtn.dataset.undoUrl;
+      if (!url) return;
+      openConfirmSheet({
+        title: 'Undo Payment?',
+        desc: `Undo payment for ${name}? This will delete the recorded expense and restore your wallet balance.`,
+        preview: amount ? `${name} · ${amount}` : name,
+        actionUrl: url,
+        submitText: 'Undo Payment',
+        icon: 'undo',
+        submitIcon: 'undo',
+        btnClass: 'btn-delete',
+      });
+      return;
+    }
+
+    // Subscription Payment Delete trigger (opens Wang confirmation bottom sheet from history)
+    const deleteSubPaymentBtn = e.target.closest('.js-delete-sub-payment');
+    if (deleteSubPaymentBtn) {
+      e.preventDefault();
+      playSound('click');
+      const name = deleteSubPaymentBtn.dataset.subName || 'Payment';
+      const amount = deleteSubPaymentBtn.dataset.paymentAmount || '';
+      const url = deleteSubPaymentBtn.dataset.deleteUrl;
+      if (!url) return;
+      openConfirmSheet({
+        title: 'Delete Payment?',
+        desc: `Delete this payment of ${amount} for ${name}? This will remove the recorded expense and restore your wallet balance.`,
+        preview: amount ? `${name} · ${amount}` : name,
+        actionUrl: url,
+        submitText: 'Delete',
+        icon: 'delete',
+        submitIcon: 'delete',
+        btnClass: 'btn-delete',
+        onConfirm: () => {
+          closeSubHistorySheet();
+        }
+      });
+      return;
+    }
+
+    // Debt Payment Delete trigger (opens Wang confirmation bottom sheet from history)
+    const deleteDebtPaymentBtn = e.target.closest('.js-delete-debt-payment');
+    if (deleteDebtPaymentBtn) {
+      e.preventDefault();
+      playSound('click');
+      const person = deleteDebtPaymentBtn.dataset.debtPerson || 'Debt';
+      const amount = deleteDebtPaymentBtn.dataset.paymentAmount || '';
+      const url = deleteDebtPaymentBtn.dataset.deleteUrl;
+      if (!url) return;
+      openConfirmSheet({
+        title: 'Delete Payment?',
+        desc: `Delete this payment of ${amount} for ${person}? This will remove the recorded transaction and restore your balance.`,
+        preview: amount ? `${person} · ${amount}` : person,
+        actionUrl: url,
+        submitText: 'Delete',
+        icon: 'delete',
+        submitIcon: 'delete',
+        btnClass: 'btn-delete',
+        onConfirm: () => {
+          closeDebtHistorySheet();
+        }
+      });
+      return;
+    }
+
+    // Generic Confirm Delete trigger (opens Wang confirmation bottom sheet)
+    const confirmDeleteBtn = e.target.closest('.js-confirm-delete, [data-confirm-delete]');
+    if (confirmDeleteBtn) {
+      e.preventDefault();
+      playSound('click');
+      const url = confirmDeleteBtn.dataset.deleteUrl || confirmDeleteBtn.getAttribute('href');
+      if (!url) return;
+      const title = confirmDeleteBtn.dataset.deleteTitle || 'Confirm Delete';
+      const desc = confirmDeleteBtn.dataset.deleteDesc || 'Are you sure you want to delete this item? This action cannot be undone.';
+      const preview = confirmDeleteBtn.dataset.deletePreview || '';
+      const icon = confirmDeleteBtn.dataset.deleteIcon || 'delete';
+      const submitText = confirmDeleteBtn.dataset.deleteSubmitText || 'Delete';
+      openConfirmSheet({
+        title: title,
+        desc: desc,
+        preview: preview,
+        actionUrl: url,
+        icon: icon,
+        submitIcon: 'delete',
+        submitText: submitText,
+        btnClass: 'btn-delete',
+      });
+      return;
+    }
+
+    // Category Transactions Sheet close
+    if (e.target.closest('#cat-tx-close, #cat-tx-done') || e.target.id === 'cat-tx-overlay') {
+      e.preventDefault();
+      playSound('click');
+      closeCatTxSheet();
       return;
     }
 
@@ -1900,6 +2585,10 @@
       closeDetailSheet();
       closeBudgetSheet();
       closeMonthPopover();
+      closeDebtPaySheet();
+      closeDebtHistorySheet();
+      closeSubHistorySheet();
+      closeCatTxSheet();
     }
   });
 
@@ -1908,7 +2597,7 @@
     syncThemeUI();
     syncSoundUI();
     syncBottomNav();
-    syncBalancePrivacy();
+    syncHeroBalanceUI();
     bindSheet();
     initMonthScroll();
     checkAutoEdit();
@@ -1922,7 +2611,7 @@
     syncThemeUI();
     syncSoundUI();
     syncBottomNav();
-    syncBalancePrivacy();
+    syncHeroBalanceUI();
     bindSheet();
     resetOverlays();
     initMonthScroll();
@@ -1977,7 +2666,7 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js', { scope: '/' })
           .then((reg) => {
-            reg.update().catch(() => {});
+            reg.update().catch(() => { });
           })
           .catch((err) => {
             console.warn('[SW] Registration failed:', err);
@@ -2071,21 +2760,59 @@
   }
 
   let activeOfflineToast = null;
+  function showOfflineBannerIfNeeded() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (!document.querySelector('.toast-pill.toast-offline')) {
+        activeOfflineToast = showToast('Offline mode — viewing saved data', 'offline', 0);
+      }
+    }
+  }
+
   function initConnectivityListeners() {
     window.addEventListener('online', () => {
-      if (activeOfflineToast) {
-        activeOfflineToast.classList.remove('show');
+      const existingOfflineToasts = document.querySelectorAll('.toast-pill.toast-offline');
+      existingOfflineToasts.forEach(t => {
+        t.classList.remove('show');
         setTimeout(() => {
-          if (activeOfflineToast && activeOfflineToast.parentNode) {
-            activeOfflineToast.parentNode.removeChild(activeOfflineToast);
-          }
-          activeOfflineToast = null;
+          if (t.parentNode) t.parentNode.removeChild(t);
         }, 350);
-      }
+      });
+      activeOfflineToast = null;
       showToast('Back online', 'online', 2500);
     });
     window.addEventListener('offline', () => {
-      activeOfflineToast = showToast('Offline mode — viewing saved data', 'offline', 0);
+      showOfflineBannerIfNeeded();
+    });
+    document.addEventListener('turbo:render', () => {
+      showOfflineBannerIfNeeded();
+    });
+
+    // Check if the user is ALREADY offline upon opening or reloading the site
+    setTimeout(showOfflineBannerIfNeeded, 300);
+
+    // ── Global Offline Mutation Guards (Block C, U, D & protect user data) ──
+    document.addEventListener('submit', (e) => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast("You're offline — reconnect to save changes", 'warning', 3500);
+        playSound('knock');
+      }
+    }, true);
+
+    document.addEventListener('turbo:submit-start', (e) => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        e.preventDefault();
+        showToast("You're offline — reconnect to save changes", 'warning', 3500);
+        playSound('knock');
+      }
+    });
+
+    document.addEventListener('turbo:fetch-request-error', (e) => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        e.preventDefault();
+        showToast("Connection lost — action could not be completed", 'warning', 3500);
+      }
     });
   }
 
@@ -2097,7 +2824,7 @@
   syncThemeUI();
   syncSoundUI();
   syncBottomNav();
-  syncBalancePrivacy();
+  syncHeroBalanceUI();
   bindSheet();
   initMonthScroll();
   checkAutoEdit();

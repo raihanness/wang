@@ -13,12 +13,28 @@
       <p class="muted" style="margin:4px 0 0;font-size:13.5px">Sign in to your Wang dashboard</p>
     </div>
 
-    {% if form.errors %}
+    <!-- {% if form.errors %}
       <div class="auth-error-box" style="margin-bottom:16px">
         <svg class="icon"><use href="#icon-error"></use></svg>
-        <span>Invalid username or password. Please try again.</span>
+        <span>
+          {% if form.non_field_errors %}
+            {% if "Please enter a correct username and password" in form.non_field_errors.0 %}
+              Invalid username or password. Please try again.
+            {% else %}
+              {{ form.non_field_errors.0 }}
+            {% endif %}
+          {% elif form.username.errors and form.password.errors %}
+            Username and password are required.
+          {% elif form.username.errors %}
+            Please enter your username.
+          {% elif form.password.errors %}
+            Please enter your password.
+          {% else %}
+            Invalid username or password. Please try again.
+          {% endif %}
+        </span>
       </div>
-    {% endif %}
+    {% endif %} -->
 
     <form method="post" novalidate>
       {% csrf_token %}

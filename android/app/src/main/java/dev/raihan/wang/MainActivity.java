@@ -1,18 +1,24 @@
 package dev.raihan.wang;
 
+import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.RenderProcessGoneDetail;
+import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -40,6 +46,7 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -52,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout mSwipeRefresh;
     private ValueCallback<Uri[]> mFilePathCallback;
     private String mCameraPhotoPath;
+    private Uri mCameraPhotoUri;
+    private String mPendingCapturedPhotoBase64;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
 
     // Controls whether the current page and active DOM elements allow pull-to-refresh
@@ -78,6 +87,22 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setSystemTheme(boolean isDark) {
             runOnUiThread(() -> updateSystemBarIcons(isDark));
+        }
+
+        @JavascriptInterface
+        public String getPendingCapturedPhoto() {
+            String photo = mPendingCapturedPhotoBase64;
+            mPendingCapturedPhotoBase64 = null;
+            return photo != null ? photo : "";
+        }
+
+        @JavascriptInterface
+        public void downloadUrl(String url) {
+            runOnUiThread(() -> {
+                if (mWebView != null) {
+                    handleDownload(url, mWebView.getSettings().getUserAgentString(), null, "text/csv");
+                }
+            });
         }
     }
 
@@ -177,6 +202,13 @@ public class MainActivity extends AppCompatActivity {
         String targetUrl = getString(R.string.app_web_url);
         if (savedInstanceState != null) {
             mWebView.restoreState(savedInstanceState);
+            mCameraPhotoPath = savedInstanceState.getString("camera_photo_path");
+            mPendingCapturedPhotoBase64 = savedInstanceState.getString("pending_photo_base64");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                mCameraPhotoUri = savedInstanceState.getParcelable("camera_photo_uri", Uri.class);
+            } else {
+                mCameraPhotoUri = savedInstanceState.getParcelable("camera_photo_uri");
+            }
         }
         if (mWebView.getUrl() == null) {
             mWebView.loadUrl(targetUrl);
@@ -225,7 +257,7 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDisplayZoomControls(false);
 
         // Identify as Wang Native Android wrapper in User-Agent header
-        String customUA = webSettings.getUserAgentString() + " WangNativeAndroid/1.0.4";
+        String customUA = webSettings.getUserAgentString() + " WangNativeAndroid/1.0.5";
         webSettings.setUserAgentString(customUA);
 
         // Persistent Cookies & Session management
@@ -238,6 +270,11 @@ public class MainActivity extends AppCompatActivity {
 
         // Register AndroidBridge JavaScript interface
         mWebView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
+
+        // Set DownloadListener for files (e.g. CSV Export)
+        mWebView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+            handleDownload(url, userAgent, contentDisposition, mimetype);
+        });
 
         // Set WebViewClient
         mWebView.setWebViewClient(new WebViewClient() {
@@ -296,6 +333,9 @@ public class MainActivity extends AppCompatActivity {
                         updateSystemBarIcons(val.contains("dark"));
                     }
                 });
+                if (mPendingCapturedPhotoBase64 != null) {
+                    view.postDelayed(() -> deliverPendingPhotoToWebView(), 400);
+                }
             }
 
             @Override
@@ -341,12 +381,15 @@ public class MainActivity extends AppCompatActivity {
                     Uri photoURI = FileProvider.getUriForFile(MainActivity.this,
                             getApplicationContext().getPackageName() + ".fileprovider",
                             photoFile);
+                    mCameraPhotoUri = photoURI;
 
                     takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                    takePictureIntent.setClipData(ClipData.newRawUri("Receipt Photo", photoURI));
                     takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 } catch (Exception ex) {
                     mCameraPhotoPath = null;
+                    mCameraPhotoUri = null;
                 }
 
                 // Gallery picker intent
@@ -376,6 +419,44 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+    }
+
+    private void handleDownload(String url, String userAgent, String contentDisposition, String mimeType) {
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            if (mimeType != null && !mimeType.isEmpty()) {
+                request.setMimeType(mimeType);
+            }
+            String cookies = CookieManager.getInstance().getCookie(url);
+            if (cookies != null && !cookies.isEmpty()) {
+                request.addRequestHeader("cookie", cookies);
+            }
+            if (userAgent != null && !userAgent.isEmpty()) {
+                request.addRequestHeader("User-Agent", userAgent);
+            }
+            request.setDescription("Downloading Wang transactions data...");
+            String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
+            if (filename == null || filename.isEmpty() || filename.endsWith(".bin")) {
+                filename = "wang_transactions.csv";
+            }
+            request.setTitle(filename);
+            request.allowScanningByMediaScanner();
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (dm != null) {
+                dm.enqueue(request);
+                Toast.makeText(getApplicationContext(), "Downloading " + filename + " to Downloads...", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                startActivity(intent);
+            } catch (Exception ex) {
+                Toast.makeText(getApplicationContext(), "Unable to download file", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void injectScrollHandler(WebView view) {
@@ -460,6 +541,9 @@ public class MainActivity extends AppCompatActivity {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        if (storageDir == null || !storageDir.exists()) {
+            storageDir = getCacheDir();
+        }
         return File.createTempFile(
                 imageFileName,  /* prefix */
                 ".jpg",         /* suffix */
@@ -473,21 +557,43 @@ public class MainActivity extends AppCompatActivity {
                 new ActivityResultCallback<ActivityResult>() {
                     @Override
                     public void onActivityResult(ActivityResult result) {
-                        if (mFilePathCallback == null) return;
-
                         Uri[] results = null;
 
                         // Check if response is positive
                         if (result.getResultCode() == RESULT_OK) {
                             Intent intent = result.getData();
 
-                            // Check for Camera Capture result
-                            if (intent == null || intent.getData() == null && intent.getClipData() == null) {
-                                if (mCameraPhotoPath != null) {
-                                    results = new Uri[]{Uri.fromFile(new File(mCameraPhotoPath))};
+                            // 1. Check if camera capture succeeded and produced a valid photo file
+                            boolean isCamera = false;
+                            if (mCameraPhotoPath != null) {
+                                File file = new File(mCameraPhotoPath);
+                                if (file.exists() && file.length() > 0) {
+                                    isCamera = true;
                                 }
-                            } else {
-                                // Gallery / Document selection
+                            }
+
+                            // If camera produced the photo and intent has no specific gallery data
+                            if (isCamera && (intent == null || (intent.getData() == null && intent.getClipData() == null))) {
+                                if (mCameraPhotoUri != null) {
+                                    results = new Uri[]{mCameraPhotoUri};
+                                } else if (mCameraPhotoPath != null) {
+                                    try {
+                                        Uri uri = FileProvider.getUriForFile(MainActivity.this,
+                                                getApplicationContext().getPackageName() + ".fileprovider",
+                                                new File(mCameraPhotoPath));
+                                        results = new Uri[]{uri};
+                                    } catch (Exception e) {
+                                        results = new Uri[]{Uri.fromFile(new File(mCameraPhotoPath))};
+                                    }
+                                }
+
+                                // If callback was lost due to activity recreation under memory pressure
+                                if (mFilePathCallback == null && mCameraPhotoPath != null) {
+                                    mPendingCapturedPhotoBase64 = readImageAsBase64DataUrl(mCameraPhotoPath);
+                                    deliverPendingPhotoToWebView();
+                                }
+                            } else if (intent != null) {
+                                // 2. Gallery / Document / File picker selection
                                 if (intent.getClipData() != null) {
                                     int count = intent.getClipData().getItemCount();
                                     results = new Uri[count];
@@ -496,15 +602,80 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 } else if (intent.getData() != null) {
                                     results = new Uri[]{intent.getData()};
+                                } else if (isCamera && mCameraPhotoUri != null) {
+                                    results = new Uri[]{mCameraPhotoUri};
+                                }
+                            } else if (isCamera && mCameraPhotoUri != null) {
+                                results = new Uri[]{mCameraPhotoUri};
+                                if (mFilePathCallback == null && mCameraPhotoPath != null) {
+                                    mPendingCapturedPhotoBase64 = readImageAsBase64DataUrl(mCameraPhotoPath);
+                                    deliverPendingPhotoToWebView();
                                 }
                             }
                         }
 
-                        mFilePathCallback.onReceiveValue(results);
-                        mFilePathCallback = null;
+                        // Cleanup empty temp file if camera was cancelled without capture
+                        if (results == null && mCameraPhotoPath != null) {
+                            try {
+                                File file = new File(mCameraPhotoPath);
+                                if (file.exists() && file.length() == 0) {
+                                    file.delete();
+                                }
+                            } catch (Exception ignored) {}
+                        }
+
+                        if (mFilePathCallback != null) {
+                            mFilePathCallback.onReceiveValue(results);
+                            mFilePathCallback = null;
+                        }
                     }
                 }
         );
+    }
+
+    private String readImageAsBase64DataUrl(String filePath) {
+        try {
+            File file = new File(filePath);
+            if (!file.exists() || file.length() == 0) return null;
+
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(filePath, options);
+
+            int maxDim = 1280;
+            int inSampleSize = 1;
+            int width = options.outWidth;
+            int height = options.outHeight;
+            while ((width / inSampleSize) > maxDim || (height / inSampleSize) > maxDim) {
+                inSampleSize *= 2;
+            }
+
+            options.inJustDecodeBounds = false;
+            options.inSampleSize = inSampleSize;
+            Bitmap bitmap = BitmapFactory.decodeFile(filePath, options);
+            if (bitmap == null) return null;
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+            byte[] bytes = baos.toByteArray();
+            bitmap.recycle();
+
+            String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
+            return "data:image/jpeg;base64," + base64;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void deliverPendingPhotoToWebView() {
+        if (mWebView != null && mPendingCapturedPhotoBase64 != null) {
+            String js = "if (window.wangAttachCapturedPhoto) { window.wangAttachCapturedPhoto('" + mPendingCapturedPhotoBase64 + "'); }";
+            mWebView.evaluateJavascript(js, val -> {
+                if (val != null && "true".equalsIgnoreCase(val.trim().replace("\"", ""))) {
+                    mPendingCapturedPhotoBase64 = null;
+                }
+            });
+        }
     }
 
     private void setupBackNavigation() {
@@ -532,6 +703,15 @@ public class MainActivity extends AppCompatActivity {
         super.onSaveInstanceState(outState);
         if (mWebView != null) {
             mWebView.saveState(outState);
+        }
+        if (mCameraPhotoPath != null) {
+            outState.putString("camera_photo_path", mCameraPhotoPath);
+        }
+        if (mCameraPhotoUri != null) {
+            outState.putParcelable("camera_photo_uri", mCameraPhotoUri);
+        }
+        if (mPendingCapturedPhotoBase64 != null) {
+            outState.putString("pending_photo_base64", mPendingCapturedPhotoBase64);
         }
     }
 

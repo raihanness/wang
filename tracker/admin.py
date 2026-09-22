@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Wallet, Category, Transaction, Subscription, Budget
+from .models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Budget, Debt, DebtPayment
 
 @admin.register(Wallet)
 class WalletAdmin(admin.ModelAdmin):
@@ -16,13 +16,39 @@ class TransactionAdmin(admin.ModelAdmin):
     list_display = ("date", "user", "kind", "amount", "wallet", "category", "from_wallet", "to_wallet")
     list_filter = ("kind", "date")
 
+class SubscriptionPaymentInline(admin.TabularInline):
+    model = SubscriptionPayment
+    extra = 0
+
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("name", "user", "amount", "cycle", "active", "last_paid_date")
+    list_display = ("name", "user", "amount", "cycle", "active", "total_installments", "already_paid_installments", "end_date", "last_paid_date")
     list_filter = ("cycle", "active")
+    inlines = [SubscriptionPaymentInline]
+
+@admin.register(SubscriptionPayment)
+class SubscriptionPaymentAdmin(admin.ModelAdmin):
+    list_display = ("subscription", "amount", "wallet", "date")
+    list_filter = ("date",)
 
 @admin.register(Budget)
 class BudgetAdmin(admin.ModelAdmin):
     list_display = ("user", "category", "amount", "updated_at")
     list_filter = ("category",)
+
+class DebtPaymentInline(admin.TabularInline):
+    model = DebtPayment
+    extra = 0
+
+@admin.register(Debt)
+class DebtAdmin(admin.ModelAdmin):
+    list_display = ("person_name", "user", "kind", "amount", "status", "due_date")
+    list_filter = ("kind", "status")
+    inlines = [DebtPaymentInline]
+
+@admin.register(DebtPayment)
+class DebtPaymentAdmin(admin.ModelAdmin):
+    list_display = ("debt", "amount", "wallet", "date")
+    list_filter = ("date",)
+
 

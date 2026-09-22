@@ -5,26 +5,32 @@
 
 {% block content %}
 <div class="page-head">
-  <div>
-    <h2 style="margin:0">Subscriptions</h2>
-    <small class="muted">Recurring bills & memberships</small>
+  <div style="display:flex;align-items:center;gap:10px">
+    <a href="{% url 'more' %}" class="icon-btn" aria-label="Back to More" title="Back to More" style="width:34px;height:34px;border-radius:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">
+      <svg class="icon" style="font-size:18px"><use href="#icon-arrow_back"></use></svg>
+    </a>
+    <div>
+      <h2 style="margin:0"><span class="title-script">R</span>ecurring Payments</h2>
+      <!-- <small class="muted">Recurring bills &amp; memberships</small> -->
+    </div>
   </div>
-  <a class="btn btn-primary btn-sm" href="{% url 'subscription_create' %}">+ New</a>
+  <a class="btn btn-sm" href="{% url 'subscription_create' %}">+ New</a>
 </div>
 
 <!-- Monthly Commitment Hero Card -->
-<div class="card" style="margin-top:4px;background:var(--card);">
+<div class="card" style="margin-top:4px;background:var(--card);margin-bottom:15px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
     <div>
-      <small class="muted" style="font-weight:700;letter-spacing:.4px;text-transform:uppercase">Total Monthly</small>
-      <div style="font-size:22px;font-weight:800;letter-spacing:-.3px;color:var(--ink)">
-        Rp{{ monthly_total|floatformat:0|intcomma }}
+      <!-- <small class="muted" style="font-weight:700;letter-spacing:.4px;text-transform:uppercase">Total Monthly</small> -->
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg class="icon" style="color:var(--muted);font-size:18px"><use href="#icon-event_repeat"></use></svg>
+        <span style="font-size:12.5px;font-weight:600;color:var(--muted)">{{ subscriptions|length }} active</span>
       </div>
     </div>
-    <span class="badge badge-transfer" style="font-weight:700">
-      <svg class="icon" style="font-size:16px"><use href="#icon-event_repeat"></use></svg>
-      {{ subscriptions|length }} active
-    </span>
+
+    <div class="badge" style="font-weight:700;font-size:18px;padding:0">
+      Rp{{ monthly_total|floatformat:0|intcomma }}
+    </div>
   </div>
 </div>
 
@@ -32,64 +38,175 @@
   <h3>All Subscriptions</h3>
 </div>
 
-<div class="sub-list" style="display:grid;gap:10px">
+<div class="sub-list">
   {% for s in subscriptions %}
-    <div class="sub-card {% if not s.active %}inactive{% endif %}">
-      <div class="sub-left">
-        <div class="sub-icon" style="background:{{ s.color }}20;color:{{ s.color }}">
+    <div class="card sub-card {% if not s.active %}inactive{% endif %} {% if s.is_completed %}is-completed{% endif %}" id="sub-card-{{ s.pk }}">
+      <!-- Top Row: Kind/Sub Icon + Status Badge -->
+      <div class="sub-card-head">
+        <div class="sub-kind-icon" style="background:{{ s.color }}20;color:{{ s.color }}">
           <svg class="icon"><use href="#icon-{{ s.icon }}"></use></svg>
         </div>
-        <div class="sub-info">
-          <div class="sub-name-row">
-            <strong title="{{ s.name }}">{{ s.name }}</strong>
-            {% if not s.active %}<span class="badge" style="font-size:10px;padding:1px 5px;flex-shrink:0">Paused</span>{% endif %}
-          </div>
-          <small class="muted">
-            {{ s.get_cycle_display }} 
-            <!-- {% if s.cycle == 'yearly' and s.due_month %}
-              Due {{ s.get_due_month_display|slice:":3" }} {{ s.due_day }}{% if s.due_day == 1 %}st{% elif s.due_day == 2 %}nd{% elif s.due_day == 3 %}rd{% else %}th{% endif %}
-            {% else %}
-              Due {{ s.due_day }}{% if s.due_day == 1 %}st{% elif s.due_day == 2 %}nd{% elif s.due_day == 3 %}rd{% else %}th{% endif %}
-            {% endif %} -->
-            {% if s.wallet %}// {{ s.wallet.name }}{% endif %}
-          </small>
-        </div>
-      </div>
-
-      <div class="sub-right">
-        <div class="sub-amt">Rp{{ s.amount|floatformat:0|intcomma }}</div>
         {% with badge=s.status_badge %}
-          <span class="sub-badge {{ badge.class }}">{{ badge.label }}</span>
+          <span class="sub-badge {{ badge.class }}" style="font-size:10px">{{ badge.label }}</span>
         {% endwith %}
       </div>
 
-      <div class="sub-actions">
+      <!-- Body: Name + Info/Cycle -->
+      <div class="sub-card-body">
+        <strong class="sub-card-name" title="{{ s.name }}">{{ s.name }}</strong>
+        <div class="sub-card-info" title="{{ s.get_cycle_display }}{% if s.wallet %} · {{ s.wallet.name }}{% endif %}">
+          <!-- {{ s.get_cycle_display }} -->
+          <!-- {% if s.cycle == 'yearly' and s.due_month %}
+            // {{ s.get_due_month_display|slice:":3" }} {{ s.due_day }}{% if s.due_day == 1 or s.due_day == 21 or s.due_day == 31 %}st{% elif s.due_day == 2 or s.due_day == 22 %}nd{% elif s.due_day == 3 or s.due_day == 23 %}rd{% else %}th{% endif %}
+          {% endif %} -->
+          {% if s.wallet %}{{ s.wallet.name }}{% else %}No wallet{% endif %}
+        </div>
+        {% if not s.active %}
+          <span class="badge" style="font-size:9px;padding:1px 5px;align-self:flex-start;margin-top:2px">Paused</span>
+        {% endif %}
+      </div>
+
+      <!-- Amount Section (Compact, 2-Tier) -->
+      <div class="sub-amount-section">
+        <div class="sub-rem-amount">
+          Rp{{ s.amount|floatformat:0|intcomma }}
+        </div>
+        <div class="sub-total-amount">
+          {% if s.installments_progress %}
+            {{ s.installments_progress.text }}
+          {% elif s.total_paid_amount %}
+            Paid: Rp{{ s.total_paid_amount|floatformat:0|intcomma }}
+          {% else %}
+            {{ s.get_cycle_display }}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Action Buttons Row (Pay/Undo/Done, History, Edit) -->
+      <div class="sub-actions-row">
         {% if s.active %}
-          {% if s.is_paid_this_cycle %}
-            <button class="btn btn-sm btn-sub-paid" type="button" disabled title="Paid for this cycle" aria-label="{{ s.name }} is paid">
-              <svg class="icon" style="font-size:16px"><use href="#icon-task_alt"></use></svg>
-              <!-- <span>Paid</span> -->
+          {% if s.is_completed %}
+            <button class="btn-sub-paid js-undo-sub" type="button"
+              data-sub-name="{{ s.name }}"
+              data-sub-amount="Rp{{ s.amount|floatformat:0|intcomma }}"
+              data-undo-url="{% url 'subscription_undo' s.pk %}"
+              title="Completed! Tap to undo last payment"
+              aria-label="Undo {{ s.name }} payment">
+              <svg class="icon" style="font-size:12px"><use href="#icon-verified"></use></svg>
+              <span>Done</span>
+            </button>
+          {% elif s.is_paid_this_cycle %}
+            <button class="btn-sub-paid js-undo-sub" type="button"
+              data-sub-name="{{ s.name }}"
+              data-sub-amount="Rp{{ s.amount|floatformat:0|intcomma }}"
+              data-undo-url="{% url 'subscription_undo' s.pk %}"
+              title="Paid! Tap to undo payment and restore balance"
+              aria-label="Undo {{ s.name }} payment">
+              <svg class="icon" style="font-size:12px"><use href="#icon-task_alt"></use></svg>
+              <span>Undo</span>
             </button>
           {% else %}
-            <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0" data-turbo="false">
+            <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0;flex:1" data-turbo="false">
               {% csrf_token %}
-              <button class="btn btn-sm btn-sub-pay" type="submit" title="Record this payment now" aria-label="Pay {{ s.name }}">
-                <svg class="icon" style="font-size:16px"><use href="#icon-check"></use></svg>
-                <!-- <span>Pay</span> -->
+              <button class="btn btn-sub-pay" type="submit" style="width:100%" title="Record this payment now" aria-label="Pay {{ s.name }}">
+                <svg class="icon" style="font-size:12px"><use href="#icon-check"></use></svg>
+                <span>Pay</span>
               </button>
             </form>
           {% endif %}
+        {% else %}
+          <div class="btn-sub-paid" style="opacity:0.5;cursor:default">
+            <span style="font-size:11px">Paused</span>
+          </div>
         {% endif %}
-        <a class="icon-btn" style="width:34px;height:34px" href="{% url 'subscription_edit' s.pk %}" aria-label="Edit {{ s.name }}">
-          <svg class="icon" style="font-size:18px"><use href="#icon-edit"></use></svg>
+
+        {% if s.payments.all or s.already_paid_installments %}
+          <button type="button" class="btn-sub-icon js-open-sub-history"
+            data-sub-id="{{ s.pk }}"
+            data-sub-name="{{ s.name }}"
+            data-sub-amount="Rp{{ s.amount|floatformat:0|intcomma }}"
+            data-sub-info="{{ s.get_cycle_display }}{% if s.installments_progress %} · {{ s.installments_progress.text }}{% endif %}"
+            data-sub-total="Rp{{ s.total_paid_amount|floatformat:0|intcomma }}"
+            data-sub-completed="{% if s.is_completed %}1{% else %}0{% endif %}"
+            title="View payment history"
+            aria-label="View payment history">
+            <svg class="icon" style="font-size:13px"><use href="#icon-history"></use></svg>
+          </button>
+
+          <!-- Hidden payment items template for bottom sheet modal -->
+          <template id="sub-history-items-{{ s.pk }}">
+            {% if s.already_paid_installments %}
+              <div class="sub-payment-item sub-payment-prior">
+                <div>
+                  <strong style="font-size:13px;color:var(--ink)">{{ s.already_paid_installments }} installment{{ s.already_paid_installments|pluralize }} (Prior)</strong>
+                  <div style="font-size:11px" class="muted">
+                    Paid prior to tracking in Wang
+                  </div>
+                </div>
+                <span class="badge" style="font-size:10px;font-weight:700">Prior</span>
+              </div>
+            {% endif %}
+            {% for p in s.payments.all %}
+              <div class="sub-payment-item">
+                <div>
+                  <div style="display:flex;flex-direction:row;align-items:center;gap:6px;">
+                    <strong style="font-size:13px;color:var(--ink)">Rp{{ p.amount|floatformat:0|intcomma }}</strong>
+                    <div style="font-size:11px" class="muted">
+                      {{ p.date|date:"j M Y, H:i" }}
+                    </div>
+                  </div>
+
+                  {% if p.wallet or p.note %}
+                    <div style="font-size:11px;display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap">
+                      {% if p.wallet %}
+                        <span style="display:inline-flex;align-items:center;gap:3px;color:{{ p.wallet.color|default:'var(--ink-muted)' }};font-weight:600">
+                          <svg class="icon" style="font-size:12px"><use href="#icon-{{ p.wallet.icon|default:'account_balance_wallet' }}"></use></svg>
+                          {{ p.wallet.name }}
+                        </span>
+                      {% endif %}
+                      {% if p.note %}
+                        <span style="color:var(--ink)">{{ p.note }}</span>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+                <div>
+                  <button class="icon-btn js-delete-sub-payment" type="button"
+                    data-sub-name="{{ s.name }}"
+                    data-payment-amount="Rp{{ p.amount|floatformat:0|intcomma }}"
+                    data-delete-url="{% url 'subscription_payment_delete' s.pk p.pk %}"
+                    style="width:30px;height:30px;color:var(--coral)"
+                    title="Delete payment and restore balance"
+                    aria-label="Delete payment">
+                    <svg class="icon" style="font-size:15px"><use href="#icon-delete"></use></svg>
+                  </button>
+                </div>
+              </div>
+            {% endfor %}
+          </template>
+        {% endif %}
+
+        <a class="btn-sub-icon" href="{% url 'subscription_edit' s.pk %}" aria-label="Edit {{ s.name }}" title="Edit">
+          <svg class="icon" style="font-size:13px"><use href="#icon-edit"></use></svg>
         </a>
       </div>
+
+      <!-- Footer timestamp / due date -->
+      <span style="font-size:9px;color:var(--muted)">
+        {% if s.is_completed %}
+          Completed
+        {% elif s.is_paid_this_cycle %}
+          Next due {{ s.next_due_date|date:"d M Y" }}
+        {% else %}
+          Due {{ s.next_due_date|date:"d M Y" }}
+        {% endif %}
+      </span>
     </div>
   {% empty %}
-    <div class="card muted center" style="box-shadow:none;border:1px dashed var(--line);background:var(--surface-muted);padding:30px 16px">
-      <svg class="icon" style="font-size:38px;color:var(--muted);margin-bottom:8px"><use href="#icon-subscriptions"></use></svg>
-      <div style="font-weight:700;color:var(--ink);margin-bottom:4px">No recurring subscriptions yet</div>
-      <p style="margin:0 0 14px;font-size:13px">Track Netflix, Spotify, Rent, Gym, and Internet bills with automatic due date countdowns.</p>
+    <div class="card muted center" style="grid-column:span 2;padding:32px 16px">
+      <svg class="icon" style="font-size:40px;color:var(--muted);margin-bottom:8px"><use href="#icon-event_repeat"></use></svg>
+      <div style="font-weight:700;color:var(--ink);margin-bottom:4px">No subscriptions tracked</div>
+      <p style="margin:0 0 16px;font-size:13px">Keep track of recurring bills, subscriptions, and installments.</p>
       <a class="btn btn-primary btn-sm" href="{% url 'subscription_create' %}">+ Add First Subscription</a>
     </div>
   {% endfor %}

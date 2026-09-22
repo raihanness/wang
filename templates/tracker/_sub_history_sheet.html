@@ -1,0 +1,34 @@
+{% load humanize %}
+<!-- Subscription Payment History Bottom Sheet Modal -->
+<div class="sheet-overlay" id="sub-history-overlay"></div>
+<div class="sheet sub-history-sheet" id="sub-history-sheet" role="dialog" aria-modal="true" aria-label="Subscription payment history">
+  <div class="sheet-head" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px;">
+    <div style="font-weight:800;font-size:16px;color:var(--ink)" id="sub-history-title">Payment History</div>
+    <button type="button" class="btn btn-sm sheet-close-btn" id="sub-history-close" aria-label="Close modal"><svg class="icon"><use href="#icon-close"></use></svg></button>
+  </div>
+
+  <div style="padding:4px 0 10px">
+    <div style="margin-bottom:12px;background:var(--surface-chip);padding:10px 12px;border-radius:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <span style="font-size:13px;font-weight:700;color:var(--ink)" id="sub-history-name">Subscription</span>
+        <span class="sub-badge due-paid" id="sub-history-badge" style="display:none">Active</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px" class="muted">
+        <span id="sub-history-info">Monthly</span>
+        <span id="sub-history-total" >Total: Rp0</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+      <small style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;font-size:11px" class="muted">Recorded Payments</small>
+    </div>
+
+    <div id="sub-history-list" class="sub-payments-list" style="overflow-y:auto;max-height:52vh;display:flex;flex-direction:column;gap:8px">
+      <!-- Injected dynamically from card data -->
+    </div>
+
+    <div class="sheet-actions" style="margin-top:16px">
+      <button type="button" class="btn btn-ghost" id="sub-history-done" style="flex:1">Done</button>
+    </div>
+  </div>
+</div>
