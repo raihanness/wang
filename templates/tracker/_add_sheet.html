@@ -994,6 +994,7 @@
   function resetSheet(){
     form.reset();
     form.dataset.mode = 'create';
+    if (window.wangUnlockForm) window.wangUnlockForm(form);
     form.action = "{% url 'transaction_create' %}";
     if (deleteForm) deleteForm.action = "";
     if (deleteBtn) deleteBtn.hidden = true;
@@ -1717,6 +1718,7 @@
       showSheetError("You're offline — please reconnect to save");
       if (window.showToast) window.showToast("You're offline — reconnect to save changes", 'warning', 3500);
       if (window.wangPlaySound) window.wangPlaySound('knock');
+      if (window.wangUnlockForm) window.wangUnlockForm(form);
       e.preventDefault();
       return;
     }
@@ -1725,6 +1727,7 @@
     const amt = parseFloat(amountHidden.value);
     if (!amt || amt <= 0){
       showSheetError('Please enter an amount');
+      if (window.wangUnlockForm) window.wangUnlockForm(form);
       e.preventDefault();
       return;
     }
@@ -1738,11 +1741,13 @@
     if (kind !== 'transfer'){
       if (!selectedCat){
         showSheetError('Please choose a category');
+        if (window.wangUnlockForm) window.wangUnlockForm(form);
         e.preventDefault();
         return;
       }
       if (!walletId){
         showSheetError('Please select an account');
+        if (window.wangUnlockForm) window.wangUnlockForm(form);
         e.preventDefault();
         return;
       }
@@ -1755,11 +1760,13 @@
       const fromId = fromName.dataset.id, toId = toName.dataset.id;
       if (!fromId || !toId){
         showSheetError('Please select both From and To accounts');
+        if (window.wangUnlockForm) window.wangUnlockForm(form);
         e.preventDefault();
         return;
       }
       if (fromId === toId){
         showSheetError('From and To accounts must differ');
+        if (window.wangUnlockForm) window.wangUnlockForm(form);
         e.preventDefault();
         return;
       }

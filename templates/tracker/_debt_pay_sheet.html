@@ -45,6 +45,12 @@
 </div>
 
 <script>
+document.getElementById('debt-pay-cancel')?.addEventListener('click', function() {
+  if (window.closeDebtPaySheet) window.closeDebtPaySheet();
+});
+document.getElementById('debt-pay-close')?.addEventListener('click', function() {
+  if (window.closeDebtPaySheet) window.closeDebtPaySheet();
+});
 document.getElementById('debt-pay-form')?.addEventListener('submit', function() {
   if (window.closeDebtPaySheet) window.closeDebtPaySheet();
 });

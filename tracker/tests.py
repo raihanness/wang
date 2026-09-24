@@ -2509,3 +2509,75 @@ class DebtPaymentTests(TestCase):
         self.assertEqual(self.wallet.current_balance, Decimal("1000000"))
         # Check transaction deleted
         self.assertEqual(Transaction.objects.filter(user=self.user).count(), 0)
+
+
+class DuplicatePostSafeBlockTests(TestCase):
+    def setUp(self):
+        from tracker.models import Subscription, Debt
+        self.user = User.objects.create_user(username="dupuser", password="password123")
+        self.client = Client()
+        self.client.login(username="dupuser", password="password123")
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            name="Bank BCA",
+            type="bank",
+            initial_balance=Decimal("1000000"),
+        )
+        self.cat_expense = Category.objects.create(
+            user=self.user,
+            name="Entertainment",
+            kind="expense",
+            icon="movie",
+        )
+
+    def test_subscription_pay_duplicate_post_protection(self):
+        from tracker.models import Subscription
+        sub = Subscription.objects.create(
+            user=self.user,
+            name="Netflix",
+            amount=Decimal("186000"),
+            wallet=self.wallet,
+            category=self.cat_expense,
+            cycle=Subscription.Cycle.MONTHLY,
+            due_day=15,
+            active=True,
+        )
+        self.assertFalse(sub.is_paid_this_cycle)
+
+        # First POST: logs payment and transaction
+        res1 = self.client.post(reverse("subscription_pay", args=[sub.pk]))
+        self.assertEqual(res1.status_code, 302)
+        sub.refresh_from_db()
+        self.assertTrue(sub.is_paid_this_cycle)
+        self.assertEqual(sub.payments.count(), 1)
+        self.assertEqual(Transaction.objects.filter(user=self.user).count(), 1)
+
+        # Second POST (simulating twice POST / rapid double tap): should be blocked
+        res2 = self.client.post(reverse("subscription_pay", args=[sub.pk]))
+        self.assertEqual(res2.status_code, 302)
+        sub.refresh_from_db()
+        self.assertEqual(sub.payments.count(), 1)
+        self.assertEqual(Transaction.objects.filter(user=self.user).count(), 1)
+
+    def test_debt_settle_duplicate_post_protection(self):
+        from tracker.models import Debt
+        debt = Debt.objects.create(
+            user=self.user,
+            kind=Debt.Kind.BORROWED,
+            person_name="Budi",
+            amount=Decimal("300000"),
+            wallet=self.wallet,
+            status=Debt.Status.PENDING,
+        )
+        # First POST: settles debt and logs payment
+        res1 = self.client.post(reverse("debt_settle", args=[debt.pk]))
+        self.assertEqual(res1.status_code, 302)
+        debt.refresh_from_db()
+        self.assertTrue(debt.is_settled)
+        self.assertEqual(debt.payments.count(), 1)
+
+        # Second POST (simulating twice POST): should safely do nothing
+        res2 = self.client.post(reverse("debt_settle", args=[debt.pk]))
+        self.assertEqual(res2.status_code, 302)
+        debt.refresh_from_db()
+        self.assertEqual(debt.payments.count(), 1)

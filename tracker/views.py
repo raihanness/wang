@@ -1383,6 +1383,11 @@ def subscription_pay(request, pk):
         referer = request.META.get("HTTP_REFERER", "")
         return redirect("subscription_list" if "subscriptions" in referer else "dashboard")
 
+    if not sub.total_installments and sub.is_paid_this_cycle:
+        messages.info(request, f"Subscription '{sub.name}' is already paid for this cycle.")
+        referer = request.META.get("HTTP_REFERER", "")
+        return redirect("subscription_list" if "subscriptions" in referer else "dashboard")
+
     wallet = sub.wallet or Wallet.objects.filter(user=request.user, archived=False).first()
     category = sub.category or Category.objects.filter(user=request.user, kind=Category.Kind.EXPENSE).first()
     if not wallet or not category:
@@ -1784,6 +1789,12 @@ def debt_payment_create(request, pk):
 @require_POST
 def debt_settle(request, pk):
     debt = get_object_or_404(Debt, pk=pk, user=request.user)
+    if debt.is_settled:
+        messages.info(request, f"Debt with {debt.person_name} is already settled.")
+        referer = request.META.get("HTTP_REFERER", "")
+        if referer and "debts" not in referer:
+            return redirect("dashboard")
+        return redirect("debt_list")
     rem = debt.remaining_amount
     wallet = debt.wallet
     if rem > 0:

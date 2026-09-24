@@ -372,6 +372,22 @@ h2 {
   transform: scale(.97);
 }
 
+.btn:disabled,
+button:disabled,
+input[type="submit"]:disabled,
+.btn.is-submitting,
+.icon-btn.is-submitting,
+.btn-debt-icon.is-submitting,
+.btn-sub-pay.is-submitting,
+.is-submitting,
+[data-submitting="true"] button[type="submit"],
+[data-submitting="true"] input[type="submit"] {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  transform: none !important;
+}
+
 .btn-primary {
   background: var(--ink);
   color: var(--bg);
@@ -7510,4 +7526,49 @@ main.content.turbo-enter {
   display: none;
   font-size: 10.5px;
   color: var(--muted);
+}
+
+/* ── Universal Form Submitting & Duplicate Prevention Guard ── */
+.is-submitting,
+button.is-submitting,
+input.is-submitting,
+button[disabled],
+button:disabled,
+input[type="submit"]:disabled,
+[data-submitting="true"] button[type="submit"],
+[data-submitting="true"] input[type="submit"],
+[data-submitting="true"] .btn-primary {
+  pointer-events: none !important;
+  opacity: 0.62 !important;
+  cursor: not-allowed !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: none !important;
+  filter: saturate(0.85);
+  transition: opacity 0.2s ease, filter 0.2s ease !important;
+}
+
+.is-submitting::after,
+button.is-submitting::after {
+  content: '';
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-left: 6px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  box-sizing: border-box;
+  animation: submittingSpinner 0.65s linear infinite;
+}
+
+@keyframes submittingSpinner {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -342,10 +342,100 @@
   }
   window.syncSheetStateWithAndroid = syncSheetStateWithAndroid;
 
+  // ── Global Double-POST / Duplicate Submission Guard ─────────
+  function getFormSubmitButtons(form) {
+    if (!form) return [];
+    const buttons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
+    if (form.id) {
+      const externalButtons = Array.from(document.querySelectorAll(`button[type="submit"][form="${form.id}"], input[type="submit"][form="${form.id}"]`));
+      externalButtons.forEach(btn => {
+        if (!buttons.includes(btn)) buttons.push(btn);
+      });
+    }
+    return buttons;
+  }
+
+  function lockFormSubmission(form, submitter) {
+    if (!form) return false;
+    if (form.dataset.submitting === 'true') {
+      return false;
+    }
+    form.dataset.submitting = 'true';
+    const buttons = getFormSubmitButtons(form);
+    if (submitter && !buttons.includes(submitter)) {
+      buttons.push(submitter);
+    }
+    buttons.forEach(btn => {
+      btn.classList.add('is-submitting');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.disabled = true;
+      if (!btn.dataset.origText) {
+        btn.dataset.origText = btn.textContent.trim();
+      }
+      if (btn.id === 'sheet-save-big') {
+        btn.textContent = form.dataset.mode === 'edit' ? 'Updating...' : 'Saving...';
+      } else if (btn.id === 'debt-pay-submit') {
+        btn.textContent = 'Saving...';
+      } else if (btn.id === 'confirm-sheet-submit-btn') {
+        btn.textContent = 'Deleting...';
+      }
+    });
+
+    // Prolonged safety failsafe: 60 seconds for slow/spotty mobile networks
+    if (form._submitTimeoutId) clearTimeout(form._submitTimeoutId);
+    form._submitTimeoutId = setTimeout(() => {
+      unlockFormSubmission(form);
+    }, 60000);
+    return true;
+  }
+
+  function unlockFormSubmission(form) {
+    if (!form) return;
+    delete form.dataset.submitting;
+    if (form._submitTimeoutId) {
+      clearTimeout(form._submitTimeoutId);
+      delete form._submitTimeoutId;
+    }
+    const buttons = getFormSubmitButtons(form);
+    buttons.forEach(btn => {
+      btn.classList.remove('is-submitting');
+      btn.removeAttribute('aria-disabled');
+      btn.disabled = false;
+      if (btn.id === 'sheet-save-big') {
+        btn.textContent = form.dataset.mode === 'edit' ? 'Update' : 'Save';
+      } else if (btn.dataset.origText) {
+        btn.textContent = btn.dataset.origText;
+        delete btn.dataset.origText;
+      }
+    });
+  }
+
+  function unlockAllForms() {
+    document.querySelectorAll('form[data-submitting="true"]').forEach(unlockFormSubmission);
+    document.querySelectorAll('.is-submitting').forEach(btn => {
+      btn.classList.remove('is-submitting');
+      btn.removeAttribute('aria-disabled');
+      btn.disabled = false;
+      if (btn.id === 'sheet-save-big') {
+        const form = document.getElementById('add-form');
+        btn.textContent = form && form.dataset.mode === 'edit' ? 'Update' : 'Save';
+      } else if (btn.dataset.origText) {
+        btn.textContent = btn.dataset.origText;
+        delete btn.dataset.origText;
+      }
+    });
+  }
+
+  window.wangLockForm = lockFormSubmission;
+  window.wangUnlockForm = unlockFormSubmission;
+  window.wangUnlockAllForms = unlockAllForms;
+
   function openSheet() {
     const sheet = document.getElementById('add-sheet');
     const overlay = document.getElementById('sheet-overlay');
+    const form = document.getElementById('add-form');
     if (!sheet || !overlay) return;
+    if (form) unlockFormSubmission(form);
     sheet.classList.add('open');
     overlay.classList.add('show');
     if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
@@ -519,7 +609,9 @@
   function openBudgetSheet() {
     const sheet = document.getElementById('budget-sheet');
     const overlay = document.getElementById('budget-overlay');
+    const form = document.getElementById('budget-form');
     if (!sheet || !overlay) return;
+    if (form) unlockFormSubmission(form);
     sheet.classList.add('open');
     overlay.classList.add('show');
     if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
@@ -595,6 +687,7 @@
     }
 
     if (formEl) {
+      unlockFormSubmission(formEl);
       formEl.action = actionUrl;
       formEl._onConfirm = onConfirm;
     }
@@ -932,6 +1025,7 @@
     const walletHint = document.getElementById('debt-pay-wallet-hint');
     if (!sheet || !overlay || !form) return;
 
+    unlockFormSubmission(form);
     form.action = `/debts/${debtId}/pay/`;
     if (personTitle) personTitle.textContent = `Repayment for ${person}`;
     const cleanNum = parseFloat(String(remaining).replace(/[^0-9.]/g, '')) || 0;
@@ -2031,6 +2125,8 @@
       const input = document.getElementById('budget-amount-input');
       const form = document.getElementById('budget-form');
       if (input && form) {
+        if (form.dataset.submitting === 'true') return;
+        lockFormSubmission(form);
         input.value = '0';
         form.submit();
       }
@@ -2790,25 +2886,91 @@
     // Check if the user is ALREADY offline upon opening or reloading the site
     setTimeout(showOfflineBannerIfNeeded, 300);
 
-    // ── Global Offline Mutation Guards (Block C, U, D & protect user data) ──
-    document.addEventListener('submit', (e) => {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // ── Global Offline Mutation Guards & Universal Double-POST Prevention ──
+    // 1. Capture-phase click interceptor to kill rapid/duplicate taps on submitting buttons & forms
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('button, input[type="submit"], a');
+      if (!btn) return;
+      if (btn.classList.contains('is-submitting') || btn.disabled || btn.getAttribute('aria-disabled') === 'true') {
         e.preventDefault();
-        e.stopPropagation();
-        showToast("You're offline — reconnect to save changes", 'warning', 3500);
-        playSound('knock');
+        e.stopImmediatePropagation();
+        return false;
+      }
+      const form = btn.form || btn.closest('form');
+      if (form && form.dataset.submitting === 'true') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return false;
       }
     }, true);
 
-    document.addEventListener('turbo:submit-start', (e) => {
+    // 2. Global form submit listener: locks form and disables submit buttons
+    document.addEventListener('submit', (e) => {
+      const form = e.target;
+      if (!form || !form.tagName || form.tagName.toLowerCase() !== 'form') return;
+
+      // Offline check
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         e.preventDefault();
+        e.stopImmediatePropagation();
+        unlockFormSubmission(form);
         showToast("You're offline — reconnect to save changes", 'warning', 3500);
         playSound('knock');
+        return false;
+      }
+
+      const method = (form.getAttribute('method') || form.method || 'GET').toUpperCase();
+      if (method !== 'POST') return;
+
+      // Prevent twice-POST if already submitting
+      if (form.dataset.submitting === 'true') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return false;
+      }
+
+      // If client validation already prevented default, do not lock
+      if (e.defaultPrevented) {
+        return;
+      }
+
+      // Lock form submission & set is-submitting immediately throughout network flight
+      lockFormSubmission(form, e.submitter);
+    }, false);
+
+    document.addEventListener('turbo:submit-start', (e) => {
+      const form = e.target;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        e.preventDefault();
+        unlockFormSubmission(form);
+        showToast("You're offline — reconnect to save changes", 'warning', 3500);
+        playSound('knock');
+        return;
+      }
+      lockFormSubmission(form, e.detail?.formSubmission?.submitter);
+    });
+
+    document.addEventListener('turbo:submit-end', (e) => {
+      const isSuccess = Boolean(e.detail && (e.detail.success || e.detail.formSubmission?.isSuccessful));
+      // If submission failed with an explicit error (e.g. 422 Django form validation error where no redirect occurs),
+      // unlock so user can edit inputs and retry.
+      // If successful (HTTP 302/200 redirect in flight), STAY LOCKED throughout slow network flight until turbo:render!
+      if (!isSuccess) {
+        unlockFormSubmission(e.target);
       }
     });
 
+    document.addEventListener('turbo:render', () => {
+      unlockAllForms();
+      showOfflineBannerIfNeeded();
+    });
+
+    document.addEventListener('turbo:load', () => {
+      unlockAllForms();
+    });
+
     document.addEventListener('turbo:fetch-request-error', (e) => {
+      unlockAllForms();
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         e.preventDefault();
         showToast("Connection lost — action could not be completed", 'warning', 3500);
