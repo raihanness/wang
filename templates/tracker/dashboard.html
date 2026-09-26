@@ -400,62 +400,74 @@
       </summary>
       <div class="tx-list">
         {% for t in items %}
-          <div class="list-item js-detail-tx" style="cursor:pointer"
-               data-id="{{ t.pk }}"
-               data-url="{% url 'transaction_edit' t.pk %}"
-               data-delete-url="{% url 'transaction_delete' t.pk %}"
-               data-kind="{{ t.kind }}"
-               data-amount="{{ t.amount|floatformat:0 }}"
-               data-formatted-amount="Rp{{ t.amount|floatformat:0|intcomma }}"
-               data-note="{{ t.note }}"
-               data-date="{{ t.date|date:'Y-m-d\TH:i' }}"
-               data-date-display="{{ t.date|date:'l, F j, Y' }}"
-               data-time-display="{{ t.date|date:'H:i' }}"
-               data-datetime-display="{{ t.date|date:'l, F j, Y · H:i' }}"
-               data-cat="{{ t.category.id|default:'' }}"
-               data-cat-name="{{ t.category.name|default:'' }}"
-               data-cat-icon="{{ t.category.icon|default:'label' }}"
-               data-cat-color="{{ t.category.color|default:'#FFB5A7' }}"
-               data-wallet="{{ t.wallet.id|default:'' }}"
-               data-wallet-name="{{ t.wallet.name|default:'' }}"
-               data-from="{{ t.from_wallet.id|default:'' }}"
-               data-from-name="{{ t.from_wallet.name|default:'' }}"
-               data-to="{{ t.to_wallet.id|default:'' }}"
-               data-to-name="{{ t.to_wallet.name|default:'' }}"
-               data-image="{% if t.image %}{{ t.image.url }}{% endif %}">
-            {% if t.kind == 'transfer' %}
-              <div class="li-icon li-icon-transfer"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></div>
-              <div class="li-main">
-                <div class="li-title">
-                  <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} → {{ t.to_wallet.name }}{% endif %}</span>
-                  {% if t.image %}
-                    <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
+          <div class="swipe-row" data-swipe-id="{{ t.pk }}">
+            <div class="swipe-actions">
+              <button type="button" class="swipe-action-btn swipe-btn-edit js-swipe-edit" aria-label="Edit transaction" title="Edit">
+                <svg class="icon"><use href="#icon-edit"></use></svg>
+                <span>Edit</span>
+              </button>
+              <button type="button" class="swipe-action-btn swipe-btn-delete js-swipe-delete" aria-label="Delete transaction" title="Delete">
+                <svg class="icon"><use href="#icon-delete"></use></svg>
+                <span>Delete</span>
+              </button>
+            </div>
+            <div class="list-item js-detail-tx swipe-content" style="cursor:pointer"
+                 data-id="{{ t.pk }}"
+                 data-url="{% url 'transaction_edit' t.pk %}"
+                 data-delete-url="{% url 'transaction_delete' t.pk %}"
+                 data-kind="{{ t.kind }}"
+                 data-amount="{{ t.amount|floatformat:0 }}"
+                 data-formatted-amount="Rp{{ t.amount|floatformat:0|intcomma }}"
+                 data-note="{{ t.note }}"
+                 data-date="{{ t.date|date:'Y-m-d\TH:i' }}"
+                 data-date-display="{{ t.date|date:'l, F j, Y' }}"
+                 data-time-display="{{ t.date|date:'H:i' }}"
+                 data-datetime-display="{{ t.date|date:'l, F j, Y · H:i' }}"
+                 data-cat="{{ t.category.id|default:'' }}"
+                 data-cat-name="{{ t.category.name|default:'' }}"
+                 data-cat-icon="{{ t.category.icon|default:'label' }}"
+                 data-cat-color="{{ t.category.color|default:'#FFB5A7' }}"
+                 data-wallet="{{ t.wallet.id|default:'' }}"
+                 data-wallet-name="{{ t.wallet.name|default:'' }}"
+                 data-from="{{ t.from_wallet.id|default:'' }}"
+                 data-from-name="{{ t.from_wallet.name|default:'' }}"
+                 data-to="{{ t.to_wallet.id|default:'' }}"
+                 data-to-name="{{ t.to_wallet.name|default:'' }}"
+                 data-image="{% if t.image %}{{ t.image.url }}{% endif %}">
+              {% if t.kind == 'transfer' %}
+                <div class="li-icon li-icon-transfer"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></div>
+                <div class="li-main">
+                  <div class="li-title">
+                    <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} → {{ t.to_wallet.name }}{% endif %}</span>
+                    {% if t.image %}
+                      <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
+                    {% endif %}
+                  </div>
+                  <div class="li-sub">{{ t.date|date:"H:i" }}{% if t.note %} // Transfer{% endif %}</div>
+                </div>
+              {% else %}
+                <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><svg class="icon"><use href="#icon-{{ t.category.icon }}"></use></svg></div>
+                <div class="li-main">
+                  <div class="li-title">
+                    <span>{% if t.note %}{{ t.note }}{% else %}{{ t.category.name }}{% endif %}</span>
+                    {% if t.image %}
+                      <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
+                    {% endif %}
+                  </div>
+                  <div class="li-sub">{{ t.date|date:"H:i" }}{% if t.note %} // {{ t.category.name }}{% endif %}</div>
+                </div>
+              {% endif %}
+              <div class="li-right">
+                <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
+                  {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
+                </div>
+                <div class="li-sub" style="display: flex; justify-content: right;{% if t.kind != 'transfer' %}{% endif %}">
+                  {% if t.kind == 'transfer' %}
+                    {{ t.from_wallet.name }} → {{ t.to_wallet.name }}
+                  {% else %}
+                    <svg class="icon" style="font-size: 12px; margin:0 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
                   {% endif %}
                 </div>
-                <div class="li-sub">{{ t.date|date:"H:i" }}{% if t.note %} // Transfer{% endif %}</div>
-              </div>
-            {% else %}
-              <div class="li-icon" style="background:{{ t.category.color }}20;color:{{ t.category.color }}"><svg class="icon"><use href="#icon-{{ t.category.icon }}"></use></svg></div>
-              <div class="li-main">
-                <div class="li-title">
-                  <span>{% if t.note %}{{ t.note }}{% else %}{{ t.category.name }}{% endif %}</span>
-                  {% if t.image %}
-                    <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
-                  {% endif %}
-                </div>
-                <div class="li-sub">{{ t.date|date:"H:i" }}{% if t.note %} // {{ t.category.name }}{% endif %}</div>
-              </div>
-            {% endif %}
-            <div class="li-right">
-              <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
-                {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
-              </div>
-              <div class="li-sub" style="display: flex; justify-content: right;{% if t.kind != 'transfer' %}{% endif %}">
-                {% if t.kind == 'transfer' %}
-                  {{ t.from_wallet.name }} → {{ t.to_wallet.name }}
-                {% else %}
-                  <svg class="icon" style="font-size: 12px; margin:0 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
-                {% endif %}
               </div>
             </div>
           </div>

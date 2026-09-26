@@ -1935,8 +1935,235 @@
     }
   }
 
+  // ── iOS-Style Trailing Swipe Actions for Transactions ─────────────────────
+  let activeSwipeRow = null;
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let swipeCurrentX = 0;
+  let swipeStartOffset = 0;
+  let isSwipingRow = false;
+  let isScrollingRow = false;
+  let justSwipedRow = false;
+  let swipeHapticTriggered = false;
+  const SWIPE_ACTION_WIDTH = 130;
+  const SWIPE_SNAP_THRESHOLD = 50;
+
+  function openSwipeRow(row) {
+    if (!row) return;
+    document.querySelectorAll('.swipe-row.is-open').forEach((r) => {
+      if (r !== row) closeSwipeRow(r);
+    });
+    row.classList.add('is-animating', 'is-open');
+    const content = row.querySelector('.list-item, .swipe-content');
+    if (content) {
+      content.style.setProperty('transform', `translate3d(-${SWIPE_ACTION_WIDTH}px, 0, 0)`, 'important');
+    }
+    setTimeout(() => {
+      row.classList.remove('is-animating');
+    }, 280);
+  }
+
+  function closeSwipeRow(row) {
+    if (!row) return;
+    row.classList.add('is-animating');
+    row.classList.remove('is-open');
+    const content = row.querySelector('.list-item, .swipe-content');
+    if (content) {
+      content.style.setProperty('transform', 'translate3d(0, 0, 0)', 'important');
+    }
+    setTimeout(() => {
+      row.classList.remove('is-animating');
+      if (!row.classList.contains('is-open') && content) {
+        content.style.removeProperty('transform');
+      }
+    }, 280);
+  }
+  window.openSwipeRow = openSwipeRow;
+  window.closeSwipeRow = closeSwipeRow;
+  window.closeAllSwipeRows = function() {
+    document.querySelectorAll('.swipe-row.is-open').forEach((r) => closeSwipeRow(r));
+  };
+
+  function getEventCoords(e) {
+    if (e.clientX !== undefined && e.clientX !== null) {
+      return { x: e.clientX, y: e.clientY };
+    }
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    }
+    return { x: 0, y: 0 };
+  }
+
+  function onSwipeStart(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (e.isPrimary === false) return;
+
+    const row = e.target.closest('.swipe-row');
+    if (!row) return;
+
+    if (e.target.closest('.swipe-action-btn')) {
+      return;
+    }
+
+    const currentlyOpen = document.querySelector('.swipe-row.is-open');
+    if (currentlyOpen && currentlyOpen !== row) {
+      closeSwipeRow(currentlyOpen);
+    }
+
+    const coords = getEventCoords(e);
+    activeSwipeRow = row;
+    swipeStartX = coords.x;
+    swipeStartY = coords.y;
+    swipeStartOffset = row.classList.contains('is-open') ? -SWIPE_ACTION_WIDTH : 0;
+    swipeCurrentX = swipeStartOffset;
+    isSwipingRow = false;
+    isScrollingRow = false;
+    swipeHapticTriggered = false;
+  }
+
+  function onSwipeMove(e) {
+    if (!activeSwipeRow || isScrollingRow) return;
+
+    // Detect mouse button release outside window
+    if (e.pointerType === 'mouse' && e.buttons !== 1) {
+      onSwipeEnd(e);
+      return;
+    }
+
+    const coords = getEventCoords(e);
+    const dx = coords.x - swipeStartX;
+    const dy = coords.y - swipeStartY;
+
+    if (!isSwipingRow) {
+      if (Math.abs(dy) > 7 && Math.abs(dy) >= Math.abs(dx)) {
+        isScrollingRow = true;
+        return;
+      }
+      if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
+        isSwipingRow = true;
+        activeSwipeRow.classList.add('is-swiping');
+        activeSwipeRow.classList.remove('is-animating');
+        if (window.getSelection) {
+          try { window.getSelection().removeAllRanges(); } catch (err) {}
+        }
+      }
+    }
+
+    if (!isSwipingRow) return;
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    let rawX = swipeStartOffset + dx;
+
+    if (rawX > 0) {
+      rawX = rawX * 0.16;
+    } else if (rawX < -SWIPE_ACTION_WIDTH) {
+      const extra = Math.abs(rawX + SWIPE_ACTION_WIDTH);
+      rawX = -SWIPE_ACTION_WIDTH - (extra * 0.22);
+    }
+
+    swipeCurrentX = rawX;
+    const content = activeSwipeRow.querySelector('.list-item, .swipe-content');
+    if (content) {
+      content.style.setProperty('transform', `translate3d(${rawX}px, 0, 0)`, 'important');
+    }
+
+    if (!activeSwipeRow.classList.contains('is-open')) {
+      if (!swipeHapticTriggered && rawX <= -SWIPE_SNAP_THRESHOLD) {
+        playSound('tap');
+        swipeHapticTriggered = true;
+      } else if (swipeHapticTriggered && rawX > -SWIPE_SNAP_THRESHOLD) {
+        swipeHapticTriggered = false;
+      }
+    }
+  }
+
+  function onSwipeEnd(e) {
+    if (!activeSwipeRow) return;
+
+    const row = activeSwipeRow;
+    const wasSwiping = isSwipingRow;
+    const currentX = swipeCurrentX;
+    const wasOpen = row.classList.contains('is-open');
+
+    activeSwipeRow = null;
+    isSwipingRow = false;
+    isScrollingRow = false;
+
+    if (!wasSwiping) return;
+
+    justSwipedRow = true;
+    setTimeout(() => { justSwipedRow = false; }, 80);
+
+    row.classList.remove('is-swiping');
+
+    if (!wasOpen) {
+      if (currentX <= -SWIPE_SNAP_THRESHOLD) {
+        openSwipeRow(row);
+      } else {
+        closeSwipeRow(row);
+      }
+    } else {
+      if (currentX > -SWIPE_ACTION_WIDTH + 30) {
+        closeSwipeRow(row);
+      } else {
+        openSwipeRow(row);
+      }
+    }
+  }
+
+  // Unified Pointer Events for Touchscreens, DevTools Emulation & Desktop Mouse
+  if (window.PointerEvent) {
+    document.addEventListener('pointerdown', onSwipeStart, { passive: true });
+    document.addEventListener('pointermove', onSwipeMove, { passive: false });
+    document.addEventListener('pointerup', onSwipeEnd, { passive: true });
+    document.addEventListener('pointercancel', onSwipeEnd, { passive: true });
+  } else {
+    document.addEventListener('touchstart', onSwipeStart, { passive: true });
+    document.addEventListener('touchmove', onSwipeMove, { passive: false });
+    document.addEventListener('touchend', onSwipeEnd, { passive: true });
+    document.addEventListener('touchcancel', onSwipeEnd, { passive: true });
+    document.addEventListener('mousedown', onSwipeStart);
+    document.addEventListener('mousemove', onSwipeMove);
+    document.addEventListener('mouseup', onSwipeEnd);
+  }
+
+  document.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.swipe-row')) {
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('scroll', () => {
+    const openRow = document.querySelector('.swipe-row.is-open');
+    if (openRow) {
+      closeSwipeRow(openRow);
+    }
+  }, { passive: true });
+
+  document.addEventListener('turbo:render', () => {
+    activeSwipeRow = null;
+    isSwipingRow = false;
+    justSwipedRow = false;
+  });
+
   // Delegated click handler
   document.addEventListener('click', (e) => {
+    // If clicking on an action button (Edit or Delete), respond with zero delay!
+    if (e.target.closest('.swipe-action-btn')) {
+      justSwipedRow = false;
+    } else if (justSwipedRow) {
+      // Suppress synthetic click on the card body from the drag gesture
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     // CSV Export trigger (WebView & Mobile aware)
     const exportBtn = e.target.closest('.js-export-csv, a[href*="/export/csv/"]');
     if (exportBtn) {
@@ -2012,6 +2239,65 @@
         lb.hidden = true;
         return;
       }
+    }
+
+    // Swipe Action Edit button
+    const swipeEditBtn = e.target.closest('.js-swipe-edit');
+    if (swipeEditBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      playSound('click');
+      const row = swipeEditBtn.closest('.swipe-row');
+      const detailEl = row ? row.querySelector('.js-detail-tx') : null;
+      if (row) closeSwipeRow(row);
+      if (detailEl && window.openEditTransaction) {
+        window.openEditTransaction(detailEl.dataset);
+      }
+      return;
+    }
+
+    // Swipe Action Delete button
+    const swipeDeleteBtn = e.target.closest('.js-swipe-delete');
+    if (swipeDeleteBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      playSound('click');
+      const row = swipeDeleteBtn.closest('.swipe-row');
+      const detailEl = row ? row.querySelector('.js-detail-tx') : null;
+      if (row) closeSwipeRow(row);
+      if (detailEl && detailEl.dataset && detailEl.dataset.deleteUrl) {
+        const data = detailEl.dataset;
+        const preview = `${data.catName || 'Transaction'} · ${data.note || '-'} · ${data.formattedAmount || ('Rp' + data.amount)}`;
+        const note = data.note ? data.note.trim() : '';
+        const desc = note
+          ? `Are you sure you want to delete “${note}”? This action cannot be undone.`
+          : 'Are you sure you want to delete this transaction? This action cannot be undone.';
+        openConfirmSheet({
+          title: 'Delete Transaction?',
+          desc: desc,
+          preview: preview,
+          actionUrl: data.deleteUrl,
+          onConfirm: () => {
+            closeDetailSheet();
+          }
+        });
+      }
+      return;
+    }
+
+    // If tapping on the foreground of an OPEN swipe row, close it and don't open detail
+    const openSwipeRowEl = e.target.closest('.swipe-row.is-open');
+    if (openSwipeRowEl && !e.target.closest('.swipe-action-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSwipeRow(openSwipeRowEl);
+      return;
+    }
+
+    // If any swipe row is open and user tapped anywhere outside, close it
+    const anyOpenRow = document.querySelector('.swipe-row.is-open');
+    if (anyOpenRow && !e.target.closest('.swipe-row')) {
+      closeSwipeRow(anyOpenRow);
     }
 
     // Detail sheet open

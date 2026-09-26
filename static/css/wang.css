@@ -1656,6 +1656,146 @@ body[data-page="signup"] .sheet-root {
   min-width: 0;
 }
 
+/* ── iOS-Style Trailing Swipe Actions for Transactions ────────── */
+.swipe-row {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  background: var(--surface-3);
+  touch-action: pan-y;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.swipe-row * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.swipe-row .list-item {
+  animation: none !important;
+  box-shadow: none;
+  position: relative;
+  z-index: 2;
+  background: var(--card);
+  width: 100%;
+  will-change: transform;
+  touch-action: pan-y;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  border-radius: 0;
+}
+
+.swipe-row.is-swiping .list-item {
+  transition: none !important;
+}
+
+.swipe-row.is-animating .list-item {
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+.swipe-row.is-open .list-item {
+  transform: translate3d(-130px, 0, 0);
+}
+
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  z-index: 1;
+  width: 130px;
+  height: 100%;
+  background: var(--surface-3);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.swipe-row.is-swiping .swipe-actions,
+.swipe-row.is-open .swipe-actions,
+.swipe-row.is-animating .swipe-actions {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.swipe-action-btn {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 65px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter 0.14s ease, background 0.14s ease;
+}
+
+.swipe-action-btn:active {
+  filter: brightness(0.88);
+}
+
+.swipe-action-btn .icon {
+  font-size: 19px;
+  display: inline-block;
+}
+
+.swipe-action-btn span {
+  font-size: 10.5px;
+  letter-spacing: -0.1px;
+}
+
+/* Edit action (Warm neutral / peach accent) */
+.swipe-btn-edit {
+  background: var(--surface-3);
+  color: var(--ink);
+  border-right: 1px solid var(--line);
+}
+
+.swipe-btn-edit .icon {
+  color: var(--peach);
+}
+
+[data-theme="dark"] .swipe-btn-edit {
+  background: var(--surface-3);
+  color: var(--ink);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .swipe-btn-edit .icon {
+  color: var(--peach);
+}
+
+/* Delete action (iOS red / coral) */
+.swipe-btn-delete {
+  background: var(--red);
+  color: #FFFFFF;
+}
+
+.swipe-btn-delete .icon {
+  color: #FFFFFF;
+}
+
+.swipe-btn-delete span {
+  color: #FFFFFF;
+}
+
+[data-theme="dark"] .swipe-btn-delete {
+  background: #E0484D;
+}
+
 /* ── Bottom sheet ────────────────────────── */
 .sheet-overlay {
   position: fixed;
@@ -4594,23 +4734,28 @@ details.day-group .tx-list {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .tx-list .list-item {
+  .tx-list>.list-item,
+  .tx-list>.swipe-row {
     animation: rise .28s ease both;
   }
 
-  .tx-list .list-item:nth-child(2) {
+  .tx-list>.list-item:nth-child(2),
+  .tx-list>.swipe-row:nth-child(2) {
     animation-delay: .04s;
   }
 
-  .tx-list .list-item:nth-child(3) {
+  .tx-list>.list-item:nth-child(3),
+  .tx-list>.swipe-row:nth-child(3) {
     animation-delay: .08s;
   }
 
-  .tx-list .list-item:nth-child(4) {
+  .tx-list>.list-item:nth-child(4),
+  .tx-list>.swipe-row:nth-child(4) {
     animation-delay: .12s;
   }
 
-  .tx-list .list-item:nth-child(5) {
+  .tx-list>.list-item:nth-child(5),
+  .tx-list>.swipe-row:nth-child(5) {
     animation-delay: .16s;
   }
 
@@ -4621,7 +4766,8 @@ details.day-group .tx-list {
 
 @media (prefers-reduced-motion: reduce) {
 
-  .tx-list .list-item,
+  .tx-list>.list-item,
+  .tx-list>.swipe-row,
   .msg {
     animation: none !important;
   }
