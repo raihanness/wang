@@ -458,8 +458,8 @@
                 </div>
               {% endif %}
               <div class="li-right">
-                <div class="li-amt" style="color:{% if t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
-                  {% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
+                <div class="li-amt" style="color:{% if t.amount == 0 %}var(--ink){% elif t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
+                  {% if t.amount > 0 %}{% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
                 </div>
                 <div class="li-sub" style="display: flex; justify-content: right;{% if t.kind != 'transfer' %}{% endif %}">
                   {% if t.kind == 'transfer' %}

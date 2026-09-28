@@ -1725,8 +1725,8 @@
     commitMathEvaluation();
     const kind = kindInput.value;
     const amt = parseFloat(amountHidden.value);
-    if (!amt || amt <= 0){
-      showSheetError('Please enter an amount');
+    if (isNaN(amt) || amt < 0){
+      showSheetError('Please enter a valid amount');
       if (window.wangUnlockForm) window.wangUnlockForm(form);
       e.preventDefault();
       return;

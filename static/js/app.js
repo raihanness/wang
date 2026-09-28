@@ -505,8 +505,9 @@
     }
 
     if (amtEl) {
-      const sign = isTransfer ? '' : (isIncome ? '+' : '-');
-      const colorStyle = isTransfer ? 'var(--ink)' : (isIncome ? 'var(--green)' : 'var(--red)');
+      const numAmt = parseFloat(data.amount) || 0;
+      const sign = (numAmt === 0 || isTransfer) ? '' : (isIncome ? '+' : '-');
+      const colorStyle = numAmt === 0 ? 'var(--ink)' : (isTransfer ? 'var(--ink)' : (isIncome ? 'var(--green)' : 'var(--red)'));
       amtEl.textContent = `${sign}${data.formattedAmount || ('Rp' + data.amount)}`;
       amtEl.style.color = colorStyle;
     }

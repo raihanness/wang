@@ -77,7 +77,7 @@ class Transaction(models.Model):
     to_wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name="in_transfers", null=True, blank=True)
     from_wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name="out_transfers", null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions")
-    amount = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    amount = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0.00"))])
     note = models.CharField(max_length=200, blank=True)
     image = models.ImageField(upload_to="receipts/%Y/%m/", null=True, blank=True)
     date = models.DateTimeField(default=timezone.now)
