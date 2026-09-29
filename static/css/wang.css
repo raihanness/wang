@@ -1111,7 +1111,10 @@ body[data-page="signup"] .sheet-root {
 
 .form-row select,
 .form-row input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="submit"]):not([type="button"]),
-.form-row textarea {
+.form-row textarea,
+.form-field select,
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="submit"]):not([type="button"]),
+.form-field textarea {
   font-family: inherit;
   font-size: 14px;
   padding: 12px 14px;
@@ -1129,7 +1132,10 @@ body[data-page="signup"] .sheet-root {
 
 .form-row select:focus,
 .form-row input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="submit"]):not([type="button"]):focus,
-.form-row textarea:focus {
+.form-row textarea:focus,
+.form-field select:focus,
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="submit"]):not([type="button"]):focus,
+.form-field textarea:focus {
   border-color: var(--peach);
   background: var(--card);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--peach) 14%, transparent);
@@ -3089,7 +3095,8 @@ textarea:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--peach) 14%, transparent);
 }
 
-.form-row {
+.form-row,
+.form-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
@@ -3099,11 +3106,16 @@ textarea:focus {
   box-sizing: border-box;
 }
 
-.form-row>div {
+.form-row>div,
+.form-field>div {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.form-field {
+  gap: 0;
 }
 
 .form-grid {
@@ -3125,7 +3137,8 @@ textarea:focus {
 }
 
 .form-row label,
-.form-grid label {
+.form-grid label,
+.form-field label {
   font-size: 12px;
   font-weight: 800;
   color: var(--muted);
@@ -4748,6 +4761,7 @@ details.day-group .tx-list {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+
   .tx-list>.list-item,
   .tx-list>.swipe-row {
     animation: rise .28s ease both;
