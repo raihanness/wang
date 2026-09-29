@@ -67,6 +67,7 @@
 
     <main class="content turbo-enter">
       {{ recent_notes|json_script:"turbo-recent-notes" }}
+      {{ category_notes|json_script:"turbo-category-notes" }}
       {{ default_wallet.id|default:''|json_script:"turbo-default-wallet" }}
       {% if messages %}
         <div class="toast-container" id="toast-container" aria-live="polite">
@@ -113,6 +114,7 @@
       {% include "tracker/_filter_sheet.html" %}
       {% include "tracker/_debt_pay_sheet.html" %}
       {% include "tracker/_debt_history_sheet.html" %}
+      {% include "tracker/_sub_pay_sheet.html" %}
       {% include "tracker/_sub_history_sheet.html" %}
       {% include "tracker/_cat_tx_sheet.html" %}
     </div>

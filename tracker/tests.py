@@ -278,6 +278,39 @@ class TransactionTests(TestCase):
         matching_count = len([n for n in notes if n.strip().lower() == "kopi kenangan"])
         self.assertEqual(matching_count, 1)
 
+    def test_category_scoped_notes_suggestions(self):
+        cat_transport = Category.objects.create(
+            user=self.user, name="TransportTest", kind="expense", icon="directions_bus", color="#A8D8EA"
+        )
+        Transaction.objects.create(
+            user=self.user,
+            kind="expense",
+            amount=Decimal("15000"),
+            wallet=self.wallet1,
+            category=self.cat_food,
+            note="Nasi Padang",
+            date=timezone.now(),
+        )
+        Transaction.objects.create(
+            user=self.user,
+            kind="expense",
+            amount=Decimal("25000"),
+            wallet=self.wallet1,
+            category=cat_transport,
+            note="Gojek to Office",
+            date=timezone.now(),
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("category_notes", response.context)
+        cat_notes = response.context["category_notes"]
+        self.assertIn(str(self.cat_food.id), cat_notes)
+        self.assertIn("Nasi Padang", cat_notes[str(self.cat_food.id)])
+        self.assertIn(str(cat_transport.id), cat_notes)
+        self.assertIn("Gojek to Office", cat_notes[str(cat_transport.id)])
+        self.assertContains(response, 'id="sheet-category-notes"')
+        self.assertContains(response, 'id="turbo-category-notes"')
+
 
     def test_graphs_page_loads_with_turbo_frame_and_months_nav(self):
         Transaction.objects.create(
@@ -732,6 +765,45 @@ class TransactionTests(TestCase):
         self.assertEqual(sub.payments.count(), 0)
         self.assertFalse(Transaction.objects.filter(pk=pmt.transaction_id).exists())
         self.assertEqual(self.wallet1.current_balance, initial_bal)
+
+    def test_subscription_pay_with_custom_amount_wallet_and_note(self):
+        from .models import Subscription, SubscriptionPayment
+        w1_bal = self.wallet1.current_balance
+        w2_bal = self.wallet2.current_balance
+
+        sub = Subscription.objects.create(
+            user=self.user,
+            name="Internet Fiber",
+            amount=Decimal("400000"),
+            cycle="monthly",
+            due_day=15,
+            wallet=self.wallet1,
+            category=self.cat_food,
+            active=True,
+        )
+
+        # Pay with customized amount, alternate wallet, and custom note
+        pay_resp = self.client.post(
+            reverse("subscription_pay", args=[sub.pk]),
+            {
+                "amount": "385000",
+                "wallet": str(self.wallet2.pk),
+                "note": "Promo discount applied for September",
+            },
+        )
+        self.assertEqual(pay_resp.status_code, 302)
+        sub.refresh_from_db()
+        self.assertTrue(sub.is_paid_this_cycle)
+        self.assertEqual(sub.payments.count(), 1)
+        pmt = sub.payments.first()
+        self.assertEqual(pmt.amount, Decimal("385000"))
+        self.assertEqual(pmt.wallet, self.wallet2)
+        self.assertEqual(pmt.note, "Promo discount applied for September")
+        self.assertEqual(pmt.transaction.amount, Decimal("385000"))
+        self.assertEqual(pmt.transaction.wallet, self.wallet2)
+        self.assertEqual(pmt.transaction.note, "Promo discount applied for September")
+        self.assertEqual(self.wallet1.current_balance, w1_bal)
+        self.assertEqual(self.wallet2.current_balance, w2_bal - Decimal("385000"))
 
     def test_subscription_installments_and_completion(self):
         from .models import Subscription

@@ -210,6 +210,26 @@ def _sheet_context(user):
         if len(recent_notes) >= 60:
             break
 
+    # Category-scoped note suggestions
+    cat_notes_qs = (
+        Transaction.objects.filter(user=user, category__isnull=False)
+        .exclude(note="")
+        .exclude(note__isnull=True)
+        .values("category_id", "note")
+        .annotate(note_count=Count("id"), last_id=Max("id"))
+        .order_by("category_id", "-note_count", "-last_id")
+    )
+    cat_seen = defaultdict(set)
+    category_notes = defaultdict(list)
+    for item in cat_notes_qs:
+        cat_id = str(item["category_id"])
+        cleaned = item["note"].strip()
+        lower = cleaned.lower()
+        if cleaned and lower not in cat_seen[cat_id]:
+            cat_seen[cat_id].add(lower)
+            if len(category_notes[cat_id]) < 25:
+                category_notes[cat_id].append(cleaned)
+
     wallets = _get_wallets_with_balances(user, archived=False)
 
     # Determine default wallet from user's last added transaction
@@ -235,6 +255,7 @@ def _sheet_context(user):
         "wallets": wallets,
         "default_wallet": default_wallet,
         "recent_notes": recent_notes,
+        "category_notes": dict(category_notes),
         "overall_budget": overall_budget,
     }
 
@@ -1388,29 +1409,50 @@ def subscription_pay(request, pk):
         referer = request.META.get("HTTP_REFERER", "")
         return redirect("subscription_list" if "subscriptions" in referer else "dashboard")
 
-    wallet = sub.wallet or Wallet.objects.filter(user=request.user, archived=False).first()
+    amount_raw = request.POST.get("amount", "").strip().replace(",", "").replace(".", "")
+    if amount_raw:
+        try:
+            amount = Decimal(amount_raw)
+        except Exception:
+            amount = sub.amount
+    else:
+        amount = sub.amount
+
+    if amount < 0:
+        messages.error(request, "Please enter a valid payment amount.")
+        return redirect("subscription_list")
+
+    wallet_id = request.POST.get("wallet") or None
+    wallet = None
+    if wallet_id:
+        wallet = Wallet.objects.filter(user=request.user, pk=wallet_id).first()
+    if not wallet:
+        wallet = sub.wallet or Wallet.objects.filter(user=request.user, archived=False).first()
+
     category = sub.category or Category.objects.filter(user=request.user, kind=Category.Kind.EXPENSE).first()
     if not wallet or not category:
         messages.error(request, "Need at least one wallet and category to record transaction.")
         return redirect("subscription_list")
 
-    note_text = f"{sub.name} payment"
+    default_note = f"{sub.name} payment"
     if sub.total_installments:
         current_num = (sub.already_paid_installments or 0) + sub.payments.count() + 1
-        note_text = f"{sub.name} installment ({current_num}/{sub.total_installments})"
+        default_note = f"{sub.name} installment ({current_num}/{sub.total_installments})"
+
+    note_text = request.POST.get("note", "").strip() or default_note
 
     tx = Transaction.objects.create(
         user=request.user,
         kind=Transaction.Kind.EXPENSE,
         wallet=wallet,
         category=category,
-        amount=sub.amount,
+        amount=amount,
         note=note_text,
         date=timezone.now(),
     )
     SubscriptionPayment.objects.create(
         subscription=sub,
-        amount=sub.amount,
+        amount=amount,
         wallet=wallet,
         transaction=tx,
         date=tx.date,
@@ -1422,7 +1464,7 @@ def subscription_pay(request, pk):
     if sub.is_completed:
         messages.success(request, f"Recorded final payment for {sub.name}! Subscription completed ✓")
     else:
-        messages.success(request, f"Recorded payment of Rp{int(sub.amount):,} for {sub.name}! Marked as paid.")
+        messages.success(request, f"Recorded payment of Rp{int(amount):,} for {sub.name} (via {wallet.name})! Marked as paid.")
 
     referer = request.META.get("HTTP_REFERER", "")
     if "subscriptions" in referer:

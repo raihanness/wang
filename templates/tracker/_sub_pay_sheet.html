@@ -1,0 +1,59 @@
+{% load humanize %}
+<!-- Subscription Payment Bottom Sheet Modal -->
+<div class="sheet-overlay" id="sub-pay-overlay"></div>
+<div class="sheet sub-pay-sheet" id="sub-pay-sheet" role="dialog" aria-modal="true" aria-label="Pay subscription">
+  <div class="sheet-head" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px;">
+    <div style="font-weight:800;font-size:16px;color:var(--ink)">Pay Subscription</div>
+    <button type="button" class="sheet-head-btn" id="sub-pay-close" aria-label="Close modal"><svg class="icon"><use href="#icon-close"></use></svg></button>
+  </div>
+
+  <form method="post" id="sub-pay-form" action="" style="padding:4px 0 10px">
+    {% csrf_token %}
+    <div style="margin-bottom:14px;background:var(--surface-chip);padding:10px 12px;border-radius:12px">
+      <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px" id="sub-pay-name">Subscription Name</div>
+      <small class="muted" id="sub-pay-info">Monthly · Expected: Rp0</small>
+    </div>
+
+    <div class="form-field">
+      <label for="sub-pay-amount">Payment Amount (Rp)</label>
+      <input type="number" name="amount" id="sub-pay-amount" class="input" placeholder="0" required step="any" min="0" inputmode="numeric">
+    </div>
+
+    <div class="form-field" style="margin-top:12px">
+      <label for="sub-pay-wallet">Deduct From Account</label>
+      <select name="wallet" id="sub-pay-wallet" class="input">
+        {% for w in wallets %}
+          <option value="{{ w.id }}">{{ w.name }} (Rp{{ w.current_balance|floatformat:0|intcomma }})</option>
+        {% endfor %}
+      </select>
+      <small class="muted" style="display:block;margin-top:4px;font-size:11px">
+        Selecting an account automatically records an Expense transaction and updates its balance.
+      </small>
+    </div>
+
+    <div class="form-field" style="margin-top:12px">
+      <label for="sub-pay-note">Note / Description (Optional)</label>
+      <input type="text" name="note" id="sub-pay-note" class="input" placeholder="e.g. Netflix monthly, Gym installment..." maxlength="200">
+    </div>
+
+    <div class="sheet-actions" style="margin-top:18px">
+      <button type="submit" class="btn btn-primary" id="sub-pay-submit" style="flex:1">
+        <svg class="icon" style="font-size:15px"><use href="#icon-check"></use></svg>
+        <span>Record Payment</span>
+      </button>
+      <button type="button" class="btn btn-ghost" id="sub-pay-cancel" style="flex:1">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('sub-pay-cancel')?.addEventListener('click', function() {
+  if (window.closeSubPaySheet) window.closeSubPaySheet();
+});
+document.getElementById('sub-pay-close')?.addEventListener('click', function() {
+  if (window.closeSubPaySheet) window.closeSubPaySheet();
+});
+document.getElementById('sub-pay-form')?.addEventListener('submit', function() {
+  if (window.closeSubPaySheet) window.closeSubPaySheet();
+});
+</script>

@@ -155,12 +155,16 @@
           <svg class="icon" style="font-size:16px"><use href="#icon-task_alt"></use></svg>
         </button>
       {% else %}
-        <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0" data-turbo="false">
-          {% csrf_token %}
-          <button class="icon-btn pay-chip-btn" type="submit" title="Pay {{ s.name }}" aria-label="Pay {{ s.name }}">
-            <svg class="icon" style="font-size:16px"><use href="#icon-check"></use></svg>
-          </button>
-        </form>
+        <button class="icon-btn pay-chip-btn js-open-sub-pay" type="button"
+          data-sub-id="{{ s.pk }}"
+          data-sub-name="{{ s.name }}"
+          data-sub-amount="{{ s.amount|floatformat:0 }}"
+          data-sub-cycle="{{ s.get_cycle_display }}"
+          data-sub-wallet="{{ s.wallet.id|default:'' }}"
+          data-sub-default-note="{% if s.total_installments %}{{ s.name }} installment ({{ s.already_paid_installments|default:0|add:s.payments.count|add:1 }}/{{ s.total_installments }}){% else %}{{ s.name }} payment{% endif %}"
+          title="Pay {{ s.name }}" aria-label="Pay {{ s.name }}">
+          <svg class="icon" style="font-size:16px"><use href="#icon-check"></use></svg>
+        </button>
       {% endif %}
     </div>
   {% empty %}

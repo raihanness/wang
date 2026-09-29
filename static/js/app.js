@@ -445,6 +445,9 @@
     if (window.wangRefreshWallets) {
       window.wangRefreshWallets();
     }
+    if (window.wangUpdateNoteSuggestions) {
+      window.wangUpdateNoteSuggestions();
+    }
     resolveExternalIcons(sheet);
   }
 
@@ -599,7 +602,7 @@
     if (!sheet || !overlay) return;
     sheet.classList.remove('open');
     overlay.classList.remove('show');
-    if (!document.querySelector('.sheet.open, .cat-tx-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-history-sheet.open')) {
+    if (!document.querySelector('.sheet.open, .cat-tx-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open')) {
       document.body.style.overflow = '';
     }
   }
@@ -1143,6 +1146,52 @@
   }
   window.closeSubHistorySheet = closeSubHistorySheet;
 
+  function openSubPaySheet(subId, name, amount, cycle, walletId, defaultNote) {
+    const sheet = document.getElementById('sub-pay-sheet');
+    const overlay = document.getElementById('sub-pay-overlay');
+    const form = document.getElementById('sub-pay-form');
+    const nameEl = document.getElementById('sub-pay-name');
+    const infoEl = document.getElementById('sub-pay-info');
+    const amountInput = document.getElementById('sub-pay-amount');
+    const walletSelect = document.getElementById('sub-pay-wallet');
+    const noteInput = document.getElementById('sub-pay-note');
+    if (!sheet || !overlay || !form) return;
+
+    unlockFormSubmission(form);
+    form.action = `/subscriptions/${subId}/pay/`;
+    if (nameEl) nameEl.textContent = name || 'Subscription';
+    const cleanNum = parseFloat(String(amount).replace(/[^0-9.]/g, '')) || 0;
+    if (infoEl) infoEl.textContent = `${cycle || 'Recurring'} · Expected: Rp${cleanNum.toLocaleString('id-ID')}`;
+    if (amountInput) {
+      amountInput.value = cleanNum >= 0 ? cleanNum : '';
+      setTimeout(() => amountInput.focus(), 120);
+    }
+    if (walletSelect && walletId) {
+      walletSelect.value = String(walletId);
+    }
+    if (noteInput) {
+      noteInput.value = defaultNote || `${name} payment`;
+    }
+
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openSubPaySheet = openSubPaySheet;
+
+  function closeSubPaySheet() {
+    const s = document.getElementById('sub-pay-sheet');
+    const o = document.getElementById('sub-pay-overlay');
+    if (s) s.classList.remove('open');
+    if (o) o.classList.remove('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeSubPaySheet = closeSubPaySheet;
+
   // ── Category Transactions Bottom Sheet ─────────────────────
   function escapeHtml(str) {
     if (!str) return '';
@@ -1291,7 +1340,7 @@
     const o = document.getElementById('cat-tx-overlay');
     if (s) s.classList.remove('open');
     if (o) o.classList.remove('show');
-    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-history-sheet.open')) {
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open')) {
       document.body.style.overflow = '';
     }
     if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
@@ -1313,6 +1362,8 @@
     closeFilterSheet();
     closeDebtPaySheet();
     closeDebtHistorySheet();
+    closeSubPaySheet();
+    closeSubHistorySheet();
     closeCatTxSheet();
     if (window.wangResetSheet) window.wangResetSheet();
     syncSheetStateWithAndroid();
@@ -2492,6 +2543,30 @@
       e.preventDefault();
       playSound('click');
       closeDebtHistorySheet();
+      return;
+    }
+
+    // Subscription Pay button trigger
+    const subPayBtn = e.target.closest('.js-open-sub-pay');
+    if (subPayBtn) {
+      e.preventDefault();
+      playSound('click');
+      openSubPaySheet(
+        subPayBtn.dataset.subId,
+        subPayBtn.dataset.subName,
+        subPayBtn.dataset.subAmount,
+        subPayBtn.dataset.subCycle,
+        subPayBtn.dataset.subWallet,
+        subPayBtn.dataset.subDefaultNote
+      );
+      return;
+    }
+
+    // Subscription Pay Sheet close
+    if (e.target.closest('#sub-pay-close, #sub-pay-cancel') || e.target.id === 'sub-pay-overlay') {
+      e.preventDefault();
+      playSound('click');
+      closeSubPaySheet();
       return;
     }
 

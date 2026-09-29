@@ -106,13 +106,17 @@
               <span>Undo</span>
             </button>
           {% else %}
-            <form method="post" action="{% url 'subscription_pay' s.pk %}" style="margin:0;flex:1" data-turbo="false">
-              {% csrf_token %}
-              <button class="btn btn-sub-pay" type="submit" style="width:100%" title="Record this payment now" aria-label="Pay {{ s.name }}">
-                <svg class="icon" style="font-size:12px"><use href="#icon-check"></use></svg>
-                <span>Pay</span>
-              </button>
-            </form>
+            <button class="btn btn-sub-pay js-open-sub-pay" type="button" style="width:100%"
+              data-sub-id="{{ s.pk }}"
+              data-sub-name="{{ s.name }}"
+              data-sub-amount="{{ s.amount|floatformat:0 }}"
+              data-sub-cycle="{{ s.get_cycle_display }}"
+              data-sub-wallet="{{ s.wallet.id|default:'' }}"
+              data-sub-default-note="{% if s.total_installments %}{{ s.name }} installment ({{ s.already_paid_installments|default:0|add:s.payments.count|add:1 }}/{{ s.total_installments }}){% else %}{{ s.name }} payment{% endif %}"
+              title="Record this payment now" aria-label="Pay {{ s.name }}">
+              <svg class="icon" style="font-size:12px"><use href="#icon-check"></use></svg>
+              <span>Pay</span>
+            </button>
           {% endif %}
         {% else %}
           <div class="btn-sub-paid" style="opacity:0.5;cursor:default">

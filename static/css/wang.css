@@ -2189,6 +2189,20 @@ body[data-page="signup"] .sheet-root {
   border-color: var(--peach);
 }
 
+.note-suggestion-chip.selected {
+  background: var(--peach, #FFB5A7);
+  color: #2b1700;
+  border-color: var(--peach, #FFB5A7);
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .note-suggestion-chip.selected {
+  background: var(--peach, #FFB5A7);
+  color: #11100f;
+  border-color: var(--peach, #FFB5A7);
+}
+
 .note-chip-icon {
   font-size: 13px;
   color: var(--peach);
@@ -7268,6 +7282,7 @@ main.content.turbo-enter {
 }
 
 .debt-pay-sheet,
+.sub-pay-sheet,
 .debt-history-sheet,
 .sub-history-sheet {
   max-width: 480px;
@@ -7286,11 +7301,13 @@ main.content.turbo-enter {
   pointer-events: none;
 }
 
-.debt-pay-sheet {
+.debt-pay-sheet,
+.sub-pay-sheet {
   z-index: 75 !important;
 }
 
 .debt-pay-sheet.open,
+.sub-pay-sheet.open,
 .debt-history-sheet.open,
 .sub-history-sheet.open {
   transform: translateY(0) !important;
@@ -7303,7 +7320,8 @@ main.content.turbo-enter {
   z-index: 68 !important;
 }
 
-#debt-pay-overlay {
+#debt-pay-overlay,
+#sub-pay-overlay {
   z-index: 72 !important;
 }
 

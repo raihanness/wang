@@ -113,6 +113,7 @@
       </div>
     </div>
     {{ recent_notes|json_script:"sheet-recent-notes" }}
+    {{ category_notes|json_script:"sheet-category-notes" }}
     <div class="sheet-notice" id="sheet-notice" hidden></div>
   </form>
 
@@ -482,6 +483,7 @@
       if (amountLabel) {
         amountLabel.textContent = (kindInput && kindInput.value === 'transfer') ? 'Transfer' : 'Amount';
       }
+      if (typeof updateNoteSuggestions === 'function') updateNoteSuggestions();
       return;
     }
     c.classList.add('selected');
@@ -489,6 +491,7 @@
     if (catHidden) catHidden.value = c.dataset.cat || '';
     const amountLabel = document.getElementById('sheet-amount-label');
     if (amountLabel && c.dataset.name) amountLabel.textContent = c.dataset.name;
+    if (typeof updateNoteSuggestions === 'function') updateNoteSuggestions();
     hideSheetError();
   }
 
@@ -1509,7 +1512,9 @@
 
   // ── Note Auto-Suggestions ────────────────────────────
   const noteSuggestionsStrip = document.getElementById('note-suggestions-strip');
-  let recentNotesList = [];
+  /* ── Note Auto-Suggestions & Category-Scoped Notes ── */
+  let recentNotesList = null;
+  let categoryNotesMap = null;
 
   function sanitizeAndDedupeNotes(notesArray) {
     const seen = new Set();
@@ -1524,6 +1529,54 @@
       }
     }
     return result;
+  }
+
+  function saveCategoryNotesToStorage(map) {
+    try {
+      localStorage.setItem('wang-category-notes', JSON.stringify(map || {}));
+    } catch (e) { }
+  }
+
+  function getCategoryNotesMap() {
+    // 1. Try to read from turbo-category-notes inside swapped <main>
+    const turboEl = document.getElementById('turbo-category-notes');
+    if (turboEl) {
+      try {
+        const parsed = JSON.parse(turboEl.textContent);
+        if (parsed && typeof parsed === 'object') {
+          categoryNotesMap = parsed;
+          saveCategoryNotesToStorage(categoryNotesMap);
+          return categoryNotesMap;
+        }
+      } catch (e) { }
+    }
+
+    if (categoryNotesMap && typeof categoryNotesMap === 'object') {
+      return categoryNotesMap;
+    }
+
+    // 2. Try sheet-category-notes (server rendered initially)
+    const el = document.getElementById('sheet-category-notes');
+    if (el) {
+      try {
+        const parsed = JSON.parse(el.textContent);
+        if (parsed && typeof parsed === 'object') {
+          categoryNotesMap = parsed;
+          return categoryNotesMap;
+        }
+      } catch (e) { }
+    }
+
+    // 3. Try localStorage (persisted across sessions)
+    try {
+      const stored = localStorage.getItem('wang-category-notes');
+      if (stored) {
+        categoryNotesMap = JSON.parse(stored);
+        return categoryNotesMap;
+      }
+    } catch (e) { }
+
+    return categoryNotesMap || {};
   }
 
   function saveRecentNotesToStorage(notes) {
@@ -1574,15 +1627,27 @@
     return recentNotesList || [];
   }
 
-  function addNoteToRecent(note) {
+  function addNoteToRecent(note, catId) {
     if (!note || typeof note !== 'string') return;
     const trimmed = note.trim();
     if (!trimmed) return;
     const lower = trimmed.toLowerCase();
+
+    // 1. Update general recent notes
     const current = getRecentNotes();
     const updated = [trimmed, ...current.filter(n => (n || '').trim().toLowerCase() !== lower)];
     recentNotesList = sanitizeAndDedupeNotes(updated);
     saveRecentNotesToStorage(recentNotesList);
+
+    // 2. Update category-specific notes map
+    if (catId) {
+      const catMap = { ...getCategoryNotesMap() };
+      const currentCatNotes = catMap[catId] || [];
+      const updatedCatNotes = [trimmed, ...currentCatNotes.filter(n => (n || '').trim().toLowerCase() !== lower)];
+      catMap[catId] = sanitizeAndDedupeNotes(updatedCatNotes).slice(0, 30);
+      categoryNotesMap = catMap;
+      saveCategoryNotesToStorage(catMap);
+    }
 
     // Update DOM element if present so subsequent reads pick it up
     const el = document.getElementById('sheet-recent-notes');
@@ -1594,56 +1659,92 @@
 
   // Listen to Turbo render so fresh notes from newly created transactions sync immediately
   document.addEventListener('turbo:render', () => {
-    const turboEl = document.getElementById('turbo-recent-notes');
-    if (turboEl) {
+    const turboRecentEl = document.getElementById('turbo-recent-notes');
+    if (turboRecentEl) {
       try {
-        const parsed = JSON.parse(turboEl.textContent);
+        const parsed = JSON.parse(turboRecentEl.textContent);
         if (Array.isArray(parsed) && parsed.length > 0) {
           recentNotesList = sanitizeAndDedupeNotes([...(recentNotesList || []), ...parsed]);
           saveRecentNotesToStorage(recentNotesList);
         }
       } catch (e) { }
     }
+    const turboCatEl = document.getElementById('turbo-category-notes');
+    if (turboCatEl) {
+      try {
+        const parsed = JSON.parse(turboCatEl.textContent);
+        if (parsed && typeof parsed === 'object') {
+          categoryNotesMap = parsed;
+          saveCategoryNotesToStorage(categoryNotesMap);
+        }
+      } catch (e) { }
+    }
+    updateNoteSuggestions();
   });
 
   function updateNoteSuggestions() {
     if (!noteSuggestionsStrip || !noteInput) return;
-    const notes = getRecentNotes();
+    const catId = selectedCat ? (selectedCat.dataset.cat || '') : (catHidden ? catHidden.value : '');
+    const kind = kindInput ? kindInput.value : 'expense';
+
+    const catMap = getCategoryNotesMap();
+    const catNotes = (catId && catMap[catId]) ? catMap[catId] : [];
+    const allRecent = getRecentNotes();
+
+    // Strictly scoped: if expense/income category is selected, ONLY use notes from this category's history
+    const pool = (kind === 'transfer' || !catId) ? allRecent : catNotes;
+
     const q = noteInput.value.trim().toLowerCase();
+
+    let candidates = [];
     if (!q) {
-      noteSuggestionsStrip.innerHTML = '';
-      noteSuggestionsStrip.style.display = 'none';
-      return;
-    }
+      // Straight up: show this category's notes history. If no notes exist for this category, 0 badges are shown.
+      candidates = sanitizeAndDedupeNotes(pool).slice(0, 15);
+    } else {
+      // Filtering when typing within this category's notes history
+      const seen = new Set();
+      const exactMatches = [];
+      const prefixMatches = [];
+      const substringMatches = [];
 
-    const seen = new Set();
-    const matches = [];
-    for (const n of notes) {
-      if (!n) continue;
-      const trimmed = n.trim();
-      const lower = trimmed.toLowerCase();
-      if (lower.includes(q) && lower !== q && !seen.has(lower)) {
-        seen.add(lower);
-        matches.push(trimmed);
-        if (matches.length >= 6) break;
+      for (const n of pool) {
+        if (!n) continue;
+        const trimmed = n.trim();
+        const lower = trimmed.toLowerCase();
+        if (seen.has(lower)) continue;
+
+        if (lower === q) {
+          seen.add(lower);
+          exactMatches.push(trimmed);
+        } else if (lower.startsWith(q)) {
+          seen.add(lower);
+          prefixMatches.push(trimmed);
+        } else if (lower.includes(q)) {
+          seen.add(lower);
+          substringMatches.push(trimmed);
+        }
       }
+
+      candidates = [...exactMatches, ...prefixMatches, ...substringMatches].slice(0, 12);
     }
 
-    if (matches.length === 0) {
+    if (candidates.length === 0) {
       noteSuggestionsStrip.innerHTML = '';
       noteSuggestionsStrip.style.display = 'none';
       return;
     }
 
-    noteSuggestionsStrip.innerHTML = matches.map(n => {
+    noteSuggestionsStrip.innerHTML = candidates.map(n => {
       const escaped = n.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<button type="button" class="note-suggestion-chip" data-note="${escaped}">
+      const isSelected = (n.trim().toLowerCase() === q);
+      return `<button type="button" class="note-suggestion-chip ${isSelected ? 'selected' : ''}" data-note="${escaped}" title="${escaped}">
         <span>${escaped}</span>
       </button>`;
     }).join('');
 
     noteSuggestionsStrip.style.display = 'flex';
   }
+  window.wangUpdateNoteSuggestions = updateNoteSuggestions;
 
   let focusTimeout = null;
   let blurTimeout = null;
@@ -1702,12 +1803,14 @@
   noteSuggestionsStrip?.addEventListener('click', (e) => {
     const chip = e.target.closest('.note-suggestion-chip');
     if (chip && chip.dataset.note) {
-      noteInput.value = chip.dataset.note;
-      noteHidden.value = chip.dataset.note;
+      const noteText = chip.dataset.note;
+      noteInput.value = noteText;
+      noteHidden.value = noteText;
       if (window.wangPlaySound) window.wangPlaySound('tap');
-      noteSuggestionsStrip.innerHTML = '';
-      noteSuggestionsStrip.style.display = 'none';
-      // Picked suggestion -> close mobile keyboard and return to keypad
+      // Keep chips visible and highlight the clicked chip as selected
+      updateNoteSuggestions();
+      if (typeof saveSheetDraft === 'function') saveSheetDraft();
+      // Close mobile virtual keyboard and return to keypad
       noteInput.blur();
     }
   });
@@ -1733,7 +1836,8 @@
     }
     noteHidden.value = noteInput.value.trim();
     if (noteHidden.value) {
-      addNoteToRecent(noteHidden.value);
+      const curCatId = selectedCat ? (selectedCat.dataset.cat || '') : (catHidden ? catHidden.value : '');
+      addNoteToRecent(noteHidden.value, curCatId);
     }
     if (!dateHidden.value){
       dateHidden.value = formatLocalISO(new Date());
