@@ -23,7 +23,7 @@
   <title>{% block title %}Wang{% endblock %}</title>
   <!-- Self-Hosted Fonts (GDPR Compliant) -->
   <link rel="preload" href="{% static 'fonts/plus-jakarta-sans-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=10">
+  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=12">
   <link rel="prefetch" href="{% static 'img/icons.svg' %}">
   <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
   <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
@@ -35,7 +35,7 @@
   <meta name="turbo-cache-control" content="no-preview">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.4/dist/turbo.es2017-umd.js"></script>
-  <script src="{% static 'js/app.js' %}?v=10"></script>
+  <script src="{% static 'js/app.js' %}?v=12"></script>
 </head>
 <body data-page="{% block page_name %}{% endblock %}">
   {% include "tracker/_svg_symbols.html" %}
@@ -46,6 +46,14 @@
         <span class="appbar-title">Wang</span>
       </div>
       <div class="appbar-actions">
+        {% if user.is_authenticated and user.is_staff or user.is_superuser %}
+          {% if pending_approvals_count > 0 %}
+            <a href="{% url 'admin_console' %}?tab=pending" class="appbar-admin-badge" data-turbo-preload aria-label="{{ pending_approvals_count }} pending approval{{ pending_approvals_count|pluralize }}" title="{{ pending_approvals_count }} pending approval{{ pending_approvals_count|pluralize }}">
+              <svg class="icon"><use href="#icon-admin_panel_settings"></use></svg>
+              <span>{{ pending_approvals_count }} pending</span>
+            </a>
+          {% endif %}
+        {% endif %}
         <button type="button" class="icon-btn sound-toggle" id="sound-toggle" aria-label="Toggle sound effects" title="Toggle sound effects">
           <svg class="icon" id="sound-icon"><use href="#icon-volume_up"></use></svg>
         </button>
@@ -57,7 +65,7 @@
           <!-- <a href="{% url 'wallet_list' %}" class="icon-btn" aria-label="Wallets"><svg class="icon"><use href="#icon-account_balance_wallet"></use></svg></a> -->
           <form method="post" action="{% url 'logout' %}" style="margin:0">
             {% csrf_token %}
-            <button class="icon-btn" aria-label="Logout"><svg class="icon"><use href="#icon-logout"></use></svg></button>
+            <button class="icon-btn btn-no-spinner" data-no-spinner="true" aria-label="Logout"><svg class="icon"><use href="#icon-logout"></use></svg></button>
           </form>
         {% else %}
           <a href="{% url 'login' %}" class="icon-btn" aria-label="Login"><svg class="icon"><use href="#icon-login"></use></svg></a>
@@ -101,8 +109,16 @@
       <a href="{% url 'graphs' %}" class="bn-item {% if request.resolver_match.url_name == 'graphs' %}active{% endif %}" data-nav="graphs" data-turbo-preload>
         <svg class="icon" style="font-size:24px;"><use href="#icon-pie_chart"></use></svg><small>Graphs</small>
       </a>
-      <a href="{% url 'more' %}" class="bn-item {% if request.resolver_match.url_name == 'more' or 'category' in request.resolver_match.url_name or 'subscription' in request.resolver_match.url_name or 'debt' in request.resolver_match.url_name %}active{% endif %}" data-nav="more" data-turbo-preload>
-        <svg class="icon"><use href="#icon-apps"></use></svg><small>More</small>
+      <a href="{% url 'more' %}" class="bn-item {% if request.resolver_match.url_name == 'more' or 'category' in request.resolver_match.url_name or 'subscription' in request.resolver_match.url_name or 'debt' in request.resolver_match.url_name or 'admin_console' in request.resolver_match.url_name %}active{% endif %}" data-nav="more" data-turbo-preload>
+        <div class="bn-icon-wrap">
+          <svg class="icon"><use href="#icon-apps"></use></svg>
+          {% if user.is_authenticated and user.is_staff or user.is_superuser %}
+            {% if pending_approvals_count > 0 %}
+              <span class="bn-badge-dot" aria-hidden="true"></span>
+            {% endif %}
+          {% endif %}
+        </div>
+        <small>More</small>
       </a>
     </nav>
 

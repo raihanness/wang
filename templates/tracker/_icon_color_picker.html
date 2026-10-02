@@ -7,7 +7,7 @@
   <!-- Live Preview Header -->
   <div class="picker-preview-box">
     <div class="picker-preview-icon" id="picker-preview-icon" style="background: {{ form.color.value|default:'#FFB5A7' }}22; color: {{ form.color.value|default:'#FFB5A7' }};">
-      <svg class="icon" id="picker-preview-symbol"><use href="#icon-{{ form.icon.value|default:'account_balance_wallet' }}"></use></svg>
+      <svg class="icon" id="picker-preview-symbol"><use href="#icon-{{ form.icon.value|default:'wallet' }}"></use></svg>
     </div>
     <div class="picker-preview-details">
       <div class="picker-preview-title" id="picker-preview-title">{{ form.name.value|default:"Preview" }}</div>
@@ -50,14 +50,14 @@
   <!-- Icon Selection -->
   <div class="picker-section">
     <div class="picker-section-label">
-      <span>Icon</span>
+      <span>Icon (138 choices)</span>
       <button type="button" class="btn-link-subtle" id="toggle-custom-icon-btn">Manual input</button>
     </div>
 
     <!-- Synced manual icon input (collapsible) -->
     <div class="custom-icon-field" id="custom-icon-field" style="display:none;margin-bottom:10px">
-      <input type="text" name="{{ form.icon.name }}" id="{{ form.icon.id_for_label }}" class="input" value="{{ form.icon.value|default:'account_balance_wallet' }}" placeholder="Material Symbol name">
-      <small class="muted" style="display:block;margin-top:4px;font-size:11.5px">Type any Material Symbols ligature (e.g. <code>payments</code>, <code>restaurant</code>).</small>
+      <input type="text" name="{{ form.icon.name }}" id="{{ form.icon.id_for_label }}" class="input" value="{{ form.icon.value|default:'wallet' }}" placeholder="Lucide icon name (e.g. wallet, utensils, cat)">
+      <small class="muted" style="display:block;margin-top:4px;font-size:11.5px">Type any official Lucide icon name (e.g. <code>wallet</code>, <code>utensils</code>, <code>coffee</code>, <code>car</code>, <code>cat</code>, <code>tv</code>, <code>gamepad-2</code>).</small>
     </div>
 
     <!-- Icon category tabs -->
@@ -66,15 +66,17 @@
       <button type="button" class="icon-cat-tab" data-cat="finance">Finance</button>
       <button type="button" class="icon-cat-tab" data-cat="food">Food</button>
       <button type="button" class="icon-cat-tab" data-cat="transport">Transport</button>
-      <button type="button" class="icon-cat-tab" data-cat="home">Home</button>
-      <button type="button" class="icon-cat-tab" data-cat="life">Life</button>
-      <button type="button" class="icon-cat-tab" data-cat="work">Work</button>
+      <button type="button" class="icon-cat-tab" data-cat="home">Home &amp; Bills</button>
+      <button type="button" class="icon-cat-tab" data-cat="life">Media &amp; Subs</button>
+      <button type="button" class="icon-cat-tab" data-cat="health">Health &amp; Fit</button>
+      <button type="button" class="icon-cat-tab" data-cat="tech">Tech &amp; Work</button>
+      <button type="button" class="icon-cat-tab" data-cat="family">Family &amp; Pets</button>
     </div>
 
     <!-- Search bar -->
     <div class="icon-search-wrap">
       <svg class="icon icon-search-lens"><use href="#icon-search"></use></svg>
-      <input type="text" class="icon-search-input" id="icon-search-input" placeholder="Search icon... (e.g. coffee, car, bank, cat)" autocomplete="off">
+      <input type="text" class="icon-search-input" id="icon-search-input" placeholder="Search icon... (e.g. netflix, cat, coffee, wifi, gym)" autocomplete="off">
       <button type="button" class="icon-search-clear" id="icon-search-clear" style="display:none" aria-label="Clear search">
         <svg class="icon"><use href="#icon-close"></use></svg>
       </button>
@@ -82,81 +84,144 @@
 
     <!-- Icon Grid -->
     <div class="icon-grid-picker" id="icon-grid-picker">
-      <!-- Finance -->
-      <button type="button" class="icon-tile" data-icon="account_balance_wallet" data-cat="finance" data-tags="wallet money cash card pay"><svg class="icon"><use href="#icon-account_balance_wallet"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="payments" data-cat="finance" data-tags="payments cash bills money notes rupiah"><svg class="icon"><use href="#icon-payments"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="account_balance" data-cat="finance" data-tags="bank bca mandiri bni bri cimb atm tax"><svg class="icon"><use href="#icon-account_balance"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="savings" data-cat="finance" data-tags="savings piggy bank deposit invest money save"><svg class="icon"><use href="#icon-savings"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="credit_card" data-cat="finance" data-tags="credit card debit visa mastercard payment"><svg class="icon"><use href="#icon-credit_card"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="currency_exchange" data-cat="finance" data-tags="currency exchange forex crypto transfer swap"><svg class="icon"><use href="#icon-currency_exchange"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="paid" data-cat="finance" data-tags="paid dollar coin money salary payment"><svg class="icon"><use href="#icon-paid"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="receipt_long" data-cat="finance" data-tags="receipt bill invoice transaction paper"><svg class="icon"><use href="#icon-receipt_long"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="sell" data-cat="finance" data-tags="sell tag price promo discount offer"><svg class="icon"><use href="#icon-sell"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="price_change" data-cat="finance" data-tags="price change market stock invest trading"><svg class="icon"><use href="#icon-price_change"></use></svg></button>
-
-      <!-- Food & Drinks -->
-      <button type="button" class="icon-tile" data-icon="restaurant" data-cat="food" data-tags="restaurant food dinner eat meal dining lunch"><svg class="icon"><use href="#icon-restaurant"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="local_cafe" data-cat="food" data-tags="cafe coffee tea drink beverage starbucks kofi"><svg class="icon"><use href="#icon-local_cafe"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="fastfood" data-cat="food" data-tags="fast food burger fries snack junk meal"><svg class="icon"><use href="#icon-fastfood"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="local_bar" data-cat="food" data-tags="bar drink cocktail alcohol beer party night"><svg class="icon"><use href="#icon-local_bar"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="lunch_dining" data-cat="food" data-tags="lunch dining food meal bento dinner"><svg class="icon"><use href="#icon-lunch_dining"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="bakery_dining" data-cat="food" data-tags="bakery bread pastry cake dessert roti"><svg class="icon"><use href="#icon-bakery_dining"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="local_pizza" data-cat="food" data-tags="pizza fast food italian meal slice"><svg class="icon"><use href="#icon-local_pizza"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="ramen_dining" data-cat="food" data-tags="ramen noodles soup mie asian food"><svg class="icon"><use href="#icon-ramen_dining"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="shopping_cart" data-cat="food" data-tags="groceries supermarket market food ingredients shopping"><svg class="icon"><use href="#icon-shopping_cart"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="icecream" data-cat="food" data-tags="ice cream dessert sweet cold snack gelato"><svg class="icon"><use href="#icon-icecream"></use></svg></button>
-
-      <!-- Transport -->
-      <button type="button" class="icon-tile" data-icon="directions_bus" data-cat="transport" data-tags="bus tj transjakarta transit public commute"><svg class="icon"><use href="#icon-directions_bus"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="directions_car" data-cat="transport" data-tags="car drive travel grabcar gocar trip"><svg class="icon"><use href="#icon-directions_car"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="local_gas_station" data-cat="transport" data-tags="gas fuel bbm pertamina petrol station oil"><svg class="icon"><use href="#icon-local_gas_station"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="two_wheeler" data-cat="transport" data-tags="motorcycle motorbike gojek grab motor scooter bike"><svg class="icon"><use href="#icon-two_wheeler"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="flight" data-cat="transport" data-tags="flight airplane travel vacation airport trip"><svg class="icon"><use href="#icon-flight"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="train" data-cat="transport" data-tags="train subway mrt krl railway transit"><svg class="icon"><use href="#icon-train"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="local_taxi" data-cat="transport" data-tags="taxi cab ride bluebird grab"><svg class="icon"><use href="#icon-local_taxi"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="pedal_bike" data-cat="transport" data-tags="bicycle bike cycling sport ride"><svg class="icon"><use href="#icon-pedal_bike"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="commute" data-cat="transport" data-tags="commute transit travel work daily"><svg class="icon"><use href="#icon-commute"></use></svg></button>
-
-      <!-- Home & Utilities -->
-      <button type="button" class="icon-tile" data-icon="home" data-cat="home" data-tags="home house rent mortgage living dwelling"><svg class="icon"><use href="#icon-home"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="bolt" data-cat="home" data-tags="electricity power pln utilities energy light"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="water_drop" data-cat="home" data-tags="water pdam utilities bills drop"><svg class="icon"><use href="#icon-water_drop"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="wifi" data-cat="home" data-tags="wifi internet network indihome provider broadband"><svg class="icon"><use href="#icon-wifi"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="cell_tower" data-cat="home" data-tags="telecom pulse data telkomsel indosat provider mobile"><svg class="icon"><use href="#icon-cell_tower"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="tv" data-cat="home" data-tags="tv television netflix cable stream entertainment"><svg class="icon"><use href="#icon-tv"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="apartment" data-cat="home" data-tags="apartment kos kost building flat room"><svg class="icon"><use href="#icon-apartment"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="handyman" data-cat="home" data-tags="handyman tools repair maintenance fix service"><svg class="icon"><use href="#icon-handyman"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="chair" data-cat="home" data-tags="chair furniture decor interior living"><svg class="icon"><use href="#icon-chair"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="cleaning_services" data-cat="home" data-tags="cleaning laundry wash maid housekeeping"><svg class="icon"><use href="#icon-cleaning_services"></use></svg></button>
-
-      <!-- Life & Leisure -->
-      <button type="button" class="icon-tile" data-icon="shopping_bag" data-cat="life" data-tags="shopping bag clothes mall retail buy store"><svg class="icon"><use href="#icon-shopping_bag"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="checkroom" data-cat="life" data-tags="clothing apparel fashion wardrobe outfit shirt dress"><svg class="icon"><use href="#icon-checkroom"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="fitness_center" data-cat="life" data-tags="gym fitness workout exercise sport weights"><svg class="icon"><use href="#icon-fitness_center"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="sports_esports" data-cat="life" data-tags="gaming games playstation steam console fun esports"><svg class="icon"><use href="#icon-sports_esports"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="movie" data-cat="life" data-tags="movie cinema film theater tickets entertainment"><svg class="icon"><use href="#icon-movie"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="pets" data-cat="life" data-tags="pets dog cat animal pet food vet kitten puppy"><svg class="icon"><use href="#icon-pets"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="medical_services" data-cat="life" data-tags="medical medicine health doctor hospital pharmacy clinic"><svg class="icon"><use href="#icon-medical_services"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="school" data-cat="life" data-tags="school education college course study university book tuition"><svg class="icon"><use href="#icon-school"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="menu_book" data-cat="life" data-tags="book reading study course novel library"><svg class="icon"><use href="#icon-menu_book"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="redeem" data-cat="life" data-tags="gift present reward bonus voucher prize"><svg class="icon"><use href="#icon-redeem"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="card_giftcard" data-cat="life" data-tags="gift card present celebration birthday holiday"><svg class="icon"><use href="#icon-card_giftcard"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="spa" data-cat="life" data-tags="spa wellness massage relax beauty self-care salon"><svg class="icon"><use href="#icon-spa"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="headphones" data-cat="life" data-tags="music spotify audio headphones podcast"><svg class="icon"><use href="#icon-headphones"></use></svg></button>
-
-      <!-- Work & Family -->
-      <button type="button" class="icon-tile" data-icon="work" data-cat="work" data-tags="work office job briefcase career project freelance"><svg class="icon"><use href="#icon-work"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="favorite" data-cat="work" data-tags="love heart mom parents family charity donation give"><svg class="icon"><use href="#icon-favorite"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="family_restroom" data-cat="work" data-tags="family dad parents kids family restroom"><svg class="icon"><use href="#icon-family_restroom"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="diversity_3" data-cat="work" data-tags="social friends hangout people community group sister"><svg class="icon"><use href="#icon-diversity_3"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="domain" data-cat="work" data-tags="company corporate office building business domain"><svg class="icon"><use href="#icon-domain"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="trending_up" data-cat="work" data-tags="growth raise promotion bonus invest profit trending up"><svg class="icon"><use href="#icon-trending_up"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="stars" data-cat="work" data-tags="stars bonus award achievement special rating"><svg class="icon"><use href="#icon-stars"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="devices" data-cat="work" data-tags="electronics phone gadget devices tech hardware"><svg class="icon"><use href="#icon-devices"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="laptop" data-cat="work" data-tags="laptop computer pc software tech it laptop stuff"><svg class="icon"><use href="#icon-laptop"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="handshake" data-cat="work" data-tags="utang debt loan borrow lend agreement handshake"><svg class="icon"><use href="#icon-handshake"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="help" data-cat="work" data-tags="help forgotten unknown question mystery misc"><svg class="icon"><use href="#icon-help"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="apps" data-cat="work" data-tags="apps misc other general software widgets"><svg class="icon"><use href="#icon-apps"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wallet" data-cat="finance" data-tags="wallet money cash dompet pay payment bayar saldo"><svg class="icon"><use href="#icon-wallet"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="banknote" data-cat="finance" data-tags="banknote payments cash bills money notes rupiah uang tunai gaji salary revenue income"><svg class="icon"><use href="#icon-banknote"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="landmark" data-cat="finance" data-tags="landmark bank bca mandiri bni bri cimb atm tax pajak government transfers rekening"><svg class="icon"><use href="#icon-landmark"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="piggy-bank" data-cat="finance" data-tags="piggy bank savings deposit tabungan invest money save celengan bunga"><svg class="icon"><use href="#icon-piggy-bank"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="credit-card" data-cat="finance" data-tags="credit card debit visa mastercard payment atm gesek kartu cc"><svg class="icon"><use href="#icon-credit-card"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="circle-dollar-sign" data-cat="finance" data-tags="circle dollar sign paid dollar coin money salary payment pendapatan pemasukan"><svg class="icon"><use href="#icon-circle-dollar-sign"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="coins" data-cat="finance" data-tags="coins spare change money cash koin receh tip"><svg class="icon"><use href="#icon-coins"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="hand-coins" data-cat="finance" data-tags="hand coins debt loan borrow lend utang piutang pinjaman tip donation sedekah"><svg class="icon"><use href="#icon-hand-coins"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="receipt" data-cat="finance" data-tags="receipt bill invoice transaction paper bon struk tagihan"><svg class="icon"><use href="#icon-receipt"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="tag" data-cat="finance" data-tags="tag sell price promo discount offer diskon harga"><svg class="icon"><use href="#icon-tag"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="badge-percent" data-cat="finance" data-tags="badge percent discount interest cashback promo offer bunga persen diskon"><svg class="icon"><use href="#icon-badge-percent"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="chart-candlestick" data-cat="finance" data-tags="chart candlestick stocks trading investment crypto market shares saham reksadana crypto trading"><svg class="icon"><use href="#icon-chart-candlestick"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="chart-line" data-cat="finance" data-tags="chart line analytics stocks growth profit revenue grafik tren naik"><svg class="icon"><use href="#icon-chart-line"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="chart-pie" data-cat="finance" data-tags="chart pie analytics budget allocation share grafik pie laporan"><svg class="icon"><use href="#icon-chart-pie"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="arrow-left-right" data-cat="finance" data-tags="arrow left right currency exchange forex crypto transfer swap kurs tukar valas"><svg class="icon"><use href="#icon-arrow-left-right"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="store" data-cat="finance" data-tags="store merchant shop pos checkout toko warung ruko merchant"><svg class="icon"><use href="#icon-store"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="gem" data-cat="finance" data-tags="gem jewel diamond asset gold precious emas perhiasan berlian luxury"><svg class="icon"><use href="#icon-gem"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="handshake" data-cat="finance" data-tags="handshake agreement contract deal partnership utang pinjam perjanjian"><svg class="icon"><use href="#icon-handshake"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shield-check" data-cat="finance" data-tags="shield check insurance asuransi safety security protection guarantee aman proteksi"><svg class="icon"><use href="#icon-shield-check"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="lock" data-cat="finance" data-tags="lock security safe deposit brankas kunci simpan"><svg class="icon"><use href="#icon-lock"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="utensils" data-cat="food" data-tags="utensils restaurant food dinner eat meal dining lunch makan kuliner resto masakan warung"><svg class="icon"><use href="#icon-utensils"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="utensils-crossed" data-cat="food" data-tags="utensils crossed chef fine dining cooking masak restoran dapur"><svg class="icon"><use href="#icon-utensils-crossed"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="coffee" data-cat="food" data-tags="coffee cafe tea starbucks espresso cappuccino kofi drink kopi nongkrong kafe janji jiwa"><svg class="icon"><use href="#icon-coffee"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cup-soda" data-cat="food" data-tags="cup soda boba soft drink juice beverage bubble tea es teh chatime jus minuman"><svg class="icon"><use href="#icon-cup-soda"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="pizza" data-cat="food" data-tags="pizza fast food italian meal slice junk food delivery pizza hut dominos"><svg class="icon"><use href="#icon-pizza"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="sandwich" data-cat="food" data-tags="sandwich lunch sandwich breakfast bento sub snack roti sarapan bekal"><svg class="icon"><use href="#icon-sandwich"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="croissant" data-cat="food" data-tags="croissant bakery pastry bread cake dessert breakfast roti kue holland bakery"><svg class="icon"><use href="#icon-croissant"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="soup" data-cat="food" data-tags="soup ramen noodles soup mie asian hot pot bakso soto bakmi indomie"><svg class="icon"><use href="#icon-soup"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="ice-cream-cone" data-cat="food" data-tags="ice cream cone dessert sweet cold snack gelato mixue es krim manis"><svg class="icon"><use href="#icon-ice-cream-cone"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cake" data-cat="food" data-tags="cake birthday celebration dessert party kue tart ulang tahun"><svg class="icon"><use href="#icon-cake"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cookie" data-cat="food" data-tags="cookie snack biscuit sweets bakery cemilan biskuit kue kering"><svg class="icon"><use href="#icon-cookie"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="apple" data-cat="food" data-tags="apple fruit healthy groceries produce buah apel sehat pasar"><svg class="icon"><use href="#icon-apple"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="citrus" data-cat="food" data-tags="citrus fruit lemon orange juice fresh jeruk buah jus"><svg class="icon"><use href="#icon-citrus"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="fish" data-cat="food" data-tags="fish seafood salmon sashimi sushi ikan pasar lele boga bahari"><svg class="icon"><use href="#icon-fish"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wine" data-cat="food" data-tags="wine bar alcohol drink cocktail party night anggur alkohol"><svg class="icon"><use href="#icon-wine"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="martini" data-cat="food" data-tags="martini cocktail bar lounge pub liquor alcohol clubbing malam"><svg class="icon"><use href="#icon-martini"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="beer" data-cat="food" data-tags="beer alcohol drink pub bar bir nongkrong santai"><svg class="icon"><use href="#icon-beer"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cupcake" data-cat="food" data-tags="cupcake dessert sweet baking party kue manis"><svg class="icon"><use href="#icon-cupcake"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shopping-cart" data-cat="food" data-tags="shopping cart groceries supermarket market food ingredients belanja bulanan pasar indomaret alfamart"><svg class="icon"><use href="#icon-shopping-cart"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shopping-bag" data-cat="food" data-tags="shopping bag groceries retail store market belanja tas kantong"><svg class="icon"><use href="#icon-shopping-bag"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="car" data-cat="transport" data-tags="car drive travel grabcar gocar trip auto mobil bensin tol sewa"><svg class="icon"><use href="#icon-car"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bike" data-cat="transport" data-tags="bike motorcycle motorbike gojek grab motor scooter ride ojol ojek honda yamaha"><svg class="icon"><use href="#icon-bike"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bus" data-cat="transport" data-tags="bus transjakarta tj transit public commute shuttle bis busway"><svg class="icon"><use href="#icon-bus"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="train-front" data-cat="transport" data-tags="train front subway mrt krl lrt railway transit commute kereta stasiun comm line"><svg class="icon"><use href="#icon-train-front"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="plane" data-cat="transport" data-tags="plane flight airplane travel vacation airport trip airline tiket pesawat bandara liburan garuda"><svg class="icon"><use href="#icon-plane"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="fuel" data-cat="transport" data-tags="fuel gas bbm pertamina spbu petrol station oil shell bensin pertalite pertamax"><svg class="icon"><use href="#icon-fuel"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="car-taxi-front" data-cat="transport" data-tags="car taxi front taxi cab ride bluebird grab taksi ongkos"><svg class="icon"><use href="#icon-car-taxi-front"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="ship" data-cat="transport" data-tags="ship ferry boat cruise maritime sea island kapal laut penyeberangan pelabuhan"><svg class="icon"><use href="#icon-ship"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="map-pin" data-cat="transport" data-tags="map pin location travel destination place gps maps lokasi tujuan tempat"><svg class="icon"><use href="#icon-map-pin"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="compass" data-cat="transport" data-tags="compass navigation explore adventure travel kompas petualangan arah"><svg class="icon"><use href="#icon-compass"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="luggage" data-cat="transport" data-tags="luggage suitcase baggage travel trip vacation holiday koper bagasi liburan"><svg class="icon"><use href="#icon-luggage"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="ticket" data-cat="transport" data-tags="ticket boarding pass transit cinema voucher tiket karcis bioskop konser"><svg class="icon"><use href="#icon-ticket"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="circle-parking" data-cat="transport" data-tags="circle parking park auto garage vehicle fee parkir karcis parkir"><svg class="icon"><use href="#icon-circle-parking"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="truck" data-cat="transport" data-tags="truck delivery shipping cargo moving courier freight jne jnt sicepat ongkir ekspedisi"><svg class="icon"><use href="#icon-truck"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="footprints" data-cat="transport" data-tags="footprints walk walking commute pedestrian hiking steps jalan kaki langkah rute"><svg class="icon"><use href="#icon-footprints"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="house" data-cat="home" data-tags="house home rent mortgage living dwelling residence rumah kontrakan sewa cicilan kpr"><svg class="icon"><use href="#icon-house"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="building" data-cat="home" data-tags="building apartment kos kost flat room tower apartemen sewa kosan"><svg class="icon"><use href="#icon-building"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="building-complex" data-cat="home" data-tags="building complex property housing estate condo perumahan kompleks klaster"><svg class="icon"><use href="#icon-building-complex"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="zap" data-cat="home" data-tags="zap electricity power pln utilities energy light listrik pln token tagihan daya"><svg class="icon"><use href="#icon-zap"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="droplet" data-cat="home" data-tags="droplet water pdam utilities bills drop aqua plumbing air pam galon tagihan"><svg class="icon"><use href="#icon-droplet"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wifi" data-cat="home" data-tags="wifi internet network indihome provider broadband biznet first media wifi kuota"><svg class="icon"><use href="#icon-wifi"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="radio-tower" data-cat="home" data-tags="radio tower telecom pulse pulsa data telkomsel indosat provider mobile kuota xl tri"><svg class="icon"><use href="#icon-radio-tower"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="tv" data-cat="home" data-tags="tv television netflix cable stream entertainment indihome televisi kabel siaran"><svg class="icon"><use href="#icon-tv"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="armchair" data-cat="home" data-tags="armchair chair furniture decor interior living comfort room kursi mebel perabot"><svg class="icon"><use href="#icon-armchair"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="sofa" data-cat="home" data-tags="sofa couch living room furniture interior home sofa ruang tamu mebel"><svg class="icon"><use href="#icon-sofa"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bed-double" data-cat="home" data-tags="bed double mattress hotel stay bedroom sleep room kasur kamar tidur sprei"><svg class="icon"><use href="#icon-bed-double"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wrench" data-cat="home" data-tags="wrench tools repair maintenance fix service handyman plumbing bengkel servis perbaikan"><svg class="icon"><use href="#icon-wrench"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="hammer" data-cat="home" data-tags="hammer hardware renovation construction fix build diy tukang renovasi palu"><svg class="icon"><use href="#icon-hammer"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="paint-bucket" data-cat="home" data-tags="paint bucket painting decor interior renovation cat dinding renovasi dekorasi"><svg class="icon"><use href="#icon-paint-bucket"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="sparkles" data-cat="home" data-tags="sparkles cleaning laundry wash maid housekeeping tidy clean cuci baju laundry kebersihan"><svg class="icon"><use href="#icon-sparkles"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="trash" data-cat="home" data-tags="trash garbage waste maintenance fee iuran ipl sampah kebersihan lingkungan"><svg class="icon"><use href="#icon-trash"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="trees" data-cat="home" data-tags="trees garden yard plants nature outdoor landscape taman tanaman pohon kebun"><svg class="icon"><use href="#icon-trees"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="flower-2" data-cat="home" data-tags="flower flowers plant floral garden balcony decor tanaman hias bunga pot"><svg class="icon"><use href="#icon-flower-2"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="tv-minimal-play" data-cat="life" data-tags="tv minimal play netflix youtube video stream subscription hbo disney vidio prime nonton langganan"><svg class="icon"><use href="#icon-tv-minimal-play"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="clapperboard" data-cat="life" data-tags="clapperboard movie cinema film theater tickets entertainment bioskop xxi cgv nonton film"><svg class="icon"><use href="#icon-clapperboard"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="film" data-cat="life" data-tags="film movie cinema photography video roll rekaman bioskop"><svg class="icon"><use href="#icon-film"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="gamepad-2" data-cat="life" data-tags="gamepad gaming games playstation steam console fun esports nintendo xbox main game topup diamond"><svg class="icon"><use href="#icon-gamepad-2"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="music" data-cat="life" data-tags="music song album audio melody tracks musik lagu tangga lagu konser"><svg class="icon"><use href="#icon-music"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="headphones" data-cat="life" data-tags="headphones spotify audio podcast apple music tunes headset lagu dengar"><svg class="icon"><use href="#icon-headphones"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="book-open" data-cat="life" data-tags="book open book reading novel library study manga comics buku novel komik bacaan gramedia"><svg class="icon"><use href="#icon-book-open"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="newspaper" data-cat="life" data-tags="newspaper news subscription press article magazine koran berita majalah langganan"><svg class="icon"><use href="#icon-newspaper"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="party-popper" data-cat="life" data-tags="party popper celebration party event birthday festival holiday fun pesta perayaan tahun baru"><svg class="icon"><use href="#icon-party-popper"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="gift" data-cat="life" data-tags="gift present reward bonus voucher prize birthday kado hadiah bingkisan hampers"><svg class="icon"><use href="#icon-gift"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="trophy" data-cat="life" data-tags="trophy achievement contest prize competition winner piala juara turnamen"><svg class="icon"><use href="#icon-trophy"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="award" data-cat="life" data-tags="award certificate medal badge recognition achievement medali penghargaan prestasi"><svg class="icon"><use href="#icon-award"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="star" data-cat="life" data-tags="star favorites rating star vip premium exclusive bintang favorit langganan"><svg class="icon"><use href="#icon-star"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="camera" data-cat="life" data-tags="camera photography photo portrait pictures lens shoot foto kamera fotografer liburan"><svg class="icon"><use href="#icon-camera"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="video" data-cat="life" data-tags="video recording vlog zoom stream camera meeting rekaman video call konten"><svg class="icon"><use href="#icon-video"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="mic" data-cat="life" data-tags="mic microphone singing karaoke podcast voice recording audio rekaman nyanyi"><svg class="icon"><use href="#icon-mic"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="radio" data-cat="life" data-tags="radio broadcast podcast live audio stream radio siaran siaran langsung"><svg class="icon"><use href="#icon-radio"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="palette" data-cat="life" data-tags="palette art drawing paint design creative hobby sketch lukis desain hobi seni"><svg class="icon"><use href="#icon-palette"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="guitar" data-cat="life" data-tags="guitar music instrument acoustic rock band hobby gitar alat musik les"><svg class="icon"><use href="#icon-guitar"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="puzzle" data-cat="life" data-tags="puzzle games brain hobby strategy boardgame teka teki mainan asah otak"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="dumbbell" data-cat="health" data-tags="dumbbell gym fitness workout exercise sport weights muscle fitness gym binaraga angkat beban"><svg class="icon"><use href="#icon-dumbbell"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="activity" data-cat="health" data-tags="activity heart rate pulse health cardio tracker workout aktivitas detak jantung olahraga"><svg class="icon"><use href="#icon-activity"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="heart-pulse" data-cat="health" data-tags="heart pulse cardio health medical hospital clinic jantung kesehatan periksa"><svg class="icon"><use href="#icon-heart-pulse"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="heart" data-cat="health" data-tags="heart love charity donation wellness health care self-care kesehatan kasih peduli"><svg class="icon"><use href="#icon-heart"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="briefcase-medical" data-cat="health" data-tags="briefcase medical first aid health doctor hospital clinic emergency p3k medis dokter darurat"><svg class="icon"><use href="#icon-briefcase-medical"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="hospital" data-cat="health" data-tags="hospital clinic doctor healthcare medical facility rumah sakit rs puskesmas klinik"><svg class="icon"><use href="#icon-hospital"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="pill" data-cat="health" data-tags="pill medicine medication pills vitamins pharmacy drug obat vitamin farmasi apotek"><svg class="icon"><use href="#icon-pill"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="stethoscope" data-cat="health" data-tags="stethoscope doctor examination physician health checkup medical stetoskop dokter konsultasi"><svg class="icon"><use href="#icon-stethoscope"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shield-plus" data-cat="health" data-tags="shield plus health insurance medical cover protection clinic asuransi kesehatan bpjs"><svg class="icon"><use href="#icon-shield-plus"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="scissors" data-cat="health" data-tags="scissors haircut salon barber styling grooming beauty potong rambut pangkas barbershop"><svg class="icon"><use href="#icon-scissors"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="flame" data-cat="health" data-tags="flame calories burn workout fitness cardio energy heat kalori bakar lemak keringat"><svg class="icon"><use href="#icon-flame"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="smartphone" data-cat="tech" data-tags="smartphone phone iphone android mobile gadget device hp ponsel smartphone pulsa beli hp"><svg class="icon"><use href="#icon-smartphone"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="laptop" data-cat="tech" data-tags="laptop macbook computer pc software tech it notebook komputer kerja ngoding laptop"><svg class="icon"><use href="#icon-laptop"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="monitor" data-cat="tech" data-tags="monitor desktop computer pc screen display setup layar komputer meja kerja"><svg class="icon"><use href="#icon-monitor"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="tablet" data-cat="tech" data-tags="tablet ipad drawing reading device screen tab gawai tablet"><svg class="icon"><use href="#icon-tablet"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="monitor-smartphone" data-cat="tech" data-tags="monitor smartphone devices electronics phone gadget tech hardware elektronik gawai"><svg class="icon"><use href="#icon-monitor-smartphone"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="keyboard" data-cat="tech" data-tags="keyboard mechanical typing gaming hardware peripheral kibor ngetik kerja"><svg class="icon"><use href="#icon-keyboard"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="mouse" data-cat="tech" data-tags="mouse peripheral hardware click pointer office tetikus kantor aksesoris"><svg class="icon"><use href="#icon-mouse"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cpu" data-cat="tech" data-tags="cpu processor tech hardware chip computing server prosesor rakit pc komponen"><svg class="icon"><use href="#icon-cpu"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="hard-drive" data-cat="tech" data-tags="hard drive storage ssd backup disk memory data harddisk memori simpan"><svg class="icon"><use href="#icon-hard-drive"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="battery-charging" data-cat="tech" data-tags="battery charging charger power bank battery energy power ngecas baterai casan"><svg class="icon"><use href="#icon-battery-charging"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="router" data-cat="tech" data-tags="router modem wifi internet networking fiber indihome router jaringan kabel lan"><svg class="icon"><use href="#icon-router"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cable" data-cat="tech" data-tags="cable charger wire cord usb adapter connector kabel colokan casan adaptor"><svg class="icon"><use href="#icon-cable"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="printer" data-cat="tech" data-tags="printer document print office scanning paper cetak kertas fotokopi dokumen"><svg class="icon"><use href="#icon-printer"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="code" data-cat="tech" data-tags="code coding software development programming web dev tech koding program developer web"><svg class="icon"><use href="#icon-code"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bot" data-cat="tech" data-tags="bot ai artificial intelligence bot automation robot assistant chatgpt claude ai bot"><svg class="icon"><use href="#icon-bot"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cloud" data-cat="tech" data-tags="cloud storage drive icloud gdrive dropbox backup hosting cloud simpanan file"><svg class="icon"><use href="#icon-cloud"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="server" data-cat="tech" data-tags="server hosting backend infrastructure data database server vps hosting domain"><svg class="icon"><use href="#icon-server"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="usb" data-cat="tech" data-tags="usb flash drive storage backup external thumbdrive memory flashdisk data"><svg class="icon"><use href="#icon-usb"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="briefcase" data-cat="tech" data-tags="briefcase work office job career project freelance employment salary kantor kerja proyek tugas"><svg class="icon"><use href="#icon-briefcase"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="user" data-cat="family" data-tags="user personal self me profile account avatar user diri profil akun sendiri"><svg class="icon"><use href="#icon-user"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="users" data-cat="family" data-tags="users social friends hangout people community group gathering team teman nongkrong kumpul teman"><svg class="icon"><use href="#icon-users"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="heart-handshake" data-cat="family" data-tags="heart handshake sisterhood family love charity donation support care keluarga yayasan santunan"><svg class="icon"><use href="#icon-heart-handshake"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="baby" data-cat="family" data-tags="baby kids child children family parenting toddler newborn bayi anak balita susu pampers mainan"><svg class="icon"><use href="#icon-baby"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="paw-print" data-cat="family" data-tags="paw print pets dog cat animal pet food vet kitten puppy paws hewan peliharaan anabul jejak"><svg class="icon"><use href="#icon-paw-print"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="dog" data-cat="family" data-tags="dog puppy pet vet dog food canines animals anjing makanan anjing dokter hewan"><svg class="icon"><use href="#icon-dog"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="cat" data-cat="family" data-tags="cat kitten feline pet vet cat food animals meow kucing makanan kucing whiskas"><svg class="icon"><use href="#icon-cat"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="bird" data-cat="family" data-tags="bird pet cage avian parrot canaries chirping burung pakan burung sangkar"><svg class="icon"><use href="#icon-bird"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="graduation-cap" data-cat="family" data-tags="graduation cap school education college course study university tuition fees wisuda sekolah kuliah spp bimbel"><svg class="icon"><use href="#icon-graduation-cap"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="phone" data-cat="family" data-tags="phone call communication contact telephone talk cellular telepon kontak bicara"><svg class="icon"><use href="#icon-phone"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="phone-call" data-cat="family" data-tags="phone call talking contact consultation support customer telepon panggilan konsultasi"><svg class="icon"><use href="#icon-phone-call"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="mail" data-cat="family" data-tags="mail email letter post correspondence message surat pos email berkas"><svg class="icon"><use href="#icon-mail"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="message-circle" data-cat="family" data-tags="message circle chat whatsapp telegram communication texting dm pesan wa obrolan chat"><svg class="icon"><use href="#icon-message-circle"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="message-square" data-cat="family" data-tags="message square sms message chat feedback conversation comments sms pesan komentar obrolan"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="face-slightly-smiling" data-cat="family" data-tags="face slightly smiling happy mood smile personal lifestyle senyum senang santai bahagia"><svg class="icon"><use href="#icon-face-slightly-smiling"></use></svg></button>
     </div>
     <div class="icon-search-empty" id="icon-search-empty" style="display:none">
       <svg class="icon" style="font-size:28px"><use href="#icon-search_off"></use></svg>

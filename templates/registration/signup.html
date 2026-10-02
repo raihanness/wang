@@ -1,29 +1,114 @@
 {% extends "base.html" %}
 {% load static %}
 {% block page_name %}signup{% endblock %}
+{% block title %}Create Account — Wang{% endblock %}
+
 {% block content %}
-<div class="card auth-card">
-  <div class="center" style="margin-bottom:14px">
-    <div class="auth-badge-wrap" style="margin-bottom:12px">
-      <img src="{% static 'img/logo-fix.png' %}" alt="Wang" class="brand-badge brand-logo-img">
+<div class="auth-wrap">
+  <div class="auth-ambient-glow"></div>
+  <div class="card auth-card">
+    <div class="center" style="margin-bottom:18px">
+      <div class="auth-badge-wrap">
+        <img src="{% static 'img/logo-fix.png' %}" alt="Wang" class="brand-badge brand-logo-img">
+      </div>
+      <h2>Join Wang</h2>
+      <p class="muted" style="margin:4px 0 0;font-size:13.5px">Create your account to start tracking</p>
     </div>
-    <h2>Join Wang ♡</h2>
-    <p class="muted" style="margin:0;font-size:13px">Track your cute money</p>
-  </div>
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-row">
-      {% for field in form %}
-        <div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}</div>
-      {% endfor %}
-      {% if form.errors %}<div class="msg">{{ form.errors }}</div>{% endif %}
+
+    <!-- Admin Approval Notice Pill -->
+    <!-- <div class="auth-notice-box" style="margin-bottom:16px;padding:12px 14px;background:rgba(255,181,167,0.15);border-radius:14px;display:flex;align-items:flex-start;gap:10px;font-size:12.5px;line-height:1.4">
+      <svg class="icon" style="color:var(--coral);font-size:20px;flex-shrink:0;margin-top:1px"><use href="#icon-shield"></use></svg>
+      <div>
+        <strong style="color:var(--coral);display:block;">Admin Approval Required</strong>
+        <span class="muted">After registering, an administrator must approve your account before you can log in.</span>
+      </div>
+    </div> -->
+
+    {% if form.errors %}
+      <div class="auth-error-box" style="margin-bottom:12px">
+        <svg class="icon"><use href="#icon-error"></use></svg>
+        <span>
+          {% if form.non_field_errors %}
+            {{ form.non_field_errors.0 }}
+          {% elif form.username.errors %}
+            {{ form.username.errors.0 }}
+          {% elif form.password.errors %}
+            {{ form.password.errors.0 }}
+          {% elif form.password_confirm.errors %}
+            {{ form.password_confirm.errors.0 }}
+          {% else %}
+            Please check the highlighted fields below.
+          {% endif %}
+        </span>
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate data-turbo="false">
+      {% csrf_token %}
+      <div class="form-row" style="gap:10px">
+        <div>
+          <label for="id_username">Username</label>
+          <div class="input-icon-wrap">
+            <svg class="icon input-icon-left"><use href="#icon-person"></use></svg>
+            <input type="text" name="username" autofocus autocapitalize="none" autocomplete="username" maxlength="150" required id="id_username" placeholder="Choose a username" value="{{ form.username.value|default:'' }}">
+          </div>
+        </div>
+
+        <div>
+          <label for="id_display_name">Display Name <small class="muted" style="font-weight:400">(optional)</small></label>
+          <div class="input-icon-wrap">
+            <svg class="icon input-icon-left"><use href="#icon-edit"></use></svg>
+            <input type="text" name="display_name" maxlength="60" id="id_display_name" placeholder="How should we call you?" value="{{ form.display_name.value|default:'' }}">
+          </div>
+        </div>
+
+        <div>
+          <label for="id_password">Password</label>
+          <div class="input-icon-wrap">
+            <svg class="icon input-icon-left"><use href="#icon-lock"></use></svg>
+            <input type="password" name="password" autocomplete="new-password" required id="id_password" placeholder="Create a strong password">
+            <button type="button" class="input-reveal-btn" aria-label="Show password" title="Show password">
+              <svg class="icon"><use href="#icon-visibility"></use></svg>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label for="id_password_confirm">Confirm Password</label>
+          <div class="input-icon-wrap">
+            <svg class="icon input-icon-left"><use href="#icon-lock"></use></svg>
+            <input type="password" name="password_confirm" autocomplete="new-password" required id="id_password_confirm" placeholder="Repeat your password">
+            <button type="button" class="input-reveal-btn" aria-label="Show password" title="Show password">
+              <svg class="icon"><use href="#icon-visibility"></use></svg>
+            </button>
+          </div>
+        </div>
+
+        {% if TURNSTILE_SITE_KEY and TURNSTILE_ENABLED %}
+          <div style="display:flex;justify-content:center;margin:6px 0 2px">
+            <div class="cf-turnstile" data-sitekey="{{ TURNSTILE_SITE_KEY }}" data-theme="auto" data-size="flexible"></div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="form-actions" style="margin-top:20px">
+        <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px">
+          <span>Create Account</span>
+          <!-- <svg class="icon" style="font-size:18px"><use href="#icon-arrow_forward"></use></svg> -->
+        </button>
+      </div>
+    </form>
+
+    <div class="center" style="margin-top:20px;font-size:13.5px">
+      <span class="muted">Already have an account?</span>
+      <a href="{% url 'login' %}" style="font-weight:800;color:var(--coral);margin-left:4px">Log in</a>
     </div>
-    <div class="form-actions">
-      <button class="btn btn-primary">Create account</button>
-    </div>
-  </form>
-  <div class="center" style="margin-top:16px;font-size:13.5px">
-    <span class="muted">Have an account?</span> <a href="{% url 'login' %}" style="font-weight:800">Log in</a>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if TURNSTILE_SITE_KEY and TURNSTILE_ENABLED %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 {% endblock %}

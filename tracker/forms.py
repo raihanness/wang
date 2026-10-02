@@ -170,3 +170,104 @@ class ProfileForm(forms.ModelForm):
         self.fields["avatar"].required = False
         self.fields["currency_symbol"].required = False
 
+
+class WangSignUpForm(forms.Form):
+    username = forms.CharField(
+        max_length=150,
+        required=True,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "Choose a username",
+                "autocapitalize": "none",
+                "autocomplete": "username",
+                "class": "input",
+                "id": "id_username",
+            }
+        ),
+    )
+    display_name = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "Display name (optional)",
+                "class": "input",
+                "id": "id_display_name",
+            }
+        ),
+    )
+    password = forms.CharField(
+        required=True,
+        widget=forms.PasswordInput(
+            attrs={
+                "placeholder": "Create a password",
+                "autocomplete": "new-password",
+                "class": "input",
+                "id": "id_password",
+            }
+        ),
+    )
+    password_confirm = forms.CharField(
+        required=True,
+        label="Confirm Password",
+        widget=forms.PasswordInput(
+            attrs={
+                "placeholder": "Repeat your password",
+                "autocomplete": "new-password",
+                "class": "input",
+                "id": "id_password_confirm",
+            }
+        ),
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data.get("username", "").strip()
+        if not username:
+            raise forms.ValidationError("Username is required.")
+        from django.contrib.auth.models import User
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already taken. Please choose another.")
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        password_confirm = cleaned_data.get("password_confirm")
+
+        if password and password_confirm:
+            if password != password_confirm:
+                self.add_error("password_confirm", "Passwords do not match.")
+            else:
+                from django.contrib.auth.password_validation import validate_password
+                try:
+                    validate_password(password)
+                except forms.ValidationError as error:
+                    self.add_error("password", error)
+        return cleaned_data
+
+    def save(self):
+        from django.contrib.auth.models import User
+        username = self.cleaned_data["username"]
+        password = self.cleaned_data["password"]
+        display_name = (self.cleaned_data.get("display_name") or "").strip()
+
+        user = User.objects.create_user(
+            username=username,
+            email="",
+            password=password,
+            is_active=True,
+        )
+
+        profile = getattr(user, "profile", None)
+        if not profile:
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+
+        profile.is_approved = False
+        profile.approval_status = "pending"
+        profile.display_name = display_name
+        profile.save()
+
+        return user
+
+
+

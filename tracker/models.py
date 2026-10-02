@@ -693,11 +693,25 @@ class UserProfile(models.Model):
     avatar = models.ImageField(upload_to="avatars/%Y/", null=True, blank=True)
     bio = models.CharField(max_length=120, blank=True)
     currency_symbol = models.CharField(max_length=10, default="Rp")
+    is_approved = models.BooleanField(default=True, help_text="Designates whether this user has been approved by an administrator.")
+    approval_status = models.CharField(
+        max_length=20,
+        choices=[("pending", "Pending Approval"), ("approved", "Approved"), ("rejected", "Rejected")],
+        default="approved",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_profiles",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Profile for {self.user.username}"
+        return f"Profile for {self.user.username} ({self.get_approval_status_display()})"
 
     def get_display_name(self):
         return (self.display_name or "").strip() or self.user.get_full_name() or self.user.username
@@ -705,6 +719,27 @@ class UserProfile(models.Model):
     def get_initials(self):
         name = self.get_display_name()
         return name[0].upper() if name else "W"
+
+    def approve(self, admin_user=None):
+        self.is_approved = True
+        self.approval_status = "approved"
+        self.approved_at = timezone.now()
+        if admin_user and getattr(admin_user, "is_authenticated", False):
+            self.approved_by = admin_user
+        self.save(update_fields=["is_approved", "approval_status", "approved_at", "approved_by", "updated_at"])
+        try:
+            from .views import _ensure_defaults
+            _ensure_defaults(self.user)
+        except Exception:
+            pass
+
+    def reject(self, admin_user=None):
+        self.is_approved = False
+        self.approval_status = "rejected"
+        self.approved_at = timezone.now()
+        if admin_user and getattr(admin_user, "is_authenticated", False):
+            self.approved_by = admin_user
+        self.save(update_fields=["is_approved", "approval_status", "approved_at", "approved_by", "updated_at"])
 
     def save(self, *args, **kwargs):
         # 1. Clean old avatar file when replaced

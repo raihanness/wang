@@ -1,5 +1,34 @@
 from django.contrib import admin
-from .models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Budget, Debt, DebtPayment
+from .models import (
+    Wallet,
+    Category,
+    Transaction,
+    Subscription,
+    SubscriptionPayment,
+    Budget,
+    Debt,
+    DebtPayment,
+    UserProfile,
+)
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "display_name", "is_approved", "approval_status", "approved_at", "approved_by", "created_at")
+    list_filter = ("is_approved", "approval_status", "created_at")
+    search_fields = ("user__username", "user__email", "display_name")
+    actions = ["approve_users", "reject_users"]
+
+    @admin.action(description="Approve selected user accounts")
+    def approve_users(self, request, queryset):
+        for profile in queryset:
+            profile.approve(admin_user=request.user)
+        self.message_user(request, f"{queryset.count()} user(s) approved.")
+
+    @admin.action(description="Reject selected user accounts")
+    def reject_users(self, request, queryset):
+        for profile in queryset:
+            profile.reject(admin_user=request.user)
+        self.message_user(request, f"{queryset.count()} user(s) rejected.")
 
 @admin.register(Wallet)
 class WalletAdmin(admin.ModelAdmin):

@@ -6,7 +6,7 @@
 </div>
 <div class="card" style="text-align: center; padding: 24px 20px;">
   <div class="confirm-icon-badge" style="margin: 0 auto 14px; {% if obj.color %}background: {{ obj.color }}20; color: {{ obj.color }};{% endif %}">
-    <svg class="icon"><use href="#icon-{% if obj.icon %}{{ obj.icon }}{% else %}delete{% endif %}"></use></svg>
+    <svg class="icon"><use href="#icon-{% if obj.icon %}{{ obj.icon }}{% else %}trash{% endif %}"></use></svg>
   </div>
   <p style="font-size: 15px; margin-bottom: {% if warning %}16px{% else %}20px{% endif %};">Delete <strong>{{ obj }}</strong>?</p>
   {% if warning %}
@@ -20,7 +20,7 @@
     <form method="post" data-turbo-frame="_top" style="flex:1; display:flex; margin:0;">
       {% csrf_token %}
       <button class="btn btn-delete" style="flex:1; justify-content:center; gap:6px;">
-        <svg class="icon" style="font-size:18px"><use href="#icon-delete"></use></svg>
+        <svg class="icon" style="font-size:18px"><use href="#icon-trash"></use></svg>
         <span>Delete</span>
       </button>
     </form>

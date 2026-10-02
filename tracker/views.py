@@ -5,21 +5,32 @@ from urllib.parse import quote_plus
 from django.http import JsonResponse, HttpResponse, FileResponse
 from django.contrib.humanize.templatetags.humanize import intcomma
 from django.contrib import messages
-from django.contrib.auth import views as auth_views
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth import views as auth_views, authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.db.models import Sum, Q, Max, Count
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from datetime import timedelta, date, datetime, time
 import calendar
 import json
 
 from django.conf import settings
-from .forms import WalletForm, CategoryForm, TransactionForm, SubscriptionForm, DebtForm, DebtPaymentForm, ProfileForm
+from .forms import (
+    WalletForm,
+    CategoryForm,
+    TransactionForm,
+    SubscriptionForm,
+    DebtForm,
+    DebtPaymentForm,
+    ProfileForm,
+    WangSignUpForm,
+)
 from .models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Budget, Debt, DebtPayment, UserProfile
 from .receipt_scanner import scan_receipt_with_gemini
+from .turnstile import verify_turnstile
 
 
 def _month_bounds(d):
@@ -2054,6 +2065,39 @@ def api_scan_receipt(request):
 class WangLoginView(auth_views.LoginView):
     template_name = "registration/login.html"
 
+    def post(self, request, *args, **kwargs):
+        # 1. Cloudflare Turnstile CAPTCHA verification
+        is_valid, error_msg = verify_turnstile(request)
+        if not is_valid:
+            messages.error(request, error_msg)
+            form = self.get_form()
+            response = self.render_to_response(self.get_context_data(form=form))
+            response.status_code = 422
+            return response
+
+        # 2. Check credentials
+        form = self.get_form()
+        if form.is_valid():
+            user = form.get_user()
+            # 3. Check Admin approval status for regular accounts
+            if not user.is_superuser and not user.is_staff:
+                profile = getattr(user, "profile", None)
+                if profile and not profile.is_approved:
+                    if profile.approval_status == "rejected":
+                        messages.error(request, "Your registration request was rejected by an administrator.")
+                    else:
+                        messages.warning(
+                            request,
+                            "Your account is pending administrator approval. Please wait for an admin to activate your access.",
+                        )
+                    response = self.render_to_response(self.get_context_data(form=form))
+                    response.status_code = 403
+                    return response
+
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
     def form_invalid(self, form):
         if form.non_field_errors():
             error_msg = form.non_field_errors()[0]
@@ -2072,6 +2116,198 @@ class WangLoginView(auth_views.LoginView):
         response = super().form_invalid(form)
         response.status_code = 422
         return response
+
+
+def signup_view(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        is_valid, error_msg = verify_turnstile(request)
+        form = WangSignUpForm(request.POST)
+        if not is_valid:
+            messages.error(request, error_msg)
+            return render(request, "registration/signup.html", {"form": form}, status=422)
+
+        if form.is_valid():
+            user = form.save()
+            request.session["registered_username"] = user.username
+            messages.success(
+                request,
+                f"Welcome @{user.username}! Your account was created and is pending administrator approval.",
+            )
+            return redirect("signup_pending")
+        else:
+            if form.errors:
+                first_err = next(iter(form.errors.values()))[0]
+                messages.error(request, first_err)
+            return render(request, "registration/signup.html", {"form": form}, status=422)
+
+    form = WangSignUpForm()
+    return render(request, "registration/signup.html", {"form": form})
+
+
+def signup_pending_view(request):
+    username = request.session.get("registered_username", "")
+    return render(request, "registration/signup_pending.html", {"registered_username": username})
+
+
+class WangPasswordChangeView(auth_views.PasswordChangeView):
+    template_name = "registration/password_change_form.html"
+    success_url = reverse_lazy("profile_edit")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        if self.request.user.is_authenticated:
+            ctx.update(_sheet_context(self.request.user))
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, "Password updated successfully ✨")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if form.errors:
+            first_err = next(iter(form.errors.values()))[0]
+            messages.error(self.request, first_err)
+        response = super().form_invalid(form)
+        response.status_code = 422
+        return response
+
+
+def _is_admin(user):
+    return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+
+@login_required
+@user_passes_test(_is_admin)
+def admin_console_view(request):
+    _ensure_defaults(request.user)
+    ctx = _sheet_context(request.user)
+
+    tab = request.GET.get("tab", "").strip().lower()
+    q = request.GET.get("q", "").strip()
+
+    users_qs = (
+        User.objects.select_related("profile")
+        .annotate(
+            tx_count=Count("transactions", distinct=True),
+            wallet_count=Count("wallets", distinct=True),
+        )
+        .order_by("-date_joined")
+    )
+
+    if q:
+        users_qs = users_qs.filter(
+            Q(username__icontains=q)
+            | Q(email__icontains=q)
+            | Q(profile__display_name__icontains=q)
+        )
+
+    # Compute overall platform statistics
+    total_users = User.objects.count()
+    pending_count = UserProfile.objects.filter(is_approved=False, approval_status="pending").count()
+    approved_count = UserProfile.objects.filter(is_approved=True).count()
+    rejected_count = UserProfile.objects.filter(approval_status="rejected").count()
+    staff_count = User.objects.filter(Q(is_staff=True) | Q(is_superuser=True)).count()
+
+    if not tab:
+        tab = "pending" if pending_count > 0 else "all"
+
+    if tab == "pending":
+        users_qs = users_qs.filter(profile__is_approved=False, profile__approval_status="pending")
+    elif tab == "approved":
+        users_qs = users_qs.filter(profile__is_approved=True)
+    elif tab == "rejected":
+        users_qs = users_qs.filter(profile__approval_status="rejected")
+    elif tab == "staff":
+        users_qs = users_qs.filter(Q(is_staff=True) | Q(is_superuser=True))
+
+    ctx.update({
+        "users": users_qs,
+        "active_tab": tab,
+        "q": q,
+        "stats": {
+            "total": total_users,
+            "pending": pending_count,
+            "approved": approved_count,
+            "rejected": rejected_count,
+            "staff": staff_count,
+        },
+    })
+    return render(request, "tracker/admin_console.html", ctx)
+
+
+@login_required
+@user_passes_test(_is_admin)
+@require_POST
+def admin_user_approve(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    profile, _ = UserProfile.objects.get_or_create(user=target_user)
+    profile.approve(admin_user=request.user)
+    messages.success(request, f"Approved @{target_user.username} successfully ✨")
+    tab = request.POST.get("tab", "pending")
+    return redirect(f"{reverse('admin_console')}?tab={tab}")
+
+
+@login_required
+@user_passes_test(_is_admin)
+@require_POST
+def admin_user_reject(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    profile, _ = UserProfile.objects.get_or_create(user=target_user)
+    profile.reject(admin_user=request.user)
+    messages.info(request, f"Rejected @{target_user.username} access.")
+    tab = request.POST.get("tab", "pending")
+    return redirect(f"{reverse('admin_console')}?tab={tab}")
+
+
+@login_required
+@user_passes_test(_is_admin)
+@require_POST
+def admin_user_toggle_staff(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    if target_user == request.user:
+        messages.warning(request, "You cannot modify your own staff privileges.")
+    else:
+        target_user.is_staff = not target_user.is_staff
+        target_user.save(update_fields=["is_staff"])
+        status_txt = "promoted to Staff" if target_user.is_staff else "demoted from Staff"
+        messages.success(request, f"@{target_user.username} was {status_txt}.")
+    tab = request.POST.get("tab", "all")
+    return redirect(f"{reverse('admin_console')}?tab={tab}")
+
+
+@login_required
+@user_passes_test(_is_admin)
+@require_POST
+def admin_user_toggle_active(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    if target_user == request.user:
+        messages.warning(request, "You cannot deactivate your own account.")
+    else:
+        target_user.is_active = not target_user.is_active
+        target_user.save(update_fields=["is_active"])
+        status_txt = "activated" if target_user.is_active else "deactivated"
+        messages.success(request, f"Account for @{target_user.username} was {status_txt}.")
+    tab = request.POST.get("tab", "all")
+    return redirect(f"{reverse('admin_console')}?tab={tab}")
+
+
+@login_required
+@user_passes_test(_is_admin)
+@require_POST
+def admin_user_delete(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    if target_user == request.user:
+        messages.error(request, "You cannot delete your own account.")
+    else:
+        uname = target_user.username
+        target_user.delete()
+        messages.success(request, f"User @{uname} was permanently deleted.")
+    tab = request.POST.get("tab", "all")
+    return redirect(f"{reverse('admin_console')}?tab={tab}")
+
 
 
 

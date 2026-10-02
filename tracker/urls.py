@@ -40,6 +40,13 @@ urlpatterns = [
     path("more/", views.more_view, name="more"),
     path("profile/", views.profile_edit_view, name="profile_edit"),
     path("profile/remove-avatar/", views.profile_remove_avatar, name="profile_remove_avatar"),
+    # Admin Console (Staff / Superuser only)
+    path("admin-console/", views.admin_console_view, name="admin_console"),
+    path("admin-console/users/<int:user_id>/approve/", views.admin_user_approve, name="admin_user_approve"),
+    path("admin-console/users/<int:user_id>/reject/", views.admin_user_reject, name="admin_user_reject"),
+    path("admin-console/users/<int:user_id>/toggle-staff/", views.admin_user_toggle_staff, name="admin_user_toggle_staff"),
+    path("admin-console/users/<int:user_id>/toggle-active/", views.admin_user_toggle_active, name="admin_user_toggle_active"),
+    path("admin-console/users/<int:user_id>/delete/", views.admin_user_delete, name="admin_user_delete"),
     path("offline/", views.offline_view, name="offline"),
     path("sw.js", views.service_worker, name="service_worker"),
 ]

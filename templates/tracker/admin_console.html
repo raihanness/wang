@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block page_name %}admin-console{% endblock %}
+{% block title %}Admin Console — Wang{% endblock %}
+
+{% block content %}
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:8px">
+    <a href="{% url 'more' %}" class="icon-btn" style="color:var(--text)" aria-label="Back to More" data-turbo-preload>
+      <svg class="icon"><use href="#icon-arrow_back"></use></svg>
+    </a>
+    <h2 style="margin:0"><span class="title-script">A</span>dmin Console</h2>
+  </div>
+</div>
+
+<!-- Admin Stats Overview Grid -->
+<div class="admin-stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+  <div class="card stat-card {% if stats.pending > 0 %}stat-card-pending{% endif %}" style="padding:14px;border-radius:18px;position:relative;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <small class="muted" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Pending</small>
+    </div>
+    <div style="font-size:32px;font-weight:800;color:{% if stats.pending > 0 %}var(--coral){% else %}var(--text){% endif %}">
+      {{ stats.pending }}
+    </div>
+    <small class="muted" style="font-size:11px">Awaiting approval</small>
+  </div>
+
+  <div class="card stat-card" style="padding:14px;border-radius:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <small class="muted" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Approved</small>
+    </div>
+    <div style="font-size:32px;font-weight:800;color:var(--green)">
+      {{ stats.approved }}
+    </div>
+    <small class="muted" style="font-size:11px">Active members</small>
+  </div>
+
+  <div class="card stat-card" style="padding:14px;border-radius:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <small class="muted" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Total Users</small>
+    </div>
+    <div style="font-size:32px;font-weight:800">
+      {{ stats.total }}
+    </div>
+    <small class="muted" style="font-size:11px">Platform total</small>
+  </div>
+
+  <div class="card stat-card" style="padding:14px;border-radius:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <small class="muted" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Staff / Admin</small>
+    </div>
+    <div style="font-size:32px;font-weight:800;color:#D4981E">
+      {{ stats.staff }}
+    </div>
+    <small class="muted" style="font-size:11px">Privileged roles</small>
+  </div>
+</div>
+
+<!-- Search Form -->
+<form method="get" action="{% url 'admin_console' %}" style="margin-bottom:14px">
+  <input type="hidden" name="tab" value="{{ active_tab }}">
+  <div class="search-wrap" style="position:relative;display:flex;align-items:center;width:100%">
+    <svg class="icon search-icon" style="position:absolute;left:14px;color:var(--muted);font-size:18px;pointer-events:none"><use href="#icon-search"></use></svg>
+    <input type="text" name="q" placeholder="Search by username, email, name..." value="{{ q }}" class="input" style="padding-left:42px;padding-right:36px;border-radius:999px;font-size:13.5px">
+    {% if q %}
+      <a href="{% url 'admin_console' %}?tab={{ active_tab }}" class="search-clear-btn" style="position:absolute;right:12px;color:var(--muted);display:flex;align-items:center;justify-content:center" aria-label="Clear search">
+        <svg class="icon" style="font-size:16px"><use href="#icon-close"></use></svg>
+      </a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- Segmented Filter Tabs -->
+<div class="admin-tab-strip" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:16px;-webkit-overflow-scrolling:touch">
+  <a href="{% url 'admin_console' %}?tab=pending{% if q %}&q={{ q }}{% endif %}" class="month-chip {% if active_tab == 'pending' %}active{% endif %}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none">
+    <span>Pending</span>
+    {% if stats.pending > 0 %}
+      <span class="badge" style="background:var(--coral);color:#fff;font-size:11px;padding:2px 6px;border-radius:999px">{{ stats.pending }}</span>
+    {% endif %}
+  </a>
+  <a href="{% url 'admin_console' %}?tab=approved{% if q %}&q={{ q }}{% endif %}" class="month-chip {% if active_tab == 'approved' %}active{% endif %}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none">
+    <span>Approved ({{ stats.approved }})</span>
+  </a>
+  <a href="{% url 'admin_console' %}?tab=all{% if q %}&q={{ q }}{% endif %}" class="month-chip {% if active_tab == 'all' %}active{% endif %}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none">
+    <span>All Users ({{ stats.total }})</span>
+  </a>
+  {% if stats.rejected > 0 %}
+    <a href="{% url 'admin_console' %}?tab=rejected{% if q %}&q={{ q }}{% endif %}" class="month-chip {% if active_tab == 'rejected' %}active{% endif %}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none">
+      <span>Rejected ({{ stats.rejected }})</span>
+    </a>
+  {% endif %}
+</div>
+
+<!-- Users List -->
+<div class="admin-users-list" style="display:flex;flex-direction:column;gap:12px">
+  {% if users %}
+    {% for u in users %}
+      <div class="card admin-user-card" style="padding:16px;border-radius:18px;border:1px solid var(--border)">
+        <!-- Top Row: Avatar & Identity -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <!-- User Monogram / Avatar -->
+            <div style="position:relative">
+              {% if u.profile.avatar %}
+                <img src="{{ u.profile.avatar.url }}" alt="{{ u.username }}" style="width:44px;height:44px;border-radius:14px;object-fit:cover">
+              {% else %}
+                <div style="width:44px;height:44px;border-radius:14px;background:rgba(255,181,167,0.25);color:var(--coral);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">
+                  {{ u.profile.get_initials }}
+                </div>
+              {% endif %}
+              <!-- Status Dot indicator -->
+              <span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--surface);background:{% if u.profile.is_approved %}var(--green){% elif u.profile.approval_status == 'rejected' %}var(--red){% else %}#F7D070{% endif %}"></span>
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <strong style="font-size:15px">{{ u.profile.get_display_name }}</strong>
+                {% if u.is_superuser %}
+                  <span class="badge" style="color:var(--coral);font-size:10.5px;padding:2px 0 0 0">Superuser</span>
+                {% elif u.is_staff %}
+                  <span class="badge" style="color:#D4981E;font-size:10.5px;padding:2px 0 0 0">Staff</span>
+                {% endif %}
+                {% if not u.is_active %}
+                  <span class="badge" style="color:var(--red);font-size:10.5px;padding:2px 0 0 0">Inactive</span>
+                {% endif %}
+              </div>
+              <div class="muted" style="font-size:12.5px;margin-top:2px">
+                <span>@{{ u.username }}</span>
+                {% if u.email %}
+                  <span>// {{ u.email }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Status Tag -->
+          {% if u.profile.is_approved %}
+            <span class="badge" style="color:var(--green);font-size:11px;padding:4px 0px;border-radius:8px;font-weight:700">Approved</span>
+          {% elif u.profile.approval_status == 'rejected' %}
+            <span class="badge" style="color:var(--red);font-size:11px;padding:4px 0px;border-radius:8px;font-weight:700">Rejected</span>
+          {% else %}
+            <span class="badge" style="color:#D4981E;font-size:11px;padding:4px 0px;border-radius:8px;font-weight:700">Pending</span>
+          {% endif %}
+        </div>
+
+        <!-- Meta info row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted);background:var(--surface-2);padding:8px 12px;border-radius:10px;margin-bottom:12px">
+          <span>Joined {{ u.date_joined|date:"M j, Y" }}</span>
+          <span>{{ u.tx_count }} logs, {{ u.wallet_count }} wallets</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+          {% if not u.profile.is_approved %}
+            <!-- Approve Button -->
+            <form method="post" action="{% url 'admin_user_approve' u.pk %}" style="margin:0">
+              {% csrf_token %}
+              <input type="hidden" name="tab" value="{{ active_tab }}">
+              <button type="submit" class="btn" style="background:var(--coral);color:var(--text);border:none;padding:8px 16px;border-radius:10px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:4px">
+                <span>Approve</span>
+              </button>
+            </form>
+
+            <!-- Reject Button -->
+            {% if u.profile.approval_status != 'rejected' %}
+              <form method="post" action="{% url 'admin_user_reject' u.pk %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+                <button type="submit" class="btn" style="background:var(--surface-2);color:var(--white);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700">
+                  <span>Reject</span>
+                </button>
+              </form>
+            {% endif %}
+
+          {% else %}
+            <!-- Approved Actions -->
+            {% if not u.is_superuser and u != request.user %}
+              <!-- Toggle Staff -->
+              <form method="post" action="{% url 'admin_user_toggle_staff' u.pk %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+                <button type="submit" class="btn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600">
+                  {% if u.is_staff %}Remove Staff{% else %}Make Staff{% endif %}
+                </button>
+              </form>
+
+              <!-- Toggle Active -->
+              <form method="post" action="{% url 'admin_user_toggle_active' u.pk %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+                <button type="submit" class="btn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600">
+                  {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+              </form>
+
+              <!-- Revoke Approval -->
+              <form method="post" action="{% url 'admin_user_reject' u.pk %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+                <button type="submit" class="btn" style="background:var(--surface-2);color:var(--coral);border:1px solid rgba(255,181,167,0.3);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600" title="Revoke approval and lock access">
+                  Revoke
+                </button>
+              </form>
+            {% endif %}
+          {% endif %}
+
+          <!-- Delete User via Universal Confirm Sheet -->
+          {% if u != request.user and not u.is_superuser %}
+            <button type="button" class="btn js-confirm-delete"
+              data-delete-url="{% url 'admin_user_delete' u.pk %}"
+              data-delete-title="Delete User @{{ u.username }}"
+              data-delete-desc="This will permanently remove @{{ u.username }} and all their financial logs, wallets, and categories from Wang."
+              data-delete-preview="{{ u.profile.get_display_name }} · @{{ u.username }}"
+              style="background:none;border:none;color:var(--red);padding:6px 8px;border-radius:8px;cursor:pointer"
+              title="Delete user account">
+              <svg class="icon" style="font-size:18px"><use href="#icon-trash"></use></svg>
+            </button>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+
+  {% else %}
+    <div class="card center" style="padding:48px 24px;border-radius:20px;text-align:center">
+      <div style="width:64px;height:64px;border-radius:20px;background:var(--surface-2);color:var(--muted);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg class="icon" style="font-size:32px"><use href="#icon-diversity_3"></use></svg>
+      </div>
+      <h3 style="margin-bottom:6px">No users found</h3>
+      <p class="muted" style="font-size:13.5px;margin:0">
+        {% if q %}
+          No users match "{{ q }}". Try a different search query.
+        {% elif active_tab == 'pending' %}
+          No user accounts are currently pending approval. All caught up! 🌸
+        {% else %}
+          No users found under the selected filter.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

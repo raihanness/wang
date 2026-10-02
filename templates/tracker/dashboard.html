@@ -411,7 +411,7 @@
                 <span>Edit</span>
               </button>
               <button type="button" class="swipe-action-btn swipe-btn-delete js-swipe-delete" aria-label="Delete transaction" title="Delete">
-                <svg class="icon"><use href="#icon-delete"></use></svg>
+                <svg class="icon"><use href="#icon-trash"></use></svg>
                 <span>Delete</span>
               </button>
             </div>
@@ -480,7 +480,7 @@
     </details>
   {% empty %}
     <div class="card muted center" style="margin-top:10px">
-      {% if q %}No results for “{{ q }}”.{% else %}No transactions yet — tap + to add your first one!{% endif %}
+      {% if q %}No results for “{{ q }}”.{% else %}No transactions yet. Tap + to add your first one!{% endif %}
     </div>
   {% endfor %}
 

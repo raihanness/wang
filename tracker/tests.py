@@ -430,13 +430,19 @@ class TransactionTests(TestCase):
         self.assertRedirects(response, f"/?month={tx_month}")
         self.assertFalse(Transaction.objects.filter(pk=tx_id).exists())
 
-    def test_signup_disabled_redirects_to_login(self):
+    def test_signup_page_renders_and_has_links(self):
         self.client.logout()
         response = self.client.get(reverse("signup"))
-        self.assertRedirects(response, reverse("login"))
-        # Login page itself has no signup link
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Join Wang ♡")
+        self.assertContains(response, "id_username")
+        self.assertContains(response, "id_password")
+        self.assertContains(response, "id_password_confirm")
+        self.assertContains(response, "Admin Approval Required")
+
+        # Login page has link to signup
         login_resp = self.client.get(reverse("login"))
-        self.assertNotContains(login_resp, "Create account")
+        self.assertContains(login_resp, "Create one")
 
     def test_login_page_renders_redesigned_ui(self):
         self.client.logout()
@@ -1528,7 +1534,7 @@ class SvgSpriteTests(TestCase):
             content = f.read()
         
         symbols = re.findall(r'<symbol id="icon-([^"]+)"', content)
-        self.assertGreaterEqual(len(symbols), 3900, "Master sprite should contain all Material Symbols")
+        self.assertGreaterEqual(len(symbols), 1800, "Master sprite should contain all Lucide icons and aliases")
         self.assertIn("sports_soccer", symbols)
         self.assertIn("hiking", symbols)
         self.assertIn("restaurant", symbols)
@@ -1550,13 +1556,13 @@ class SvgSpriteTests(TestCase):
         rendered_core = str(wang_icons.icon("restaurant"))
         self.assertIn('href="#icon-restaurant"', rendered_core)
 
-        # Extended icon resolves to master sprite /static/img/icons.svg#icon-
-        rendered_ext = str(wang_icons.icon("sports_soccer"))
-        self.assertIn('href="/static/img/icons.svg#icon-sports_soccer"', rendered_ext)
+        # Extended/un-inlined icon resolves to master sprite /static/img/icons.svg#icon-
+        rendered_ext = str(wang_icons.icon("uncommon_custom_icon"))
+        self.assertIn('href="/static/img/icons.svg#icon-uncommon_custom_icon"', rendered_ext)
 
         # icon_href tag
         self.assertEqual(wang_icons.icon_href("restaurant"), "#icon-restaurant")
-        self.assertEqual(wang_icons.icon_href("sports_soccer"), "/static/img/icons.svg#icon-sports_soccer")
+        self.assertEqual(wang_icons.icon_href("uncommon_custom_icon"), "/static/img/icons.svg#icon-uncommon_custom_icon")
 
 
 class DebtTests(TestCase):
@@ -2653,3 +2659,231 @@ class DuplicatePostSafeBlockTests(TestCase):
         self.assertEqual(res2.status_code, 302)
         debt.refresh_from_db()
         self.assertEqual(debt.payments.count(), 1)
+
+    def test_user_registration_pending_approval_workflow(self):
+        self.client.logout()
+        post_data = {
+            "username": "newbie",
+            "display_name": "Newbie Wang",
+            "password": "Password123!",
+            "password_confirm": "Password123!",
+        }
+        res = self.client.post(reverse("signup"), post_data)
+        self.assertRedirects(res, reverse("signup_pending"))
+
+        # Check User and UserProfile state
+        user = User.objects.get(username="newbie")
+        self.assertFalse(user.profile.is_approved)
+        self.assertEqual(user.profile.approval_status, "pending")
+        self.assertEqual(user.profile.display_name, "Newbie Wang")
+
+        # Signup pending page loads
+        pending_res = self.client.get(reverse("signup_pending"))
+        self.assertEqual(pending_res.status_code, 200)
+        self.assertContains(pending_res, "Registration Submitted")
+        self.assertContains(pending_res, "Awaiting Administrator Approval")
+
+    def test_unapproved_user_login_blocked_with_warning(self):
+        self.client.logout()
+        user = User.objects.create_user(username="pendinguser", password="secretpassword123")
+        user.profile.is_approved = False
+        user.profile.approval_status = "pending"
+        user.profile.save()
+
+        # Attempt to login
+        res = self.client.post(reverse("login"), {
+            "username": "pendinguser",
+            "password": "secretpassword123",
+        })
+        self.assertEqual(res.status_code, 403)
+        self.assertContains(res, "pending administrator approval", status_code=403)
+
+    def test_rejected_user_login_blocked_with_error(self):
+        self.client.logout()
+        user = User.objects.create_user(username="rejecteduser", password="secretpassword123")
+        user.profile.is_approved = False
+        user.profile.approval_status = "rejected"
+        user.profile.save()
+
+        res = self.client.post(reverse("login"), {
+            "username": "rejecteduser",
+            "password": "secretpassword123",
+        })
+        self.assertEqual(res.status_code, 403)
+        self.assertContains(res, "rejected by an administrator", status_code=403)
+
+    def test_turnstile_fail_token_blocks_login_and_signup(self):
+        self.client.logout()
+        # 1. Login with FAIL_TEST token
+        login_res = self.client.post(reverse("login"), {
+            "username": "testuser",
+            "password": "password123",
+            "cf-turnstile-response": "FAIL_TEST",
+        })
+        self.assertEqual(login_res.status_code, 422)
+        self.assertContains(login_res, "Security verification failed", status_code=422)
+
+        # 2. Signup with FAIL_TEST token
+        signup_res = self.client.post(reverse("signup"), {
+            "username": "spammer",
+            "password": "Password123!",
+            "password_confirm": "Password123!",
+            "cf-turnstile-response": "FAIL_TEST",
+        })
+        self.assertEqual(signup_res.status_code, 422)
+        self.assertContains(signup_res, "Security verification failed", status_code=422)
+
+    def test_admin_console_access_control(self):
+        # Regular non-staff user cannot access
+        self.client.login(username="testuser", password="password123")
+        res = self.client.get(reverse("admin_console"))
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("login", res.url)
+
+        # Staff user can access
+        self.user.is_staff = True
+        self.user.save()
+        res_admin = self.client.get(reverse("admin_console"))
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertContains(res_admin, "Admin Console")
+        self.assertContains(res_admin, "Awaiting approval")
+
+    def test_admin_console_approve_and_reject_actions(self):
+        self.user.is_staff = True
+        self.user.save()
+
+        # Create a pending user
+        newbie = User.objects.create_user(username="pendingmember", email="pending@test.com", password="pwd")
+        newbie.profile.is_approved = False
+        newbie.profile.approval_status = "pending"
+        newbie.profile.save()
+
+        # 1. Approve user via admin console
+        approve_res = self.client.post(reverse("admin_user_approve", args=[newbie.pk]))
+        self.assertEqual(approve_res.status_code, 302)
+        newbie.profile.refresh_from_db()
+        self.assertTrue(newbie.profile.is_approved)
+        self.assertEqual(newbie.profile.approval_status, "approved")
+        self.assertEqual(newbie.profile.approved_by, self.user)
+
+        # Now newbie can log in successfully
+        self.client.logout()
+        login_res = self.client.post(reverse("login"), {"username": "pendingmember", "password": "pwd"})
+        self.assertRedirects(login_res, reverse("dashboard"))
+
+        # 2. Reject user via admin console
+        self.client.force_login(self.user)
+        reject_res = self.client.post(reverse("admin_user_reject", args=[newbie.pk]))
+        self.assertEqual(reject_res.status_code, 302)
+        newbie.profile.refresh_from_db()
+        self.assertFalse(newbie.profile.is_approved)
+        self.assertEqual(newbie.profile.approval_status, "rejected")
+
+    def test_admin_console_toggle_staff_active_and_delete(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        member = User.objects.create_user(username="member1", password="pwd")
+        # 1. Toggle staff
+        self.client.post(reverse("admin_user_toggle_staff", args=[member.pk]))
+        member.refresh_from_db()
+        self.assertTrue(member.is_staff)
+
+        # 2. Toggle active
+        self.client.post(reverse("admin_user_toggle_active", args=[member.pk]))
+        member.refresh_from_db()
+        self.assertFalse(member.is_active)
+
+        # 3. Delete user
+        del_res = self.client.post(reverse("admin_user_delete", args=[member.pk]))
+        self.assertEqual(del_res.status_code, 302)
+        self.assertFalse(User.objects.filter(username="member1").exists())
+
+    def test_more_hub_shows_admin_console_link_for_staff(self):
+        # Regular user: no Admin Console link
+        self.client.login(username="testuser", password="password123")
+        res1 = self.client.get(reverse("more"))
+        self.assertNotContains(res1, "Admin Console")
+
+        # Staff user: Admin Console link visible
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        res2 = self.client.get(reverse("more"))
+        self.assertContains(res2, "Admin Console")
+        self.assertContains(res2, "pending")
+
+    def test_admin_navbar_pending_indicator(self):
+        from tracker.models import UserProfile
+        # 1. Non-staff user: no pending indicator shown even if pending accounts exist
+        pending_u = User.objects.create_user(username="pending_guy", password="password123")
+        profile = UserProfile.objects.get(user=pending_u)
+        profile.is_approved = False
+        profile.approval_status = "pending"
+        profile.save()
+
+        self.client.login(username="testuser", password="password123")
+        res_regular = self.client.get(reverse("dashboard"))
+        self.assertNotContains(res_regular, "appbar-admin-badge")
+
+        # 2. Staff user with pending account: shows admin badge with "1 pending"
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        res_staff = self.client.get(reverse("dashboard"))
+        self.assertContains(res_staff, "appbar-admin-badge")
+        self.assertContains(res_staff, "1 pending")
+        self.assertContains(res_staff, "icon-admin_panel_settings")
+        self.assertContains(res_staff, "bn-badge-dot")
+
+        # 3. Staff user after approving all pending users: indicator disappears
+        profile.is_approved = True
+        profile.approval_status = "approved"
+        profile.save()
+        res_staff_empty = self.client.get(reverse("dashboard"))
+        self.assertNotContains(res_staff_empty, "appbar-admin-badge")
+        self.assertNotContains(res_staff_empty, "bn-badge-dot")
+
+    def test_in_app_password_change_flow(self):
+        # 1. Anonymous access requires login
+        self.client.logout()
+        res_anon = self.client.get(reverse("password_change"))
+        self.assertEqual(res_anon.status_code, 302)
+        self.assertIn("login", res_anon.url)
+
+        # 2. Logged in user can view password change page
+        self.client.login(username=self.user.username, password="password123")
+        res_get = self.client.get(reverse("password_change"))
+        self.assertEqual(res_get.status_code, 200)
+        self.assertContains(res_get, "Change Password")
+        self.assertContains(res_get, "id_old_password")
+        self.assertContains(res_get, "id_new_password1")
+        self.assertContains(res_get, "id_new_password2")
+
+        # 3. Submitting invalid old password fails
+        res_fail = self.client.post(reverse("password_change"), {
+            "old_password": "completelywrongpass",
+            "new_password1": "ShinyNewPass12345!",
+            "new_password2": "ShinyNewPass12345!",
+        })
+        self.assertEqual(res_fail.status_code, 422)
+        self.assertContains(res_fail, "Your old password was entered incorrectly", status_code=422)
+
+        # 4. Submitting valid password change succeeds
+        res_success = self.client.post(reverse("password_change"), {
+            "old_password": "password123",
+            "new_password1": "ShinyNewPass12345!",
+            "new_password2": "ShinyNewPass12345!",
+        })
+        self.assertRedirects(res_success, reverse("profile_edit"))
+
+        # 5. Verify user can authenticate with new password
+        self.client.logout()
+        res_new_login = self.client.post(reverse("login"), {
+            "username": self.user.username,
+            "password": "ShinyNewPass12345!",
+        })
+        self.assertRedirects(res_new_login, reverse("dashboard"))
+
+

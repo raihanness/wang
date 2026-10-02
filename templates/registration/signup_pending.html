@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+{% block page_name %}signup-pending{% endblock %}
+{% block title %}Registration Submitted — Wang{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-ambient-glow"></div>
+  <div class="card auth-card" style="text-align:center;padding:32px 24px">
+    <div style="width:72px;height:72px;border-radius:24px;background:rgba(255,181,167,0.22);color:var(--coral);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+      <svg class="icon" style="font-size:38px"><use href="#icon-how_to_reg"></use></svg>
+    </div>
+
+    <h2 style="margin-bottom:2px">Registration Submitted!</h2>
+    <p class="muted" style="font-size:13px;line-height:1.5;margin:0 0 20px">
+      {% if registered_username %}
+        Your account for <strong style="color:var(--text)">@{{ registered_username }}</strong> has been created.
+      {% else %}
+        Your account has been created successfully.
+      {% endif %}
+    </p>
+
+    <!-- Status Card -->
+    <div style="background:var(--surface-2);border-radius:18px;padding:18px;margin-bottom:24px;text-align:left;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F7D070;"></span>
+        <strong style="font-size:13.5px;color:#D4981E">Awaiting Administrator Approval</strong>
+      </div>
+      <p class="muted" style="font-size:13px;line-height:1.45;margin:0;text-align: justify;">
+        To maintain data privacy and security, an administrator will review and activate your account. You will be able to log in as soon as approval is granted.
+      </p>
+    </div>
+
+    <div class="form-actions" style="margin:0">
+      <a href="{% url 'login' %}" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">
+        <span>Back to Login</span>
+        <svg class="icon" style="font-size:18px"><use href="#icon-arrow_forward"></use></svg>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

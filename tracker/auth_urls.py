@@ -1,11 +1,7 @@
 from django.urls import path
-from django.shortcuts import redirect
-from django.contrib import messages
-
-def signup(request):
-    messages.info(request, "Registration is disabled. Please contact the administrator for an account.")
-    return redirect("login")
+from . import views
 
 urlpatterns = [
-    path("", signup, name="signup"),
+    path("", views.signup_view, name="signup"),
+    path("pending/", views.signup_pending_view, name="signup_pending"),
 ]

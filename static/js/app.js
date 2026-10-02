@@ -649,7 +649,7 @@
     preview = '',
     actionUrl = '',
     submitText = 'Delete',
-    icon = 'delete',
+    icon = 'trash',
     submitIcon = null,
     btnClass = 'btn-delete',
     onConfirm = null,
@@ -2631,8 +2631,8 @@
         preview: amount ? `${name} · ${amount}` : name,
         actionUrl: url,
         submitText: 'Delete',
-        icon: 'delete',
-        submitIcon: 'delete',
+        icon: 'trash',
+        submitIcon: 'trash',
         btnClass: 'btn-delete',
         onConfirm: () => {
           closeSubHistorySheet();
@@ -2656,8 +2656,8 @@
         preview: amount ? `${person} · ${amount}` : person,
         actionUrl: url,
         submitText: 'Delete',
-        icon: 'delete',
-        submitIcon: 'delete',
+        icon: 'trash',
+        submitIcon: 'trash',
         btnClass: 'btn-delete',
         onConfirm: () => {
           closeDebtHistorySheet();
@@ -2676,7 +2676,7 @@
       const title = confirmDeleteBtn.dataset.deleteTitle || 'Confirm Delete';
       const desc = confirmDeleteBtn.dataset.deleteDesc || 'Are you sure you want to delete this item? This action cannot be undone.';
       const preview = confirmDeleteBtn.dataset.deletePreview || '';
-      const icon = confirmDeleteBtn.dataset.deleteIcon || 'delete';
+      const icon = confirmDeleteBtn.dataset.deleteIcon || 'trash';
       const submitText = confirmDeleteBtn.dataset.deleteSubmitText || 'Delete';
       openConfirmSheet({
         title: title,
@@ -2684,7 +2684,7 @@
         preview: preview,
         actionUrl: url,
         icon: icon,
-        submitIcon: 'delete',
+        submitIcon: 'trash',
         submitText: submitText,
         btnClass: 'btn-delete',
       });
@@ -2988,7 +2988,7 @@
         const tags = (tile.dataset.tags || '') + ' ' + (tile.dataset.icon || '');
         const searchMatch = !q || tags.toLowerCase().includes(q);
         const show = catMatch && searchMatch;
-        tile.style.display = show ? 'grid' : 'none';
+        tile.style.display = show ? '' : 'none';
         if (show) visibleCount++;
       });
       if (searchEmpty) {
@@ -3340,10 +3340,31 @@
     });
   }
 
+  function initPasswordToggle() {
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.input-reveal-btn');
+      if (!btn) return;
+      const wrap = btn.closest('.input-icon-wrap') || btn.parentElement;
+      if (!wrap) return;
+      const input = wrap.querySelector('input');
+      if (!input) return;
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      setSvgIcon(btn, isPassword ? 'visibility_off' : 'visibility');
+      const label = isPassword ? 'Hide password' : 'Show password';
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+      if (window.WangAudio && typeof window.WangAudio.playTap === 'function') {
+        window.WangAudio.playTap();
+      }
+    });
+  }
+
   initTurboSettings();
   initServiceWorker();
   initConnectivityListeners();
   initToasts();
+  initPasswordToggle();
   syncAppbar();
   syncThemeUI();
   syncSoundUI();

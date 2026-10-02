@@ -63,13 +63,17 @@
    ========================================================================== */
 
 .icon,
-svg {
+svg.icon {
   width: 1em;
   height: 1em;
   font-size: 22px;
   display: inline-block;
   vertical-align: middle;
-  fill: currentColor;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   flex-shrink: 0;
   user-select: none;
 }
@@ -250,6 +254,58 @@ img.brand-badge,
   display: flex;
   align-items: center;
   gap: 4px
+}
+
+.appbar-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  /* background: rgba(255, 133, 89, 0.14); */
+  /* border: 1px solid rgba(255, 133, 89, 0.32); */
+  color: var(--coral);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  margin-right: 2px;
+  box-sizing: border-box;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+  animation: adminBadgeGlow 3s infinite ease-in-out;
+}
+
+.appbar-admin-badge:hover {
+  background: rgba(255, 133, 89, 0.24);
+  border-color: rgba(255, 133, 89, 0.45);
+  color: var(--coral);
+  transform: translateY(-1px);
+}
+
+.appbar-admin-badge:active {
+  transform: scale(.95);
+}
+
+.appbar-admin-badge svg {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+@keyframes adminBadgeGlow {
+
+  0%,
+  100% {
+    /* box-shadow: 0 0 0 0 rgba(255, 133, 89, 0); */
+    background: rgba(255, 133, 89, 0)
+  }
+
+  50% {
+    /* box-shadow: 0 0 0 3px rgba(255, 133, 89, 0.2); */
+    background: rgba(255, 133, 89, 0.2)
+  }
 }
 
 .icon-btn {
@@ -621,6 +677,24 @@ body[data-page="signup"] .sheet-root {
 
 .bn-item svg {
   font-size: 22px
+}
+
+.bn-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bn-badge-dot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 1.5px var(--bottomnav-bg);
 }
 
 .bn-item.active {
@@ -1598,6 +1672,10 @@ body[data-page="signup"] .sheet-root {
   flex-shrink: 0;
 }
 
+.list-item .li-icon svg {
+  font-size: 19px !important;
+}
+
 .list-item .li-main {
   flex: 1 1 auto;
   min-width: 0;
@@ -1648,7 +1726,7 @@ body[data-page="signup"] .sheet-root {
 }
 
 .list-item .li-amt {
-  font-weight: 800;
+  font-weight: 700;
   font-size: 11.5px;
   white-space: nowrap;
   flex-shrink: 0;
@@ -2295,7 +2373,7 @@ body[data-page="signup"] .sheet-root {
 }
 
 .note-icon {
-  font-size: 18px;
+  font-size: 15px !important;
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -3278,6 +3356,10 @@ textarea:focus {
   padding: 24px 12px;
 }
 
+.pw-change-wrap {
+  justify-content: start;
+}
+
 .auth-ambient-glow {
   display: none;
 }
@@ -3291,7 +3373,7 @@ textarea:focus {
   padding: 32px 24px 28px;
   border-radius: 24px;
   background: var(--card);
-  border: 1px solid var(--line);
+  /* border: 1px solid var(--line); */
   box-shadow: var(--shadow);
 }
 
@@ -3306,7 +3388,7 @@ textarea:focus {
   height: 54px;
   font-size: 30px;
   border-radius: 18px;
-  box-shadow: 0 10px 24px rgba(255, 138, 101, .35);
+  /*   box-shadow: 0 10px 24px rgba(255, 138, 101, .35); */
 }
 
 .auth-card h2 {
@@ -4608,7 +4690,7 @@ details.day-group>summary.day-head:active {
 
 .day-date {
   font-size: 10.5px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .4px;
   color: var(--muted);
   text-transform: uppercase;
@@ -4656,6 +4738,7 @@ details.day-group>summary.day-head:active {
 }
 
 .day-badge-val {
+  font-weight: 700;
   letter-spacing: -.2px;
 }
 
@@ -5160,9 +5243,10 @@ main.content.turbo-enter {
 
 .icon-grid-picker {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-  max-height: 220px;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: minmax(46px, auto);
+  gap: 8px;
+  max-height: 240px;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 4px 2px 8px;
@@ -5170,6 +5254,7 @@ main.content.turbo-enter {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 
 .icon-grid-picker::-webkit-scrollbar {
@@ -5183,23 +5268,29 @@ main.content.turbo-enter {
 
 .icon-tile {
   width: 100%;
-  aspect-ratio: 1;
-  min-height: 0;
+  height: 46px;
+  min-height: 46px;
+  aspect-ratio: 1 / 1;
   border: 1.5px solid transparent;
   background: var(--surface-muted);
   border-radius: 12px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--ink);
   cursor: pointer;
   padding: 0;
   box-sizing: border-box;
+  flex-shrink: 0;
   transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 
 .icon-tile svg {
+  width: 22px;
+  height: 22px;
   font-size: 22px;
   pointer-events: none;
+  flex-shrink: 0;
 }
 
 .icon-tile:hover {
@@ -7436,7 +7527,11 @@ main.content.turbo-enter {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 18px;
+  font-size: 19px !important;
+}
+
+.more-icon-box svg {
+  font-size: 19px !important;
 }
 
 .more-info {
@@ -7739,6 +7834,25 @@ button.is-submitting::after {
   vertical-align: middle;
   box-sizing: border-box;
   animation: submittingSpinner 0.65s linear infinite;
+}
+
+/* Disable submitting spinner on login & logout buttons */
+.auth-card button.is-submitting::after,
+.auth-wrap button.is-submitting::after,
+.more-row-btn.is-submitting::after,
+.btn-no-spinner.is-submitting::after,
+.icon-btn.is-submitting::after,
+form[action*="logout"] button.is-submitting::after,
+form[action*="login"] button.is-submitting::after,
+[data-no-spinner].is-submitting::after,
+[data-no-spinner] .is-submitting::after {
+  display: none !important;
+  content: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  animation: none !important;
 }
 
 @keyframes submittingSpinner {

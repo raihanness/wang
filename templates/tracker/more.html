@@ -137,6 +137,42 @@
   </div>
 </div>
 
+{% if request.user.is_staff or request.user.is_superuser %}
+<!-- Group: Administration (Staff / Superuser Only) -->
+<div class="more-group">
+  <div class="more-group-title">Administration</div>
+  <div class="card more-card">
+    <!-- Admin Console -->
+    <a href="{% url 'admin_console' %}" class="more-row" data-turbo-preload>
+      <div class="more-icon-box" style="background:rgba(255,181,167,0.22);color:var(--coral)">
+        <svg class="icon"><use href="#icon-admin_panel_settings"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Admin Console</strong>
+        <small class="muted" style="{% if pending_approvals_count > 0 %}color:var(--coral){% endif %}">{{ pending_approvals_count }} pending</small>
+      </div>
+      <div class="more-badge-wrap">
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </a>
+
+    <!-- Django Admin -->
+    <a href="/admin/" class="more-row" data-turbo="false" target="_blank" rel="noopener">
+      <div class="more-icon-box" style="background:rgba(247,208,112,0.22);color:#D4981E">
+        <svg class="icon"><use href="#icon-tune"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Django Admin</strong>
+        <small class="muted">Database &amp; system records</small>
+      </div>
+      <div class="more-badge-wrap">
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </a>
+  </div>
+</div>
+{% endif %}
+
 <!-- Group 3: Preferences & System -->
 <div class="more-group">
   <div class="more-group-title">Preferences &amp; System</div>
@@ -171,10 +207,24 @@
       </div>
     </div>
 
+    <!-- Change Password -->
+    <a href="{% url 'password_change' %}" class="more-row" data-turbo-preload>
+      <div class="more-icon-box" style="background:rgba(255, 142, 114, 0.18);color:var(--coral)">
+        <svg class="icon"><use href="#icon-lock_reset"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Change Password</strong>
+        <small class="muted">Update login credentials</small>
+      </div>
+      <div class="more-badge-wrap">
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </a>
+
     <!-- Log Out -->
     <form method="post" action="{% url 'logout' %}" style="margin:0;display:block" data-turbo="false">
       {% csrf_token %}
-      <button type="submit" class="more-row more-row-btn" style="width:100%;text-align:left;background:none;border:none;cursor:pointer">
+      <button type="submit" class="more-row more-row-btn btn-no-spinner" data-no-spinner="true" style="width:100%;text-align:left;background:none;border:none;cursor:pointer">
         <div class="more-icon-box" style="background:rgba(255, 90, 95, 0.14);color:var(--red)">
           <svg class="icon"><use href="#icon-logout"></use></svg>
         </div>
