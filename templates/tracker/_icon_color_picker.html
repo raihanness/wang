@@ -63,6 +63,12 @@
     <!-- Icon category tabs -->
     <div class="icon-cat-tabs" id="icon-cat-tabs">
       <button type="button" class="icon-cat-tab active" data-cat="all">All</button>
+      <button type="button" class="icon-cat-tab" data-cat="banks">Banks</button>
+      <button type="button" class="icon-cat-tab" data-cat="cards">Cards</button>
+      <button type="button" class="icon-cat-tab" data-cat="piggy">Piggy Bank</button>
+      <button type="button" class="icon-cat-tab" data-cat="safe">Safe</button>
+      <button type="button" class="icon-cat-tab" data-cat="vault">Vault</button>
+      <button type="button" class="icon-cat-tab" data-cat="cash">Cash</button>
       <button type="button" class="icon-cat-tab" data-cat="finance">Finance</button>
       <button type="button" class="icon-cat-tab" data-cat="food">Food</button>
       <button type="button" class="icon-cat-tab" data-cat="transport">Transport</button>
@@ -76,7 +82,7 @@
     <!-- Search bar -->
     <div class="icon-search-wrap">
       <svg class="icon icon-search-lens"><use href="#icon-search"></use></svg>
-      <input type="text" class="icon-search-input" id="icon-search-input" placeholder="Search icon... (e.g. netflix, cat, coffee, wifi, gym)" autocomplete="off">
+      <input type="text" class="icon-search-input" id="icon-search-input" placeholder="Search icon... (e.g. bank, bca, card, safe, vault, cash, piggy)" autocomplete="off">
       <button type="button" class="icon-search-clear" id="icon-search-clear" style="display:none" aria-label="Clear search">
         <svg class="icon"><use href="#icon-close"></use></svg>
       </button>
@@ -84,26 +90,57 @@
 
     <!-- Icon Grid -->
     <div class="icon-grid-picker" id="icon-grid-picker">
-      <button type="button" class="icon-tile" data-icon="wallet" data-cat="finance" data-tags="wallet money cash dompet pay payment bayar saldo"><svg class="icon"><use href="#icon-wallet"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="banknote" data-cat="finance" data-tags="banknote payments cash bills money notes rupiah uang tunai gaji salary revenue income"><svg class="icon"><use href="#icon-banknote"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="landmark" data-cat="finance" data-tags="landmark bank bca mandiri bni bri cimb atm tax pajak government transfers rekening"><svg class="icon"><use href="#icon-landmark"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="piggy-bank" data-cat="finance" data-tags="piggy bank savings deposit tabungan invest money save celengan bunga"><svg class="icon"><use href="#icon-piggy-bank"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="credit-card" data-cat="finance" data-tags="credit card debit visa mastercard payment atm gesek kartu cc"><svg class="icon"><use href="#icon-credit-card"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="circle-dollar-sign" data-cat="finance" data-tags="circle dollar sign paid dollar coin money salary payment pendapatan pemasukan"><svg class="icon"><use href="#icon-circle-dollar-sign"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="coins" data-cat="finance" data-tags="coins spare change money cash koin receh tip"><svg class="icon"><use href="#icon-coins"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="hand-coins" data-cat="finance" data-tags="hand coins debt loan borrow lend utang piutang pinjaman tip donation sedekah"><svg class="icon"><use href="#icon-hand-coins"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="receipt" data-cat="finance" data-tags="receipt bill invoice transaction paper bon struk tagihan"><svg class="icon"><use href="#icon-receipt"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="tag" data-cat="finance" data-tags="tag sell price promo discount offer diskon harga"><svg class="icon"><use href="#icon-tag"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="badge-percent" data-cat="finance" data-tags="badge percent discount interest cashback promo offer bunga persen diskon"><svg class="icon"><use href="#icon-badge-percent"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="chart-candlestick" data-cat="finance" data-tags="chart candlestick stocks trading investment crypto market shares saham reksadana crypto trading"><svg class="icon"><use href="#icon-chart-candlestick"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="chart-line" data-cat="finance" data-tags="chart line analytics stocks growth profit revenue grafik tren naik"><svg class="icon"><use href="#icon-chart-line"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="chart-pie" data-cat="finance" data-tags="chart pie analytics budget allocation share grafik pie laporan"><svg class="icon"><use href="#icon-chart-pie"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="arrow-left-right" data-cat="finance" data-tags="arrow left right currency exchange forex crypto transfer swap kurs tukar valas"><svg class="icon"><use href="#icon-arrow-left-right"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="store" data-cat="finance" data-tags="store merchant shop pos checkout toko warung ruko merchant"><svg class="icon"><use href="#icon-store"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="gem" data-cat="finance" data-tags="gem jewel diamond asset gold precious emas perhiasan berlian luxury"><svg class="icon"><use href="#icon-gem"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="handshake" data-cat="finance" data-tags="handshake agreement contract deal partnership utang pinjam perjanjian"><svg class="icon"><use href="#icon-handshake"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="shield-check" data-cat="finance" data-tags="shield check insurance asuransi safety security protection guarantee aman proteksi"><svg class="icon"><use href="#icon-shield-check"></use></svg></button>
-      <button type="button" class="icon-tile" data-icon="lock" data-cat="finance" data-tags="lock security safe deposit brankas kunci simpan"><svg class="icon"><use href="#icon-lock"></use></svg></button>
+      <!-- ── Banks ── -->
+      <button type="button" class="icon-tile" data-icon="landmark" data-cat="banks finance" data-tags="landmark bank bca mandiri bni bri cimb atm tax pajak government transfers rekening"><svg class="icon"><use href="#icon-landmark"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="account_balance" data-cat="banks finance" data-tags="account balance bank central bank bca mandiri bni bri cimb bank perbankan rekening"><svg class="icon"><use href="#icon-account_balance"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="building-2" data-cat="banks finance home" data-tags="building 2 bank tower headquarter branch corporate bank gedung bank kantor pusat"><svg class="icon"><use href="#icon-building-2"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="building" data-cat="banks finance home" data-tags="building bank office branch kantor cabang gedung bank"><svg class="icon"><use href="#icon-building"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="globe" data-cat="banks finance" data-tags="globe international bank swift forex paypal wise overseas valas transfer luar negeri remitansi"><svg class="icon"><use href="#icon-globe"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="briefcase" data-cat="banks finance tech" data-tags="briefcase business corporate payroll salary kantor rekening giro bisnis gaji perusahaan"><svg class="icon"><use href="#icon-briefcase"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="badge-check" data-cat="banks finance" data-tags="badge check verified bank official account verified lps centang biru bank resmi"><svg class="icon"><use href="#icon-badge-check"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shield-check" data-cat="banks vault finance" data-tags="shield check insurance safety security lps guarantee aman proteksi bank penjaminan"><svg class="icon"><use href="#icon-shield-check"></use></svg></button>
+
+      <!-- ── Cards ── -->
+      <button type="button" class="icon-tile" data-icon="credit-card" data-cat="cards finance" data-tags="credit card debit visa mastercard payment atm gesek kartu cc debit card kartu atm"><svg class="icon"><use href="#icon-credit-card"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wallet-cards" data-cat="cards finance" data-tags="wallet cards cardholder multiple cards card stack kartu dompet e-money flazz brizzi tap"><svg class="icon"><use href="#icon-wallet-cards"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="smartphone" data-cat="cards finance tech" data-tags="smartphone phone mobile ewallet e-wallet gopay ovo dana shopeepay linkaja qris digital wallet hp ponsel"><svg class="icon"><use href="#icon-smartphone"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="qr-code" data-cat="cards finance" data-tags="qr code qris scan payment barcode bayar transfer e-wallet digital payment scan qr"><svg class="icon"><use href="#icon-qr-code"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="contactless" data-cat="cards finance" data-tags="contactless nfc tap to pay flazz emoney brizzi tap cash contactless card kartu tap nfc"><svg class="icon"><use href="#icon-contactless"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="id-card" data-cat="cards finance" data-tags="id card member card identity loyalty card kartu member kartu identitas sim card"><svg class="icon"><use href="#icon-id-card"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="credit-score" data-cat="cards finance" data-tags="credit score paylater limit kredivo spaylater gopaylater cicilan kartu kredit skor kredit"><svg class="icon"><use href="#icon-credit-score"></use></svg></button>
+
+      <!-- ── Piggy Bank (Savings) ── -->
+      <button type="button" class="icon-tile" data-icon="piggy-bank" data-cat="piggy finance" data-tags="piggy bank savings deposit tabungan celengan simpanan impian goal fund bunga celengan uang"><svg class="icon"><use href="#icon-piggy-bank"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="circle-dollar-sign" data-cat="piggy cash finance" data-tags="circle dollar sign paid dollar coin money salary payment pendapatan pemasukan koin target goal"><svg class="icon"><use href="#icon-circle-dollar-sign"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="coins" data-cat="piggy cash finance" data-tags="coins spare change money cash koin receh tip tabungan koin celengan recehan"><svg class="icon"><use href="#icon-coins"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="hand-coins" data-cat="piggy cash finance" data-tags="hand coins debt loan deposit savings utang piutang pinjaman tip donation sedekah tabung nabung"><svg class="icon"><use href="#icon-hand-coins"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="gem" data-cat="piggy finance" data-tags="gem jewel diamond asset gold precious emas antam logam mulia perhiasan berlian luxury simpanan emas tabungan emas"><svg class="icon"><use href="#icon-gem"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="sparkles" data-cat="piggy finance" data-tags="sparkles wishlist dream holiday goal dana liburan impian dana darurat bintang cita-cita"><svg class="icon"><use href="#icon-sparkles"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="award" data-cat="piggy finance life" data-tags="award certificate medal achievement milestone investment goal piala medali target investasi jangka panjang"><svg class="icon"><use href="#icon-award"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="heart" data-cat="piggy finance health" data-tags="heart emergency fund charity donation care dana darurat peduli kasih sayang dana kesehatan"><svg class="icon"><use href="#icon-heart"></use></svg></button>
+
+      <!-- ── Safe ── -->
+      <button type="button" class="icon-tile" data-icon="safe" data-cat="safe finance" data-tags="safe safety deposit box home safe brankas besi simpan emas rahasia safe deposit kotak brankas keamanan"><svg class="icon"><use href="#icon-safe"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="lock" data-cat="safe finance" data-tags="lock security safe deposit brankas kunci gembok simpan aman privasi terkunci"><svg class="icon"><use href="#icon-lock"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="key" data-cat="safe finance" data-tags="key safe key kunci brankas akses rahasia kunci rumah fisik gembok"><svg class="icon"><use href="#icon-key"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="key-round" data-cat="safe finance" data-tags="key round master key kunci utama akses brankas kunci safe gembok master"><svg class="icon"><use href="#icon-key-round"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="shield" data-cat="safe finance" data-tags="shield security protection protected balance aman proteksi perisai perlindungan"><svg class="icon"><use href="#icon-shield"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="box" data-cat="safe finance" data-tags="box stash secret box kotak simpanan wadah perhiasan kotak rahasia"><svg class="icon"><use href="#icon-box"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="package" data-cat="safe finance" data-tags="package locker deposit package kotak brankas titipan paket simpanan"><svg class="icon"><use href="#icon-package"></use></svg></button>
+
+      <!-- ── Vault ── -->
+      <button type="button" class="icon-tile" data-icon="vault" data-cat="vault finance" data-tags="vault bank vault heavy safe door metal vault brankas bank ruang besi cold storage brankas baja"><svg class="icon"><use href="#icon-vault"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="lock-keyhole" data-cat="vault finance" data-tags="lock keyhole heavy lock vault gembok lubang kunci brankas pintu besi kunci baja"><svg class="icon"><use href="#icon-lock-keyhole"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="server" data-cat="vault finance tech" data-tags="server crypto cold wallet ledger trezor hardware wallet blockchain digital vault database server kripto"><svg class="icon"><use href="#icon-server"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="hard-drive" data-cat="vault finance tech" data-tags="hard drive storage cold storage backup offline vault digital asset memori simpanan digital"><svg class="icon"><use href="#icon-hard-drive"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="archive" data-cat="vault finance" data-tags="archive deep storage vault pension dana pensiun simpanan jangka panjang arsip simpanan abadi"><svg class="icon"><use href="#icon-archive"></use></svg></button>
+
+      <!-- ── Cash ── -->
+      <button type="button" class="icon-tile" data-icon="banknote" data-cat="cash finance" data-tags="banknote payments cash bills money notes rupiah uang tunai kertas gaji cash fisik lembaran uang"><svg class="icon"><use href="#icon-banknote"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="wallet" data-cat="cash finance" data-tags="wallet money cash dompet harian cash pocket dompet fisik uang saku saldo dompet pria wanita"><svg class="icon"><use href="#icon-wallet"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="receipt" data-cat="cash finance" data-tags="receipt bill invoice transaction paper bon struk cash belanja kas bon"><svg class="icon"><use href="#icon-receipt"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="badge-percent" data-cat="cash finance" data-tags="badge percent discount cashback promo rebate cash bunga persen diskon uang kembali"><svg class="icon"><use href="#icon-badge-percent"></use></svg></button>
+      <button type="button" class="icon-tile" data-icon="tag" data-cat="cash finance" data-tags="tag sell price promo discount offer diskon harga label"><svg class="icon"><use href="#icon-tag"></use></svg></button>
       <button type="button" class="icon-tile" data-icon="utensils" data-cat="food" data-tags="utensils restaurant food dinner eat meal dining lunch makan kuliner resto masakan warung"><svg class="icon"><use href="#icon-utensils"></use></svg></button>
       <button type="button" class="icon-tile" data-icon="utensils-crossed" data-cat="food" data-tags="utensils crossed chef fine dining cooking masak restoran dapur"><svg class="icon"><use href="#icon-utensils-crossed"></use></svg></button>
       <button type="button" class="icon-tile" data-icon="coffee" data-cat="food" data-tags="coffee cafe tea starbucks espresso cappuccino kofi drink kopi nongkrong kafe janji jiwa"><svg class="icon"><use href="#icon-coffee"></use></svg></button>
