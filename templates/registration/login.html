@@ -40,6 +40,9 @@
 
     <form method="post" novalidate data-turbo="false">
       {% csrf_token %}
+      {% if next %}
+        <input type="hidden" name="next" value="{{ next }}">
+      {% endif %}
       <div class="form-row" style="gap:16px">
         <div>
           <label for="id_username">Username</label>
@@ -54,10 +57,17 @@
           <div class="input-icon-wrap">
             <svg class="icon input-icon-left"><use href="#icon-lock"></use></svg>
             <input type="password" name="password" autocomplete="current-password" required id="id_password" placeholder="Enter your password">
-            <button type="button" class="input-reveal-btn" id="toggle-password" aria-label="Show password" title="Show password">
+            <button type="button" class="input-reveal-btn" id="toggle-password" aria-label="Show password" title="Show password" tabindex="-1">
               <svg class="icon"><use href="#icon-visibility"></use></svg>
             </button>
           </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 0">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);user-select:none;margin:0">
+            <input type="checkbox" name="remember_me" id="id_remember_me" value="1" checked style="accent-color:var(--coral);width:16px;height:16px;cursor:pointer;border-radius:4px">
+            <span>Remember me</span>
+          </label>
         </div>
 
         {% if TURNSTILE_SITE_KEY and TURNSTILE_ENABLED %}
@@ -77,7 +87,7 @@
 
     <div class="center" style="margin-top:20px;font-size:13.5px">
       <span class="muted">Don't have an account?</span>
-      <a href="{% url 'signup' %}" style="font-weight:800;color:var(--coral);margin-left:4px">Create one</a>
+      <a href="{% url 'signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}" style="font-weight:800;color:var(--coral);margin-left:4px">Create one</a>
     </div>
   </div>
 </div>

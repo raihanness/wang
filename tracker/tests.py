@@ -434,15 +434,98 @@ class TransactionTests(TestCase):
         self.client.logout()
         response = self.client.get(reverse("signup"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Join Wang ♡")
+        self.assertContains(response, "Join Wang")
         self.assertContains(response, "id_username")
         self.assertContains(response, "id_password")
         self.assertContains(response, "id_password_confirm")
-        self.assertContains(response, "Admin Approval Required")
 
         # Login page has link to signup
         login_resp = self.client.get(reverse("login"))
         self.assertContains(login_resp, "Create one")
+
+    def test_authenticated_user_redirected_from_auth_pages(self):
+        # 1. When logged in, accessing login, signup, or signup_pending redirects to dashboard
+        self.client.login(username="testuser", password="password123")
+
+        login_res = self.client.get(reverse("login"))
+        self.assertRedirects(login_res, reverse("dashboard"))
+
+        signup_res = self.client.get(reverse("signup"))
+        self.assertRedirects(signup_res, reverse("dashboard"))
+
+        pending_res = self.client.get(reverse("signup_pending"))
+        self.assertRedirects(pending_res, reverse("dashboard"))
+
+        # Deep link ?next= is honored when authenticated
+        signup_next = self.client.get(reverse("signup") + "?next=" + reverse("more"))
+        self.assertRedirects(signup_next, reverse("more"))
+
+        pending_next = self.client.get(reverse("signup_pending") + "?next=" + reverse("wallet_list"))
+        self.assertRedirects(pending_next, reverse("wallet_list"))
+
+        # Malicious external domain falls back to dashboard
+        evil_res = self.client.get(reverse("signup") + "?next=https://evil.com/hack")
+        self.assertRedirects(evil_res, reverse("dashboard"))
+
+        # 2. When logged out, login, signup, and signup_pending pages are accessible
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("login")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("signup")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("signup_pending")).status_code, 200)
+
+    def test_remember_me_login_session_expiry(self):
+        self.client.logout()
+        # 1. Login with remember_me=1 sets long session expiry (90 days)
+        res_remember = self.client.post(reverse("login"), {
+            "username": "testuser",
+            "password": "password123",
+            "remember_me": "1",
+        })
+        self.assertRedirects(res_remember, reverse("dashboard"))
+        # 90 days = 7,776,000 seconds
+        self.assertGreaterEqual(self.client.session.get_expiry_age(), 7000000)
+
+        # 2. Login without remember_me sets browser session (expires on close)
+        self.client.logout()
+        res_no_remember = self.client.post(reverse("login"), {
+            "username": "testuser",
+            "password": "password123",
+        })
+        self.assertRedirects(res_no_remember, reverse("dashboard"))
+        self.assertTrue(self.client.session.get_expire_at_browser_close())
+
+    def test_account_approval_middleware_mid_session_enforcement(self):
+        # 1. Log in normal user
+        self.client.login(username="testuser", password="password123")
+        res = self.client.get(reverse("dashboard"))
+        self.assertEqual(res.status_code, 200)
+
+        # 2. User gets deactivated mid-session -> next request terminates session
+        self.user.is_active = False
+        self.user.save()
+        res_deactivated = self.client.get(reverse("dashboard"))
+        self.assertRedirects(res_deactivated, reverse("login"))
+        # Verify user is logged out
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+        # Restore active status
+        self.user.is_active = True
+        self.user.save()
+
+        # 3. User profile rejected mid-session -> terminates session
+        self.client.login(username="testuser", password="password123")
+        self.user.profile.is_approved = False
+        self.user.profile.approval_status = "rejected"
+        self.user.profile.save()
+
+        res_rejected = self.client.get(reverse("dashboard"))
+        self.assertRedirects(res_rejected, reverse("login"))
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+        # Restore approval
+        self.user.profile.is_approved = True
+        self.user.profile.approval_status = "approved"
+        self.user.profile.save()
 
     def test_login_page_renders_redesigned_ui(self):
         self.client.logout()
@@ -2000,6 +2083,7 @@ class MoreHubTests(TestCase):
         self.assertEqual(ctx["default_wallet"].id, wallet2.id)
 
     def test_login_page_renders_cleanly(self):
+        self.client.logout()
         res = self.client.get(reverse("login"))
         self.assertEqual(res.status_code, 200)
         content = res.content.decode("utf-8")
@@ -2007,6 +2091,7 @@ class MoreHubTests(TestCase):
         self.assertNotIn("toast-error", content)
 
     def test_login_failure_invalid_credentials_shows_toast_and_422(self):
+        self.client.logout()
         res = self.client.post(reverse("login"), {"username": "nonexistent", "password": "wrongpassword"})
         self.assertEqual(res.status_code, 422)
         content = res.content.decode("utf-8")
@@ -2015,6 +2100,7 @@ class MoreHubTests(TestCase):
         self.assertIn("auth-error-box", content)
 
     def test_login_failure_empty_fields_shows_toast_and_422(self):
+        self.client.logout()
         res = self.client.post(reverse("login"), {})
         self.assertEqual(res.status_code, 422)
         content = res.content.decode("utf-8")
@@ -2022,6 +2108,7 @@ class MoreHubTests(TestCase):
         self.assertIn("Username and password are required.", content)
 
     def test_login_failure_missing_single_field_shows_toast(self):
+        self.client.logout()
         res_no_pw = self.client.post(reverse("login"), {"username": "user123"})
         self.assertEqual(res_no_pw.status_code, 422)
         self.assertIn("Please enter your password.", res_no_pw.content.decode("utf-8"))

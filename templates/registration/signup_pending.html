@@ -32,7 +32,7 @@
     </div>
 
     <div class="form-actions" style="margin:0">
-      <a href="{% url 'login' %}" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">
+      <a href="{% url 'login' %}{% if registered_username %}?username={{ registered_username|urlencode }}{% endif %}" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">
         <span>Back to Login</span>
         <svg class="icon" style="font-size:18px"><use href="#icon-arrow_forward"></use></svg>
       </a>

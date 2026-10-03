@@ -21,10 +21,11 @@
     const use = el.tagName && el.tagName.toLowerCase() === 'use' ? el : el.querySelector('use');
     if (use) {
       use.setAttribute('href', href);
+      use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', href);
     } else if (el.tagName && el.tagName.toLowerCase() === 'svg') {
-      el.innerHTML = `<use href="${href}"></use>`;
+      el.innerHTML = `<use href="${href}" xlink:href="${href}"></use>`;
     } else {
-      el.innerHTML = `<svg class="icon"><use href="${href}"></use></svg>`;
+      el.innerHTML = `<svg class="icon"><use href="${href}" xlink:href="${href}"></use></svg>`;
     }
   }
 
@@ -2248,18 +2249,21 @@
       return;
     }
 
-    // Password visibility toggle
-    const pwdToggle = e.target.closest('#toggle-password');
+    // Password visibility toggle (Login, Signup, Password Change)
+    const pwdToggle = e.target.closest('#toggle-password, .input-reveal-btn');
     if (pwdToggle) {
       e.preventDefault();
-      playSound('click');
-      const pwdInput = document.getElementById('id_password');
-      const icon = pwdToggle.querySelector('.icon, .material-symbols-rounded');
+      playSound('tap');
+      const wrap = pwdToggle.closest('.input-icon-wrap') || pwdToggle.parentElement;
+      const pwdInput = wrap ? wrap.querySelector('input') : document.getElementById('id_password');
       if (pwdInput) {
         const isPwd = pwdInput.type === 'password';
         pwdInput.type = isPwd ? 'text' : 'password';
-        if (icon) setSvgIcon(icon, isPwd ? 'visibility_off' : 'visibility');
-        pwdToggle.setAttribute('aria-label', isPwd ? 'Hide password' : 'Show password');
+        const icon = pwdToggle.querySelector('.icon, svg') || pwdToggle;
+        setSvgIcon(icon, isPwd ? 'visibility_off' : 'visibility');
+        const label = isPwd ? 'Hide password' : 'Show password';
+        pwdToggle.setAttribute('aria-label', label);
+        pwdToggle.setAttribute('title', label);
       }
       return;
     }
@@ -3340,31 +3344,10 @@
     });
   }
 
-  function initPasswordToggle() {
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('.input-reveal-btn');
-      if (!btn) return;
-      const wrap = btn.closest('.input-icon-wrap') || btn.parentElement;
-      if (!wrap) return;
-      const input = wrap.querySelector('input');
-      if (!input) return;
-      const isPassword = input.type === 'password';
-      input.type = isPassword ? 'text' : 'password';
-      setSvgIcon(btn, isPassword ? 'visibility_off' : 'visibility');
-      const label = isPassword ? 'Hide password' : 'Show password';
-      btn.setAttribute('aria-label', label);
-      btn.setAttribute('title', label);
-      if (window.WangAudio && typeof window.WangAudio.playTap === 'function') {
-        window.WangAudio.playTap();
-      }
-    });
-  }
-
   initTurboSettings();
   initServiceWorker();
   initConnectivityListeners();
   initToasts();
-  initPasswordToggle();
   syncAppbar();
   syncThemeUI();
   syncSoundUI();

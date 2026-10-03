@@ -13,6 +13,7 @@ from django.db.models import Sum, Q, Max, Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import timedelta, date, datetime, time
 import calendar
 import json
@@ -2062,8 +2063,29 @@ def api_scan_receipt(request):
     return JsonResponse(response_data)
 
 
+def _get_safe_redirect(request, default="dashboard"):
+    next_url = request.POST.get("next") or request.GET.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}
+    ):
+        return redirect(next_url)
+    return redirect(default)
+
+
 class WangLoginView(auth_views.LoginView):
     template_name = "registration/login.html"
+    redirect_authenticated_user = True
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        remember_me = self.request.POST.get("remember_me")
+        if remember_me in ("1", "on", "true", "True", True):
+            # 90-day extended persistent mobile session
+            self.request.session.set_expiry(60 * 60 * 24 * 90)
+        else:
+            # Browser session (expires when browser is closed)
+            self.request.session.set_expiry(0)
+        return response
 
     def post(self, request, *args, **kwargs):
         # 1. Cloudflare Turnstile CAPTCHA verification
@@ -2120,7 +2142,7 @@ class WangLoginView(auth_views.LoginView):
 
 def signup_view(request):
     if request.user.is_authenticated:
-        return redirect("dashboard")
+        return _get_safe_redirect(request)
 
     if request.method == "POST":
         is_valid, error_msg = verify_turnstile(request)
@@ -2148,7 +2170,9 @@ def signup_view(request):
 
 
 def signup_pending_view(request):
-    username = request.session.get("registered_username", "")
+    if request.user.is_authenticated:
+        return _get_safe_redirect(request)
+    username = request.session.get("registered_username") or request.GET.get("username", "")
     return render(request, "registration/signup_pending.html", {"registered_username": username})
 
 
