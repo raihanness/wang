@@ -112,7 +112,11 @@
               data-sub-amount="{{ s.amount|floatformat:0 }}"
               data-sub-cycle="{{ s.get_cycle_display }}"
               data-sub-wallet="{{ s.wallet.id|default:'' }}"
-              data-sub-default-note="{% if s.total_installments %}{{ s.name }} installment ({{ s.already_paid_installments|default:0|add:s.payments.count|add:1 }}/{{ s.total_installments }}){% else %}{{ s.name }} payment{% endif %}"
+              data-sub-total-installments="{{ s.total_installments|default:'' }}"
+              data-sub-remaining-amount="{{ s.remaining_amount|default:''|floatformat:0 }}"
+              data-sub-target-amount="{{ s.target_amount|default:''|floatformat:0 }}"
+              data-sub-paid-count="{{ s.installments_progress.paid_count|default:s.payments.count }}"
+              data-sub-default-note="{% if s.total_installments %}{{ s.name }} installment ({{ s.installments_progress.paid_count|default:s.payments.count|add:1 }}/{{ s.total_installments }}){% else %}{{ s.name }} payment{% endif %}"
               title="Record this payment now" aria-label="Pay {{ s.name }}">
               <svg class="icon" style="font-size:12px"><use href="#icon-check"></use></svg>
               <span>Pay</span>

@@ -119,6 +119,11 @@
       amountEl.dataset.rawBalance = raw;
     }
 
+    const savingsGoalEl = document.getElementById('hero-savings-goal');
+    if (savingsGoalEl) {
+      savingsGoalEl.style.display = (mode === 'savings') ? 'flex' : 'none';
+    }
+
     syncBalancePrivacy();
   }
 
@@ -338,7 +343,7 @@
 
   function syncSheetStateWithAndroid() {
     if (!window.AndroidBridge || !window.AndroidBridge.setScrollableActive) return;
-    const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .confirm-sheet.open, .picker.open, .date-sheet.open, .month-popover.open, #lightbox.active, .cat-tx-sheet.open');
+    const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .confirm-sheet.open, .picker.open, .date-sheet.open, .month-popover.open, #lightbox.active, .cat-tx-sheet.open, .goal-sheet.open, .receipt-slip-sheet.open');
     window.AndroidBridge.setScrollableActive(!!anyOpen);
   }
   window.syncSheetStateWithAndroid = syncSheetStateWithAndroid;
@@ -654,6 +659,7 @@
     submitIcon = null,
     btnClass = 'btn-delete',
     onConfirm = null,
+    keepParentSheet = false,
   } = {}) {
     const sheet = document.getElementById('confirm-sheet');
     const overlay = document.getElementById('confirm-sheet-overlay');
@@ -693,8 +699,13 @@
 
     if (formEl) {
       unlockFormSubmission(formEl);
-      formEl.action = actionUrl;
+      formEl.action = actionUrl || '';
       formEl._onConfirm = onConfirm;
+      if (keepParentSheet) {
+        formEl.dataset.keepParentSheet = '1';
+      } else {
+        delete formEl.dataset.keepParentSheet;
+      }
     }
 
     sheet.classList.add('open');
@@ -729,14 +740,19 @@
     const form = document.getElementById('confirm-sheet-form');
     if (form && !form.dataset.bound) {
       form.dataset.bound = '1';
-      form.addEventListener('submit', () => {
+      form.addEventListener('submit', (e) => {
         playSound('delete');
+        if (!form.action || form.action === window.location.href || form.action.endsWith('#') || form.getAttribute('action') === '') {
+          e.preventDefault();
+        }
         if (form._onConfirm) {
           try { form._onConfirm(); } catch (err) { }
         }
         closeConfirmSheet();
-        closeDetailSheet();
-        closeSheet();
+        if (form.dataset.keepParentSheet !== '1') {
+          closeDetailSheet();
+          closeSheet();
+        }
       });
     }
   }
@@ -831,6 +847,17 @@
       else setChipState(chip, 'neutral');
     });
 
+    // Sync Receipt / Attachment chip
+    const hasReceiptParam = trigger?.dataset.hasReceipt || urlParams.get('has_receipt') || urlParams.get('receipt');
+    const receiptChip = document.getElementById('filter-receipt-chip');
+    if (receiptChip) {
+      if (hasReceiptParam === '1' || hasReceiptParam === 'true') {
+        setChipState(receiptChip, 'include');
+      } else {
+        setChipState(receiptChip, 'neutral');
+      }
+    }
+
     updateCategoryFilterVisibility();
 
     // Sync Date inputs
@@ -899,6 +926,9 @@
     const catGroup = document.getElementById('filter-cat-group');
     if (catGroup) catGroup.addEventListener('click', handleChipClick);
 
+    const receiptGroup = document.getElementById('filter-receipt-group');
+    if (receiptGroup) receiptGroup.addEventListener('click', handleChipClick);
+
     // Date range presets
     sheet.querySelectorAll('.filter-preset-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -965,6 +995,8 @@
         const excWallets = Array.from(document.querySelectorAll('#filter-wallet-group .filter-choice-chip[data-state="exclude"]')).map(c => c.dataset.wallet).filter(Boolean);
         const incCats = Array.from(document.querySelectorAll('#filter-cat-group .filter-choice-chip[data-state="include"]')).map(c => c.dataset.category).filter(Boolean);
         const excCats = Array.from(document.querySelectorAll('#filter-cat-group .filter-choice-chip[data-state="exclude"]')).map(c => c.dataset.category).filter(Boolean);
+        const receiptChip = document.getElementById('filter-receipt-chip');
+        const hasReceipt = (receiptChip && receiptChip.dataset.state === 'include') ? '1' : '';
         const fromVal = document.getElementById('filter-date-from')?.value || '';
         const toVal = document.getElementById('filter-date-to')?.value || '';
 
@@ -980,6 +1012,7 @@
         if (excWallets.length) params.set('wallet_exclude', excWallets.join(','));
         if (incCats.length) params.set('category', incCats.join(','));
         if (excCats.length) params.set('category_exclude', excCats.join(','));
+        if (hasReceipt) params.set('has_receipt', '1');
 
         if (fromVal) params.set('date_from', fromVal);
         if (toVal) params.set('date_to', toVal);
@@ -1017,6 +1050,7 @@
     }
     bindConfirmSheet();
     bindFilterSheet();
+    bindReceiptSlipSheet();
   }
 
   function openDebtPaySheet(debtId, person, remaining, kind) {
@@ -1147,7 +1181,7 @@
   }
   window.closeSubHistorySheet = closeSubHistorySheet;
 
-  function openSubPaySheet(subId, name, amount, cycle, walletId, defaultNote) {
+  function openSubPaySheet(subId, name, amount, cycle, walletId, defaultNote, totalInstallments, remainingAmount, targetAmount, paidCount) {
     const sheet = document.getElementById('sub-pay-sheet');
     const overlay = document.getElementById('sub-pay-overlay');
     const form = document.getElementById('sub-pay-form');
@@ -1156,22 +1190,119 @@
     const amountInput = document.getElementById('sub-pay-amount');
     const walletSelect = document.getElementById('sub-pay-wallet');
     const noteInput = document.getElementById('sub-pay-note');
+    const badgeEl = document.getElementById('sub-pay-progress-badge');
+    const chipsWrap = document.getElementById('sub-pay-chips-wrap');
+    const chipsContainer = document.getElementById('sub-pay-chips');
     if (!sheet || !overlay || !form) return;
 
     unlockFormSubmission(form);
     form.action = `/subscriptions/${subId}/pay/`;
     if (nameEl) nameEl.textContent = name || 'Subscription';
     const cleanNum = parseFloat(String(amount).replace(/[^0-9.]/g, '')) || 0;
-    if (infoEl) infoEl.textContent = `${cycle || 'Recurring'} · Expected: Rp${cleanNum.toLocaleString('id-ID')}`;
+    const remNum = parseFloat(String(remainingAmount).replace(/[^0-9.]/g, '')) || 0;
+    const tgtNum = parseFloat(String(targetAmount).replace(/[^0-9.]/g, '')) || 0;
+    const totalInst = parseInt(totalInstallments, 10) || 0;
+    const curPaidCount = parseInt(paidCount, 10) || 0;
+
+    let infoText = `${cycle || 'Recurring'} · Expected: Rp${cleanNum.toLocaleString('id-ID')}`;
+    if (remNum > 0) {
+      infoText += ` · Left: Rp${remNum.toLocaleString('id-ID')}`;
+    }
+    if (infoEl) infoEl.textContent = infoText;
+
+    if (badgeEl) {
+      if (totalInst > 0) {
+        badgeEl.textContent = `${curPaidCount}/${totalInst} paid`;
+        badgeEl.style.display = 'inline-block';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+    }
+
+    // Smart default payment amount: if remaining balance is smaller than 1 cycle, default to remaining balance
+    let initialAmount = cleanNum;
+    if (remNum > 0 && remNum < cleanNum) {
+      initialAmount = remNum;
+    }
     if (amountInput) {
-      amountInput.value = cleanNum >= 0 ? cleanNum : '';
+      amountInput.value = initialAmount > 0 ? initialAmount : '';
       setTimeout(() => amountInput.focus(), 120);
     }
     if (walletSelect && walletId) {
       walletSelect.value = String(walletId);
     }
     if (noteInput) {
-      noteInput.value = defaultNote || `${name} payment`;
+      if (remNum > 0 && remNum < cleanNum) {
+        noteInput.value = `${name} final settlement`;
+      } else {
+        noteInput.value = defaultNote || `${name} payment`;
+      }
+    }
+
+    // Dynamic Preset Multiplier Chips
+    if (chipsWrap && chipsContainer) {
+      chipsContainer.innerHTML = '';
+      const chips = [];
+
+      if (remNum > 0 && remNum < cleanNum) {
+        chips.push({
+          label: `Final Settlement · Rp${remNum.toLocaleString('id-ID')}`,
+          amount: remNum,
+          note: `${name} final payoff`
+        });
+      } else if (cleanNum > 0) {
+        chips.push({
+          label: `1x · Rp${cleanNum.toLocaleString('id-ID')}`,
+          amount: cleanNum,
+          note: totalInst ? `${name} installment (${curPaidCount + 1}/${totalInst})` : `${name} payment`
+        });
+
+        const amt2x = cleanNum * 2;
+        if (!remNum || remNum >= amt2x) {
+          chips.push({
+            label: `2x · Rp${amt2x.toLocaleString('id-ID')}`,
+            amount: amt2x,
+            note: totalInst ? `${name} installment (2 cycles / paid ahead)` : `${name} 2x payment`
+          });
+        }
+
+        const amt3x = cleanNum * 3;
+        if (!remNum || remNum >= amt3x) {
+          chips.push({
+            label: `3x · Rp${amt3x.toLocaleString('id-ID')}`,
+            amount: amt3x,
+            note: totalInst ? `${name} installment (3 cycles / paid ahead)` : `${name} 3x payment`
+          });
+        }
+
+        if (remNum > cleanNum && remNum !== amt2x && remNum !== amt3x) {
+          chips.push({
+            label: `Pay Full · Rp${remNum.toLocaleString('id-ID')}`,
+            amount: remNum,
+            note: `${name} full settlement`
+          });
+        }
+      }
+
+      if (chips.length > 0) {
+        chips.forEach((c, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'sub-pay-chip' + (idx === 0 ? ' active' : '');
+          btn.textContent = c.label;
+          btn.addEventListener('click', () => {
+            chipsContainer.querySelectorAll('.sub-pay-chip').forEach(el => el.classList.remove('active'));
+            btn.classList.add('active');
+            if (amountInput) amountInput.value = c.amount;
+            if (noteInput && c.note) noteInput.value = c.note;
+            if (window.wangPlaySound) window.wangPlaySound('tap');
+          });
+          chipsContainer.appendChild(btn);
+        });
+        chipsWrap.style.display = 'block';
+      } else {
+        chipsWrap.style.display = 'none';
+      }
     }
 
     sheet.classList.add('open');
@@ -1341,7 +1472,7 @@
     const o = document.getElementById('cat-tx-overlay');
     if (s) s.classList.remove('open');
     if (o) o.classList.remove('show');
-    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open')) {
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open, .goal-sheet.open')) {
       document.body.style.overflow = '';
     }
     if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
@@ -1349,6 +1480,716 @@
     }
   }
   window.closeCatTxSheet = closeCatTxSheet;
+
+  function closeGoalSheet() {
+    const s = document.getElementById('goal-sheet');
+    const o = document.getElementById('goal-sheet-overlay');
+    if (s) s.classList.remove('open');
+    if (o) {
+      o.classList.remove('show');
+      o.classList.remove('open');
+    }
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open, .cat-tx-sheet.open, .receipt-slip-sheet.open')) {
+      document.body.style.overflow = '';
+    }
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeGoalSheet = closeGoalSheet;
+
+  function formatReceiptMoney(amount) {
+    const num = Math.round(Number(amount) || 0);
+    return Math.abs(num).toLocaleString('id-ID');
+  }
+
+  function renderReceiptSlipDOM(data) {
+    if (!data) return;
+    try {
+      const elPeriod = document.getElementById('r-slip-period');
+      const elUser = document.getElementById('r-slip-user');
+      const elSlipNo = document.getElementById('r-slip-slipno');
+      const elDays = document.getElementById('r-slip-days');
+      const elInflow = document.getElementById('r-slip-inflow');
+      const elOutflow = document.getElementById('r-slip-outflow');
+      const elNetSavings = document.getElementById('r-slip-netsavings');
+      const elSavingsRate = document.getElementById('r-slip-savingsrate');
+      const elCatList = document.getElementById('r-slip-catlist');
+      const elDailyAvg = document.getElementById('r-slip-dailyavg');
+      const elTxCount = document.getElementById('r-slip-txcount');
+      const elReceiptCount = document.getElementById('r-slip-receiptcount');
+      const elBarcode = document.getElementById('r-slip-barcode');
+      const elTimestamp = document.getElementById('r-slip-timestamp');
+
+      if (elPeriod) elPeriod.textContent = data.month_name || 'CURRENT MONTH';
+      if (elUser) elUser.textContent = `@${data.user_name || 'user'}`;
+      if (elSlipNo) elSlipNo.textContent = `#${data.receipt_no || 'WANG-STATEMENT'}`;
+      if (elDays) elDays.textContent = `${data.days_in_month || 30} DAYS`;
+
+      if (elInflow) elInflow.textContent = `+Rp${formatReceiptMoney(data.total_income)}`;
+      if (elOutflow) elOutflow.textContent = `-Rp${formatReceiptMoney(data.total_expense)}`;
+
+      if (elNetSavings) {
+        const isPos = (data.net_savings || 0) >= 0;
+        elNetSavings.textContent = `${isPos ? '+' : ''}Rp${formatReceiptMoney(data.net_savings)}`;
+        elNetSavings.className = `r-val r-bold ${isPos ? 'r-inc' : 'r-exp'}`;
+      }
+
+      if (elSavingsRate) {
+        elSavingsRate.textContent = `${data.savings_rate || '0.0'}% SAVED`;
+      }
+
+      if (elCatList) {
+        if (data.top_categories && data.top_categories.length > 0) {
+          elCatList.innerHTML = data.top_categories.map(c => `
+            <div class="receipt-cat-row">
+              <div class="r-cat-left">
+                <span class="r-cat-dot" style="background:${c.color || '#FF8A65'}!important"></span>
+                <span class="r-cat-name">${escapeHtml(c.name || '')}</span>
+              </div>
+              <div class="r-cat-dots-filler"></div>
+              <div class="r-cat-right">
+                <span class="r-cat-amt">Rp${formatReceiptMoney(c.total)}</span>
+                <span class="r-cat-pct">(${c.pct}%)</span>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          elCatList.innerHTML = '<div class="receipt-empty-cats">No expenses recorded for this month.</div>';
+        }
+      }
+
+      if (elDailyAvg) elDailyAvg.textContent = `Rp${formatReceiptMoney(data.daily_avg)} / day`;
+      if (elTxCount) elTxCount.textContent = `${data.tx_count || 0} entries`;
+      if (elReceiptCount) elReceiptCount.textContent = `${data.receipts_count || 0} photos`;
+      if (elBarcode) elBarcode.textContent = `* ${data.receipt_no || 'WANG-RECAP'} *`;
+      if (elTimestamp) elTimestamp.textContent = `ISSUED ${data.issued_at || ''}`;
+    } catch (err) {
+      console.error('Error rendering receipt slip DOM:', err);
+    }
+  }
+  window.renderReceiptSlipDOM = renderReceiptSlipDOM;
+
+  function syncReceiptSlipData(targetMonth) {
+    const activeMonth = (targetMonth ||
+      document.querySelector('#tx-history')?.dataset?.month ||
+      document.querySelector('#graphs-frame')?.dataset?.month ||
+      new URLSearchParams(window.location.search).get('month') ||
+      '').trim();
+
+    // 1. Check memory cache first
+    if (window._wangReceiptSlipCache && activeMonth && window._wangReceiptSlipCache[activeMonth]) {
+      renderReceiptSlipDOM(window._wangReceiptSlipCache[activeMonth]);
+      return;
+    }
+
+    // 2. Check DOM script tag
+    const script = document.getElementById('receipt-slip-data');
+    if (script && script.textContent) {
+      try {
+        const data = JSON.parse(script.textContent);
+        if (data) {
+          const slipMonthCode = data.receipt_no ? data.receipt_no.split('-')[1] : null; // e.g. 202609
+          const expectedMonthCode = activeMonth ? activeMonth.replace('-', '') : null;
+
+          if (!expectedMonthCode || !slipMonthCode || slipMonthCode === expectedMonthCode) {
+            if (!window._wangReceiptSlipCache) window._wangReceiptSlipCache = {};
+            if (activeMonth) window._wangReceiptSlipCache[activeMonth] = data;
+            renderReceiptSlipDOM(data);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed parsing receipt-slip-data script:', e);
+      }
+    }
+
+    // 3. If script is absent or not matching active month, fetch from JSON API
+    const url = activeMonth ? `/api/receipt-slip/?month=${encodeURIComponent(activeMonth)}` : '/api/receipt-slip/';
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        if (data) {
+          if (!window._wangReceiptSlipCache) window._wangReceiptSlipCache = {};
+          if (activeMonth) {
+            window._wangReceiptSlipCache[activeMonth] = data;
+          } else if (data.receipt_no) {
+            const mCode = data.receipt_no.split('-')[1];
+            if (mCode && mCode.length === 6) {
+              const yMonth = `${mCode.slice(0, 4)}-${mCode.slice(4, 6)}`;
+              window._wangReceiptSlipCache[yMonth] = data;
+            }
+          }
+          renderReceiptSlipDOM(data);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching receipt slip API data:', err);
+      });
+  }
+  window.syncReceiptSlipData = syncReceiptSlipData;
+
+  // ── Monthly Receipt Slip Bottom Sheet Modal & Exporters ──────
+  function openReceiptSlipSheet(targetMonth) {
+    syncReceiptSlipData(targetMonth);
+    const sheet = document.getElementById('receipt-slip-sheet');
+    const overlay = document.getElementById('receipt-slip-overlay');
+    if (!sheet || !overlay) return;
+
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openReceiptSlipSheet = openReceiptSlipSheet;
+
+  function closeReceiptSlipSheet() {
+    const sheet = document.getElementById('receipt-slip-sheet');
+    const overlay = document.getElementById('receipt-slip-overlay');
+    if (sheet) sheet.classList.remove('open');
+    if (overlay) {
+      overlay.classList.remove('show');
+      overlay.classList.remove('open');
+    }
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open, .cat-tx-sheet.open, .goal-sheet.open')) {
+      document.body.style.overflow = '';
+    }
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.closeReceiptSlipSheet = closeReceiptSlipSheet;
+
+  function getReceiptSlipTextSummary() {
+    const paper = document.getElementById('receipt-paper');
+    if (!paper) return '';
+
+    const storeTitle = paper.querySelector('.receipt-store-title')?.textContent?.trim() || 'WANG MONEY TRACKER';
+    const period = paper.querySelector('.receipt-meta-item:nth-child(1) strong')?.textContent?.trim() || 'CURRENT MONTH';
+    const user = paper.querySelector('.receipt-meta-item:nth-child(2) strong')?.textContent?.trim() || '@user';
+    const slipNo = paper.querySelector('.receipt-meta-item:nth-child(3) strong')?.textContent?.trim() || '#WANG-STATEMENT';
+    const days = paper.querySelector('.receipt-meta-item:nth-child(4) strong')?.textContent?.trim() || '30 DAYS';
+
+    const inflow = paper.querySelector('.r-inc')?.textContent?.trim() || '+Rp0';
+    const outflow = paper.querySelector('.r-exp')?.textContent?.trim() || '-Rp0';
+    const netSavings = paper.querySelector('.receipt-hero-row .r-val')?.textContent?.trim() || 'Rp0';
+    const savingsRate = paper.querySelector('.r-badge')?.textContent?.trim() || '0% SAVED';
+
+    const catRows = Array.from(paper.querySelectorAll('.receipt-cat-row')).map((row, i) => {
+      const name = row.querySelector('.r-cat-name')?.textContent?.trim() || '';
+      const amt = row.querySelector('.r-cat-amt')?.textContent?.trim() || '';
+      const pct = row.querySelector('.r-cat-pct')?.textContent?.trim() || '';
+      return `  ${i + 1}. ${name}: ${amt} ${pct}`;
+    });
+
+    const dailyAvg = paper.querySelector('.receipt-metrics-section .receipt-line-item:nth-child(1) .r-val')?.textContent?.trim() || 'Rp0 / day';
+    const entries = paper.querySelector('.receipt-metrics-section .receipt-line-item:nth-child(2) .r-val')?.textContent?.trim() || '0 entries';
+    const receipts = paper.querySelector('.receipt-metrics-section .receipt-line-item:nth-child(3) .r-val')?.textContent?.trim() || '0 photos';
+    const timestamp = paper.querySelector('.receipt-timestamp')?.textContent?.trim() || '';
+
+    let text = `🧾 ${storeTitle}\n`;
+    text += `MONTHLY FINANCIAL STATEMENT\n`;
+    text += `------------------------------------\n`;
+    text += `Period : ${period} (${days})\n`;
+    text += `User   : ${user}\n`;
+    text += `Slip   : ${slipNo}\n`;
+    text += `------------------------------------\n`;
+    text += `📈 Inflow  (In)  : ${inflow}\n`;
+    text += `📉 Outflow (Out) : ${outflow}\n`;
+    text += `✨ Net Savings   : ${netSavings} (${savingsRate})\n`;
+    text += `------------------------------------\n`;
+    if (catRows.length > 0) {
+      text += `🏆 Top Expense Categories:\n${catRows.join('\n')}\n`;
+      text += `------------------------------------\n`;
+    }
+    text += `📊 Daily Spend Avg : ${dailyAvg}\n`;
+    text += `📝 Entries Logged  : ${entries}\n`;
+    text += `📷 Receipts Saved  : ${receipts}\n`;
+    text += `------------------------------------\n`;
+    text += `*** TRACKED MINDFULLY WITH WANG ***\n`;
+    if (timestamp) text += `${timestamp}\n`;
+
+    return text;
+  }
+
+  function exportReceiptSlipCanvas() {
+    const paper = document.getElementById('receipt-paper');
+    if (!paper) return;
+
+    // Collect data points from DOM
+    const storeTitle = paper.querySelector('.receipt-store-title')?.textContent?.trim() || 'WANG MONEY TRACKER';
+    const period = paper.querySelector('.receipt-meta-item:nth-child(1) strong')?.textContent?.trim() || 'CURRENT MONTH';
+    const user = paper.querySelector('.receipt-meta-item:nth-child(2) strong')?.textContent?.trim() || '@user';
+    const slipNo = paper.querySelector('.receipt-meta-item:nth-child(3) strong')?.textContent?.trim() || '#WANG-STATEMENT';
+    const days = paper.querySelector('.receipt-meta-item:nth-child(4) strong')?.textContent?.trim() || '30 DAYS';
+
+    const inflow = paper.querySelector('.r-inc')?.textContent?.trim() || '+Rp0';
+    const outflow = paper.querySelector('.r-exp')?.textContent?.trim() || '-Rp0';
+    const netSavings = paper.querySelector('.receipt-hero-row .r-val')?.textContent?.trim() || 'Rp0';
+    const savingsRate = paper.querySelector('.r-badge')?.textContent?.trim() || '0% SAVED';
+
+    const catRows = Array.from(paper.querySelectorAll('.receipt-cat-row')).map(row => ({
+      name: row.querySelector('.r-cat-name')?.textContent?.trim() || '',
+      amt: row.querySelector('.r-cat-amt')?.textContent?.trim() || '',
+      pct: row.querySelector('.r-cat-pct')?.textContent?.trim() || '',
+      color: row.querySelector('.r-cat-dot')?.style.backgroundColor || '#FF8A65',
+    }));
+
+    const dailyAvg = paper.querySelector('.receipt-metrics-section .receipt-line-item:nth-child(1) .r-val')?.textContent?.trim() || 'Rp0 / day';
+    const entries = paper.querySelector('.receipt-metrics-section .receipt-line-item:nth-child(2) .r-val')?.textContent?.trim() || '0 entries';
+    const receipts = paper.querySelector('.receipt-metrics-section .receipt-line-item:nth-child(3) .r-val')?.textContent?.trim() || '0 photos';
+    const timestamp = paper.querySelector('.receipt-timestamp')?.textContent?.trim() || '';
+
+    // Canvas setup for crisp retina output (width 420px, scale 2x)
+    const scale = 2;
+    const baseW = 420;
+
+    // Calculate dynamic height based on categories
+    let baseH = 610 + (catRows.length * 22);
+    if (catRows.length === 0) baseH += 20;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = baseW * scale;
+    canvas.height = baseH * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    // Background Canvas Frame
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const bgPaper = isDark ? '#1C1B19' : '#FFFDF9';
+    const textMain = isDark ? '#EDE8E1' : '#2D2A26';
+    const textMuted = isDark ? '#9E9E9E' : '#757575';
+    const lineDashed = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.18)';
+    const colorPrimary = '#FF8A65';
+    const colorInc = isDark ? '#7BD3A4' : '#2E7D32';
+    const colorExp = isDark ? '#FF8A65' : '#D32F2F';
+
+    // Draw Paper Body
+    ctx.fillStyle = bgPaper;
+    ctx.fillRect(0, 0, baseW, baseH);
+
+    // Draw Top Jagged Sawtooth Tear
+    const toothCount = 28;
+    const toothW = baseW / toothCount;
+    const toothH = 8;
+    ctx.fillStyle = isDark ? '#11100F' : '#FFF7F3';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    for (let i = 0; i < toothCount; i++) {
+      ctx.lineTo((i * toothW) + (toothW / 2), toothH);
+      ctx.lineTo((i + 1) * toothW, 0);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw Bottom Jagged Sawtooth Tear
+    ctx.beginPath();
+    ctx.moveTo(0, baseH);
+    for (let i = 0; i < toothCount; i++) {
+      ctx.lineTo((i * toothW) + (toothW / 2), baseH - toothH);
+      ctx.lineTo((i + 1) * toothW, baseH);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    let curY = 28;
+
+    // Site Logo with rounded clip & subtle border
+    const logoImg = document.getElementById('receipt-brand-logo-img') || document.querySelector('.brand-logo-img');
+    const logoSize = 42;
+    const logoX = (baseW - logoSize) / 2;
+
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(logoX, curY, logoSize, logoSize, 10);
+      } else {
+        ctx.rect(logoX, curY, logoSize, logoSize);
+      }
+      ctx.clip();
+      ctx.drawImage(logoImg, logoX, curY, logoSize, logoSize);
+      ctx.restore();
+
+      ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(logoX, curY, logoSize, logoSize, 10);
+      } else {
+        ctx.rect(logoX, curY, logoSize, logoSize);
+      }
+      ctx.stroke();
+    } else {
+      // Fallback: rounded badge
+      ctx.fillStyle = colorPrimary;
+      const badgeW = 68;
+      const badgeH = 20;
+      const badgeX = (baseW - badgeW) / 2;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(badgeX, curY, badgeW, badgeH, 4);
+      } else {
+        ctx.rect(badgeX, curY, badgeW, badgeH);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('WANG', baseW / 2, curY + 14);
+    }
+
+    // Gap to text below it
+    curY += logoSize + 16;
+
+    // Store Title
+    ctx.fillStyle = textMain;
+    ctx.font = '800 16px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(storeTitle, baseW / 2, curY);
+
+    curY += 16;
+
+    // Subtitle
+    ctx.fillStyle = textMuted;
+    ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('MONTHLY FINANCIAL STATEMENT', baseW / 2, curY);
+
+    curY += 22;
+
+    // Meta Grid (Period, User, Slip No, Days)
+    ctx.font = '11px "Courier New", Courier, monospace';
+    const leftColX = 28;
+    const rightColX = baseW - 28;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMuted;
+    ctx.fillText('PERIOD', leftColX, curY);
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(period, leftColX + 55, curY);
+
+    ctx.font = '11px "Courier New", Courier, monospace';
+    ctx.fillStyle = textMuted;
+    ctx.fillText('USER', baseW / 2 + 10, curY);
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(user, baseW / 2 + 50, curY);
+
+    curY += 18;
+
+    ctx.font = '11px "Courier New", Courier, monospace';
+    ctx.fillStyle = textMuted;
+    ctx.fillText('SLIP', leftColX, curY);
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(slipNo, leftColX + 55, curY);
+
+    ctx.font = '11px "Courier New", Courier, monospace';
+    ctx.fillStyle = textMuted;
+    ctx.fillText('DAYS', baseW / 2 + 10, curY);
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(days, baseW / 2 + 50, curY);
+
+    curY += 16;
+
+    function drawDashedLine(y) {
+      ctx.strokeStyle = lineDashed;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(28, y);
+      ctx.lineTo(baseW - 28, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    drawDashedLine(curY);
+    curY += 20;
+
+    // Inflow & Outflow
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMain;
+    ctx.font = '600 12px "Courier New", Courier, monospace';
+    ctx.fillText('TOTAL INFLOW (IN)', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = colorInc;
+    ctx.font = 'bold 12px "Courier New", Courier, monospace';
+    ctx.fillText(inflow, rightColX, curY);
+
+    curY += 20;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMain;
+    ctx.font = '600 12px "Courier New", Courier, monospace';
+    ctx.fillText('TOTAL OUTFLOW (OUT)', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = colorExp;
+    ctx.font = 'bold 12px "Courier New", Courier, monospace';
+    ctx.fillText(outflow, rightColX, curY);
+
+    curY += 14;
+
+    // Dotted inner line
+    ctx.strokeStyle = lineDashed;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(28, curY);
+    ctx.lineTo(baseW - 28, curY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    curY += 18;
+
+    // Net Savings (Hero Row)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 13.5px "Courier New", Courier, monospace';
+    ctx.fillText('NET SAVINGS', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = netSavings.includes('-') ? colorExp : colorInc;
+    ctx.fillText(netSavings, rightColX, curY);
+
+    curY += 20;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMuted;
+    ctx.font = '600 11.5px "Courier New", Courier, monospace';
+    ctx.fillText('SAVINGS RATE', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = colorInc;
+    ctx.font = 'bold 11.5px "Courier New", Courier, monospace';
+    ctx.fillText(savingsRate, rightColX, curY);
+
+    curY += 16;
+    drawDashedLine(curY);
+    curY += 20;
+
+    // Top Categories
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMuted;
+    ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('TOP EXPENSE CATEGORIES', leftColX, curY);
+
+    curY += 16;
+
+    if (catRows.length > 0) {
+      catRows.forEach(c => {
+        // Dot
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.arc(leftColX + 4, curY - 3, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cat Name
+        ctx.fillStyle = textMain;
+        ctx.font = '600 11.5px "Courier New", Courier, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(c.name, leftColX + 14, curY);
+
+        // Cat Amount & Pct
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 11.5px "Courier New", Courier, monospace';
+        ctx.fillText(`${c.amt} (${c.pct})`, rightColX, curY);
+
+        // Dots filler
+        const nameWidth = ctx.measureText(c.name).width;
+        const amtWidth = ctx.measureText(`${c.amt} (${c.pct})`).width;
+        const startDotX = leftColX + 18 + nameWidth;
+        const endDotX = rightColX - amtWidth - 8;
+
+        if (endDotX > startDotX + 10) {
+          ctx.strokeStyle = lineDashed;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([1.5, 3]);
+          ctx.beginPath();
+          ctx.moveTo(startDotX, curY - 3);
+          ctx.lineTo(endDotX, curY - 3);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        curY += 22;
+      });
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = textMuted;
+      ctx.font = 'italic 11px "Courier New", Courier, monospace';
+      ctx.fillText('No expenses recorded for this month.', baseW / 2, curY);
+      curY += 20;
+    }
+
+    curY += 4;
+    drawDashedLine(curY);
+    curY += 20;
+
+    // Activity & Metrics Section
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMuted;
+    ctx.font = '600 11px "Courier New", Courier, monospace';
+    ctx.fillText('DAILY SPEND AVERAGE', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(dailyAvg, rightColX, curY);
+
+    curY += 18;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMuted;
+    ctx.font = '600 11px "Courier New", Courier, monospace';
+    ctx.fillText('TRANSACTIONS LOGGED', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(entries, rightColX, curY);
+
+    curY += 18;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textMuted;
+    ctx.font = '600 11px "Courier New", Courier, monospace';
+    ctx.fillText('RECEIPTS ATTACHED', leftColX, curY);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.fillText(receipts, rightColX, curY);
+
+    curY += 16;
+    drawDashedLine(curY);
+    curY += 22;
+
+    // Barcode stripes
+    const bcW = baseW * 0.68;
+    const bcH = 26;
+    const bcX = (baseW - bcW) / 2;
+    ctx.fillStyle = textMain;
+    let bX = bcX;
+    const barPattern = [2, 1, 3, 1, 1, 2, 4, 1, 2, 2, 1, 3, 2, 1, 4, 1, 2, 1, 3, 2, 1, 2, 3, 1, 4, 2, 1, 3, 1, 2, 4, 1, 2, 3];
+    let patIdx = 0;
+    while (bX < bcX + bcW - 4) {
+      const bWidth = barPattern[patIdx % barPattern.length] || 2;
+      const bGap = (barPattern[(patIdx + 1) % barPattern.length] || 2) * 0.9;
+      ctx.fillRect(bX, curY, bWidth, bcH);
+      bX += bWidth + bGap;
+      patIdx++;
+    }
+
+    curY += bcH + 12;
+
+    // Barcode Text
+    ctx.textAlign = 'center';
+    ctx.fillStyle = textMain;
+    ctx.font = 'bold 10px "Courier New", Courier, monospace';
+    ctx.fillText(`* ${slipNo.replace('#', '')} *`, baseW / 2, curY);
+
+    curY += 16;
+
+    // Motto & Timestamp
+    ctx.fillStyle = textMuted;
+    ctx.font = 'bold 9.5px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('*** THANK YOU FOR TRACKING MINDFULLY ***', baseW / 2, curY);
+
+    curY += 14;
+    if (timestamp) {
+      ctx.font = '9px "Courier New", Courier, monospace';
+      ctx.fillText(timestamp, baseW / 2, curY);
+    }
+
+    // Convert to Image and Trigger Download
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const filename = `wang-statement-${period.replace(/\s+/g, '-').toLowerCase()}.png`;
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      playSound('cash');
+      showToast('Receipt slip downloaded! 🧾', 'success', 3000);
+    } catch (err) {
+      console.error('Failed to export receipt slip:', err);
+      showToast('Could not save image — try copying text', 'error', 3500);
+    }
+  }
+
+  function bindReceiptSlipSheet() {
+    const sheet = document.getElementById('receipt-slip-sheet');
+    const overlay = document.getElementById('receipt-slip-overlay');
+    if (!sheet || sheet.dataset.bound) return;
+    sheet.dataset.bound = '1';
+
+    const closeBtn = document.getElementById('slip-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        playSound('tap');
+        closeReceiptSlipSheet();
+      });
+    }
+
+    if (overlay) {
+      overlay.addEventListener('click', () => {
+        closeReceiptSlipSheet();
+      });
+    }
+
+    const downloadBtn = document.getElementById('slip-download-btn');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        playSound('tap');
+        exportReceiptSlipCanvas();
+      });
+    }
+
+    const copyBtn = document.getElementById('slip-copy-btn');
+    const copyHeaderBtn = document.getElementById('slip-copy-header-btn');
+    const handleCopy = () => {
+      playSound('tap');
+      const text = getReceiptSlipTextSummary();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('Statement summary copied to clipboard! 📋', 'success', 2500);
+        }).catch(() => {
+          showToast('Failed to copy text to clipboard', 'error', 3000);
+        });
+      } else {
+        showToast('Clipboard not accessible', 'warning', 3000);
+      }
+    };
+
+    if (copyBtn) copyBtn.addEventListener('click', handleCopy);
+    if (copyHeaderBtn) copyHeaderBtn.addEventListener('click', handleCopy);
+
+    const shareBtn = document.getElementById('slip-share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => {
+        playSound('tap');
+        const text = getReceiptSlipTextSummary();
+        if (navigator.share) {
+          navigator.share({
+            title: 'Wang Monthly Receipt Slip',
+            text: text,
+          }).catch((err) => {
+            if (err.name !== 'AbortError') {
+              handleCopy();
+            }
+          });
+        } else {
+          handleCopy();
+        }
+      });
+    }
+  }
 
   function resetOverlays() {
     document.body.style.overflow = '';
@@ -1366,6 +2207,8 @@
     closeSubPaySheet();
     closeSubHistorySheet();
     closeCatTxSheet();
+    closeGoalSheet();
+    closeReceiptSlipSheet();
     if (window.wangResetSheet) window.wangResetSheet();
     syncSheetStateWithAndroid();
   }
@@ -1686,7 +2529,7 @@
 
             let momBadgeHtml = '';
             if (p.is_new) {
-              momBadgeHtml = `<span class="mom-badge mom-badge-new" title="New category this month">New ★</span>`;
+              momBadgeHtml = `<span class="mom-badge mom-badge-new" title="New category this month"><svg class="icon" style="font-size:10px;vertical-align:-1px"><use href="#icon-star"></use></svg> New</span>`;
             } else if (p.pct_change !== null && p.pct_change !== undefined) {
               const sign = p.pct_change > 0 ? '+' : '';
               const arrow = p.pct_change > 0 ? '↗' : (p.pct_change < 0 ? '↘' : '→');
@@ -2033,7 +2876,7 @@
   }
   window.openSwipeRow = openSwipeRow;
   window.closeSwipeRow = closeSwipeRow;
-  window.closeAllSwipeRows = function() {
+  window.closeAllSwipeRows = function () {
     document.querySelectorAll('.swipe-row.is-open').forEach((r) => closeSwipeRow(r));
   };
 
@@ -2100,7 +2943,7 @@
         activeSwipeRow.classList.add('is-swiping');
         activeSwipeRow.classList.remove('is-animating');
         if (window.getSelection) {
-          try { window.getSelection().removeAllRanges(); } catch (err) {}
+          try { window.getSelection().removeAllRanges(); } catch (err) { }
         }
       }
     }
@@ -2199,14 +3042,109 @@
     }
   }, { passive: true });
 
+  /* ==========================================================================
+     Horizontal Scroll Suite (Mouse Wheel Conversion + Desktop Drag-to-Scroll)
+     ========================================================================== */
+  const H_SCROLL_SELECTOR = '.sub-strip, .wallet-strip, .filter-presets-strip, .active-filter-strip, .icon-cat-tabs, .month-scroll-track, [data-hscroll]';
+  let activeHScroll = null;
+  let hStartX = 0;
+  let hStartScrollLeft = 0;
+  let isHDragging = false;
+  let justDraggedHScroll = false;
+
+  // 1. Mouse Wheel-to-Horizontal Scroll Conversion
+  document.addEventListener('wheel', (e) => {
+    if (e.shiftKey || e.ctrlKey) return;
+    const container = e.target.closest(H_SCROLL_SELECTOR);
+    if (!container) return;
+
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    if (maxScroll <= 1) return;
+
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      const scrollingForward = e.deltaY > 0;
+      const canScrollForward = container.scrollLeft < maxScroll - 1;
+      const canScrollBackward = container.scrollLeft > 1;
+
+      if ((scrollingForward && canScrollForward) || (!scrollingForward && canScrollBackward)) {
+        e.preventDefault();
+        container.scrollLeft += e.deltaY;
+      }
+    }
+  }, { passive: false });
+
+  // 2. Desktop Mouse Click-and-Drag / Grab-to-Scroll
+  function onHScrollPointerDown(e) {
+    if (e.pointerType === 'touch' || e.button !== 0) return;
+    const container = e.target.closest(H_SCROLL_SELECTOR);
+    if (!container) return;
+
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    if (maxScroll <= 1) return;
+
+    activeHScroll = container;
+    hStartX = e.clientX;
+    hStartScrollLeft = container.scrollLeft;
+    isHDragging = false;
+  }
+
+  function onHScrollPointerMove(e) {
+    if (!activeHScroll) return;
+    const dx = e.clientX - hStartX;
+
+    if (Math.abs(dx) > 5) {
+      if (!isHDragging) {
+        isHDragging = true;
+        activeHScroll.classList.add('is-dragging');
+      }
+      activeHScroll.scrollLeft = hStartScrollLeft - dx;
+    }
+  }
+
+  function onHScrollPointerUp() {
+    if (!activeHScroll) return;
+    if (isHDragging) {
+      justDraggedHScroll = true;
+      activeHScroll.classList.remove('is-dragging');
+      setTimeout(() => { justDraggedHScroll = false; }, 80);
+    }
+    activeHScroll = null;
+    isHDragging = false;
+  }
+
+  if (window.PointerEvent) {
+    document.addEventListener('pointerdown', onHScrollPointerDown, { passive: true });
+    document.addEventListener('pointermove', onHScrollPointerMove, { passive: true });
+    document.addEventListener('pointerup', onHScrollPointerUp, { passive: true });
+    document.addEventListener('pointercancel', onHScrollPointerUp, { passive: true });
+  } else {
+    document.addEventListener('mousedown', onHScrollPointerDown);
+    document.addEventListener('mousemove', onHScrollPointerMove);
+    document.addEventListener('mouseup', onHScrollPointerUp);
+  }
+
   document.addEventListener('turbo:render', () => {
     activeSwipeRow = null;
     isSwipingRow = false;
     justSwipedRow = false;
+    if (activeHScroll) {
+      activeHScroll.classList.remove('is-dragging');
+      activeHScroll = null;
+    }
+    isHDragging = false;
+    justDraggedHScroll = false;
   });
 
   // Delegated click handler
   document.addEventListener('click', (e) => {
+    // Suppress synthetic click on card/button if a horizontal drag gesture just completed
+    if (justDraggedHScroll) {
+      e.preventDefault();
+      e.stopPropagation();
+      justDraggedHScroll = false;
+      return;
+    }
+
     // If clicking on an action button (Edit or Delete), respond with zero delay!
     if (e.target.closest('.swipe-action-btn')) {
       justSwipedRow = false;
@@ -2230,6 +3168,16 @@
       e.preventDefault();
       playSound('tap');
       openFilterSheet();
+      return;
+    }
+
+    // Monthly Receipt Slip trigger
+    const receiptSlipBtn = e.target.closest('.js-open-receipt-slip, #open-receipt-slip-btn, #open-receipt-slip-btn-graphs');
+    if (receiptSlipBtn) {
+      e.preventDefault();
+      playSound('tap');
+      const targetMonth = receiptSlipBtn.dataset.month || receiptSlipBtn.getAttribute('data-month') || null;
+      openReceiptSlipSheet(targetMonth);
       return;
     }
     // Sound toggle
@@ -2356,12 +3304,117 @@
       closeSwipeRow(anyOpenRow);
     }
 
+    // Wallet Direct Transfer / Deposit Button
+    const walletDepositBtn = e.target.closest('.js-wallet-deposit');
+    if (walletDepositBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      playSound('tap');
+      const wid = walletDepositBtn.dataset.id;
+      const wname = walletDepositBtn.dataset.name;
+      const wcolor = walletDepositBtn.dataset.color || '#FFB5A7';
+      const wicon = walletDepositBtn.dataset.icon || 'account_balance_wallet';
+      if (window.openTransferToWallet) {
+        window.openTransferToWallet(wid, wname, wcolor, wicon);
+      }
+      return;
+    }
+
     // Detail sheet open
     const detailBtn = e.target.closest('.js-detail-tx');
     if (detailBtn) {
       e.preventDefault();
       playSound('click');
       openDetailSheet(detailBtn.dataset);
+      return;
+    }
+
+    // Detail duplicate action button
+    const detailDup = e.target.closest('#dt-dup-btn');
+    if (detailDup) {
+      e.preventDefault();
+      playSound('click');
+      const dataToDup = activeDetailData;
+      closeDetailSheet();
+      if (dataToDup && window.duplicateTransaction) {
+        window.duplicateTransaction(dataToDup);
+      }
+      return;
+    }
+
+    // Detail pin as template button
+    const detailPin = e.target.closest('#dt-pin-btn');
+    if (detailPin) {
+      e.preventDefault();
+      playSound('click');
+      const data = activeDetailData;
+      if (!data) return;
+      detailPin.classList.add('is-pinned');
+
+      function getCsrfToken() {
+        const input = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (input && input.value) return input.value;
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+      }
+
+      fetch('/api/templates/create/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCsrfToken(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          kind: data.kind || 'expense',
+          amount: data.amount || '0',
+          category_id: data.catId || data.cat || '',
+          wallet_id: data.walletId || data.wallet || '',
+          note: data.note || '',
+          name: data.note ? data.note.slice(0, 30) : (data.catName || 'Template'),
+        })
+      }).then(r => r.json()).then(res => {
+        if (res.status === 'ok' && res.template) {
+          const t = res.template;
+          const bar = document.getElementById('sheet-templates-bar');
+          const track = document.getElementById('sheet-templates-track');
+          if (bar && track) {
+            bar.style.display = 'block';
+            const chipHtml = `
+              <button type="button" class="template-chip js-template-chip"
+                      data-id="${t.id}"
+                      data-name="${t.name}"
+                      data-kind="${t.kind}"
+                      data-amount="${t.amount}"
+                      data-formatted-amount="${t.formatted_amount}"
+                      data-cat-id="${t.category_id || ''}"
+                      data-wallet-id="${t.wallet_id || ''}"
+                      data-note="${t.note || ''}"
+                      title="1-tap fill ${t.name}">
+                <span class="template-chip-icon" style="background:${t.color}20;color:${t.color}">
+                  <svg class="icon"><use href="#icon-${t.icon}"></use></svg>
+                </span>
+                <div class="template-chip-info">
+                  <strong class="template-chip-title">${t.name}</strong>
+                  <span class="template-chip-amt">${t.formatted_amount}</span>
+                </div>
+                <span class="template-chip-delete js-template-delete" data-id="${t.id}" title="Remove template" aria-label="Remove template">
+                  <svg class="icon"><use href="#icon-close"></use></svg>
+                </span>
+              </button>
+            `;
+            track.insertAdjacentHTML('afterbegin', chipHtml);
+          }
+          if (window.showToastMessage) {
+            window.showToastMessage('Pinned to Quick Templates');
+          } else {
+            const toast = document.createElement('div');
+            toast.className = 'wang-toast';
+            toast.textContent = 'Pinned to Quick Templates';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+          }
+        }
+      }).catch(() => { });
       return;
     }
 
@@ -2561,7 +3614,11 @@
         subPayBtn.dataset.subAmount,
         subPayBtn.dataset.subCycle,
         subPayBtn.dataset.subWallet,
-        subPayBtn.dataset.subDefaultNote
+        subPayBtn.dataset.subDefaultNote,
+        subPayBtn.dataset.subTotalInstallments,
+        subPayBtn.dataset.subRemainingAmount,
+        subPayBtn.dataset.subTargetAmount,
+        subPayBtn.dataset.subPaidCount
       );
       return;
     }
@@ -3051,6 +4108,9 @@
       closeDebtHistorySheet();
       closeSubHistorySheet();
       closeCatTxSheet();
+      closeGoalSheet();
+      closeFilterSheet();
+      closeReceiptSlipSheet();
     }
   });
 
@@ -3061,6 +4121,7 @@
     syncBottomNav();
     syncHeroBalanceUI();
     bindSheet();
+    syncReceiptSlipData();
     initMonthScroll();
     checkAutoEdit();
     mountGraphs();
@@ -3076,6 +4137,7 @@
     syncHeroBalanceUI();
     bindSheet();
     resetOverlays();
+    syncReceiptSlipData();
     initMonthScroll();
     checkAutoEdit();
     mountGraphs();
@@ -3083,6 +4145,9 @@
     initToasts();
     resolveExternalIcons();
     if (window.wangRefreshWallets) window.wangRefreshWallets();
+  });
+  document.addEventListener('turbo:frame-load', () => {
+    syncReceiptSlipData();
   });
 
   // Enter animation after every Turbo content swap (works across Blink, Gecko, and iOS WebKit)
@@ -3329,10 +4394,16 @@
     document.addEventListener('turbo:render', () => {
       unlockAllForms();
       showOfflineBannerIfNeeded();
+      syncReceiptSlipData();
+    });
+
+    document.addEventListener('turbo:frame-render', () => {
+      syncReceiptSlipData();
     });
 
     document.addEventListener('turbo:load', () => {
       unlockAllForms();
+      syncReceiptSlipData();
     });
 
     document.addEventListener('turbo:fetch-request-error', (e) => {
@@ -3354,6 +4425,7 @@
   syncBottomNav();
   syncHeroBalanceUI();
   bindSheet();
+  syncReceiptSlipData();
   initMonthScroll();
   checkAutoEdit();
   mountGraphs();

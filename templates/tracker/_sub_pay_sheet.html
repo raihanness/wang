@@ -10,8 +10,19 @@
   <form method="post" id="sub-pay-form" action="" style="padding:4px 0 10px">
     {% csrf_token %}
     <div style="margin-bottom:14px;background:var(--surface-chip);padding:10px 12px;border-radius:12px">
-      <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px" id="sub-pay-name">Subscription Name</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px" id="sub-pay-name">Subscription Name</div>
+        <span class="sub-badge due-paid" id="sub-pay-progress-badge" style="display:none;font-size:10px"></span>
+      </div>
       <small class="muted" id="sub-pay-info">Monthly · Expected: Rp0</small>
+    </div>
+
+    <!-- Quick Preset Chips -->
+    <div class="sub-pay-chips-wrap" id="sub-pay-chips-wrap" style="display:none;margin-bottom:14px">
+      <small class="muted" style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Quick Multiplier / Pay Ahead</small>
+      <div class="sub-pay-chips" id="sub-pay-chips" style="display:flex;gap:6px;flex-wrap:wrap">
+        <!-- Dynamically injected by openSubPaySheet -->
+      </div>
     </div>
 
     <div class="form-field">

@@ -50,22 +50,26 @@
 
     <div class="form-row" style="margin-top:12px">
       <div>
-        <label for="{{ form.total_installments.id_for_label }}">Total Installments (Optional)</label>
-        {{ form.total_installments }}
-        <!-- <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 12 for 1-year contract</small> -->
+        <label for="{{ form.total_amount.id_for_label }}">Total Target (Optional)</label>
+        {{ form.total_amount }}
+        <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 1.000.000 (total purchase / debt cap)</small>
       </div>
       <div>
-        <label for="{{ form.already_paid_installments.id_for_label }}">Already Paid (Prior)</label>
-        {{ form.already_paid_installments }}
-        <!-- <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 2 if paid before app</small> -->
+        <label for="{{ form.total_installments.id_for_label }}">Total Installments (Optional)</label>
+        {{ form.total_installments }}
+        <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 12 (months / cycles)</small>
       </div>
     </div>
 
     <div class="form-row" style="margin-top:12px">
-      <div style="flex:1">
+      <div>
+        <label for="{{ form.already_paid_installments.id_for_label }}">Already Paid (Prior)</label>
+        {{ form.already_paid_installments }}
+        <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 2 if paid before tracking in app</small>
+      </div>
+      <div>
         <label for="{{ form.end_date.id_for_label }}">End Date (Optional)</label>
         {{ form.end_date }}
-        <!-- <small class="muted" style="display:block;font-size:11px;margin-top:2px">Stop tracking after this date</small> -->
       </div>
     </div>
 

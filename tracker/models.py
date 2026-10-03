@@ -21,6 +21,7 @@ class Wallet(models.Model):
     icon = models.CharField(max_length=32, default="account_balance_wallet")
     color = models.CharField(max_length=7, default="#FFB5A7")
     initial_balance = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    target_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, help_text="Optional savings goal target amount")
     archived = models.BooleanField(default=False)
     include_in_total = models.BooleanField(default=True, help_text="Include in total balance calculation")
     order = models.PositiveIntegerField(default=0)
@@ -42,6 +43,39 @@ class Wallet(models.Model):
         out_transfers = self.out_transfers.aggregate(s=models.Sum("amount"))["s"] or Decimal("0")
         in_transfers = self.in_transfers.aggregate(s=models.Sum("amount"))["s"] or Decimal("0")
         return self.initial_balance + income - expense - out_transfers + in_transfers
+
+    @property
+    def target_progress(self):
+        """Returns percentage of goal achieved (e.g. 65.4) or None if no target."""
+        if not self.target_amount or self.target_amount <= Decimal("0"):
+            return None
+        bal = self.current_balance
+        if bal <= Decimal("0"):
+            return Decimal("0.0")
+        pct = (bal / self.target_amount) * Decimal("100")
+        return round(pct, 1)
+
+    @property
+    def target_progress_clamped(self):
+        """Returns progress percentage clamped between 0 and 100 for visual bar width."""
+        p = self.target_progress
+        if p is None:
+            return 0.0
+        return min(max(float(p), 0.0), 100.0)
+
+    @property
+    def remaining_target(self):
+        """Returns remaining amount to reach target, or Decimal('0') if reached."""
+        if not self.target_amount or self.target_amount <= Decimal("0"):
+            return Decimal("0")
+        rem = self.target_amount - self.current_balance
+        return max(rem, Decimal("0"))
+
+    @property
+    def is_target_reached(self):
+        if not self.target_amount or self.target_amount <= Decimal("0"):
+            return False
+        return self.current_balance >= self.target_amount
 
 
 class Category(models.Model):
@@ -176,6 +210,7 @@ class Subscription(models.Model):
     active = models.BooleanField(default=True)
     last_paid_date = models.DateField(null=True, blank=True, help_text="Date when this subscription was last paid")
     end_date = models.DateField(null=True, blank=True, help_text="Final due date or end of installment contract")
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal("0.01"))], help_text="Total target amount / contract principal (optional)")
     total_installments = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Total number of installment cycles (e.g. 12)")
     already_paid_installments = models.PositiveSmallIntegerField(default=0, help_text="Installments already paid prior to tracking in this app")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -187,28 +222,24 @@ class Subscription(models.Model):
         return f"{self.name} (Rp{self.amount})"
 
     @property
-    def is_paid_this_cycle(self):
-        if not self.last_paid_date:
-            return False
-        import calendar
-        from datetime import date as dt_date, timedelta
-        today = timezone.localdate()
+    def target_amount(self):
+        if self.total_amount:
+            return self.total_amount
+        if self.total_installments and self.amount:
+            return Decimal(str(self.total_installments)) * self.amount
+        return None
 
-        if self.cycle == self.Cycle.YEARLY:
-            return self.last_paid_date.year == today.year
+    @property
+    def total_paid_amount(self):
+        tracked = self.payments.aggregate(s=models.Sum("amount"))["s"] or Decimal("0")
+        prior = (Decimal(str(self.already_paid_installments or 0)) * self.amount)
+        return prior + tracked
 
-        elif self.cycle == self.Cycle.WEEKLY:
-            return (today - self.last_paid_date).days < 7 and self.last_paid_date >= (today - timedelta(days=today.weekday()))
-
-        else:  # MONTHLY (default)
-            if self.last_paid_date.year == today.year and self.last_paid_date.month == today.month:
-                return True
-            max_day = calendar.monthrange(today.year, today.month)[1]
-            day = min(self.due_day, max_day)
-            due_this_month = dt_date(today.year, today.month, day)
-            if self.last_paid_date >= due_this_month - timedelta(days=10) and (today - self.last_paid_date).days < 32:
-                return True
-            return False
+    @property
+    def remaining_amount(self):
+        if self.target_amount is not None:
+            return max(Decimal("0"), self.target_amount - self.total_paid_amount)
+        return None
 
     @property
     def next_due_date(self):
@@ -223,19 +254,26 @@ class Subscription(models.Model):
             day = min(self.due_day, max_day)
             due_this_year = dt_date(target_year, target_month, day)
 
-            if self.is_paid_this_cycle:
-                next_year = target_year + 1
+            if self.last_paid_date:
+                latest_pmt = self.payments.first()
+                cycles_covered = 1
+                if latest_pmt and self.amount > 0:
+                    cycles_covered = max(1, int(round(float(latest_pmt.amount / self.amount))))
+                next_year = self.last_paid_date.year + cycles_covered
                 next_max_day = calendar.monthrange(next_year, target_month)[1]
                 return dt_date(next_year, target_month, min(self.due_day, next_max_day))
-            else:
-                return due_this_year
+            return due_this_year
 
         elif self.cycle == self.Cycle.WEEKLY:
             weekday_target = (self.due_day - 1) % 7
             days_ahead = (weekday_target - today.weekday()) % 7
             base_date = today + timedelta(days=days_ahead)
-            if self.is_paid_this_cycle:
-                return base_date + timedelta(days=7) if days_ahead == 0 else base_date
+            if self.last_paid_date:
+                latest_pmt = self.payments.first()
+                cycles_covered = 1
+                if latest_pmt and self.amount > 0:
+                    cycles_covered = max(1, int(round(float(latest_pmt.amount / self.amount))))
+                return self.last_paid_date + timedelta(weeks=cycles_covered)
             return base_date
 
         else:  # MONTHLY (default)
@@ -245,17 +283,48 @@ class Subscription(models.Model):
             day = min(self.due_day, max_day)
             due_this_month = dt_date(year, month, day)
 
-            if self.is_paid_this_cycle:
-                m = month + 1
-                y = year
-                if m > 12:
-                    m = 1
-                    y += 1
+            if self.last_paid_date:
+                latest_pmt = self.payments.first()
+                cycles_covered = 1
+                if latest_pmt and self.amount > 0:
+                    cycles_covered = max(1, int(round(float(latest_pmt.amount / self.amount))))
+                
+                total_m = self.last_paid_date.month + cycles_covered
+                y = self.last_paid_date.year + (total_m - 1) // 12
+                m = (total_m - 1) % 12 + 1
                 next_max_day = calendar.monthrange(y, m)[1]
                 next_day = min(self.due_day, next_max_day)
                 return dt_date(y, m, next_day)
             else:
                 return due_this_month
+
+    @property
+    def is_paid_this_cycle(self):
+        if not self.last_paid_date:
+            return False
+        import calendar
+        from datetime import date as dt_date, timedelta
+        today = timezone.localdate()
+
+        if self.next_due_date > today:
+            if self.cycle == self.Cycle.MONTHLY:
+                if (self.next_due_date.year > today.year) or (self.next_due_date.year == today.year and self.next_due_date.month > today.month):
+                    return True
+                return self.last_paid_date.year == today.year and self.last_paid_date.month == today.month
+            elif self.cycle == self.Cycle.YEARLY:
+                return self.next_due_date.year > today.year or self.last_paid_date.year == today.year
+            elif self.cycle == self.Cycle.WEEKLY:
+                return (self.next_due_date - today).days > 0 and self.last_paid_date >= (today - timedelta(days=today.weekday()))
+
+        if self.cycle == self.Cycle.MONTHLY:
+            if self.last_paid_date.year == today.year and self.last_paid_date.month == today.month:
+                return True
+            max_day = calendar.monthrange(today.year, today.month)[1]
+            day = min(self.due_day, max_day)
+            due_this_month = dt_date(today.year, today.month, day)
+            if self.last_paid_date >= due_this_month - timedelta(days=10) and (today - self.last_paid_date).days < 32:
+                return True
+        return False
 
     @property
     def days_until_due(self):
@@ -264,9 +333,12 @@ class Subscription(models.Model):
 
     @property
     def is_completed(self):
+        if self.target_amount is not None:
+            if self.total_paid_amount >= self.target_amount:
+                return True
         if self.total_installments:
-            total_paid = (self.already_paid_installments or 0) + self.payments.count()
-            if total_paid >= self.total_installments:
+            total_paid_count = (self.already_paid_installments or 0) + (int(self.total_paid_amount // self.amount) if self.amount > 0 else self.payments.count())
+            if total_paid_count >= self.total_installments:
                 return True
         if self.end_date:
             today = timezone.localdate()
@@ -275,15 +347,38 @@ class Subscription(models.Model):
         return False
 
     @property
-    def total_paid_amount(self):
-        tracked = self.payments.aggregate(s=models.Sum("amount"))["s"] or Decimal("0")
-        prior = (Decimal(str(self.already_paid_installments or 0)) * self.amount)
-        return prior + tracked
-
-    @property
     def installments_progress(self):
-        paid_count = (self.already_paid_installments or 0) + self.payments.count()
+        if not self.total_installments and not self.total_amount and not self.end_date:
+            return None
+
+        total_paid = self.total_paid_amount
+        target = self.target_amount
+
+        if target and target > 0:
+            pct = min(100, int(round((total_paid / target) * 100)))
+            rem = max(Decimal("0"), target - total_paid)
+            paid_cycles = int(total_paid // self.amount) if self.amount > 0 else self.payments.count()
+
+            if self.total_amount and self.total_installments:
+                text = f"{paid_cycles}/{self.total_installments} paid · Rp{rem:,.0f} left".replace(",", ".")
+            elif self.total_installments:
+                text = f"{paid_cycles}/{self.total_installments} paid"
+            else:
+                text = f"Rp{total_paid:,.0f} / Rp{target:,.0f} paid".replace(",", ".")
+
+            return {
+                "paid_amount": total_paid,
+                "target_amount": target,
+                "remaining_amount": rem,
+                "paid_count": paid_cycles,
+                "total": self.total_installments,
+                "percentage": pct,
+                "text": text,
+                "is_installment": True,
+            }
+
         if self.total_installments:
+            paid_count = (self.already_paid_installments or 0) + (int(total_paid // self.amount) if self.amount > 0 else self.payments.count())
             pct = min(100, int(round((paid_count / self.total_installments) * 100))) if self.total_installments > 0 else 100
             return {
                 "paid_count": paid_count,
@@ -292,9 +387,9 @@ class Subscription(models.Model):
                 "text": f"{paid_count}/{self.total_installments} paid",
                 "is_installment": True,
             }
+
         if self.end_date:
             return {
-                "paid_count": paid_count,
                 "end_date": self.end_date,
                 "text": f"Ends {self.end_date.strftime('%b %d, %Y')}",
                 "is_installment": True,
@@ -320,6 +415,20 @@ class Subscription(models.Model):
 
         if self.is_paid_this_cycle:
             next_date = self.next_due_date
+            # Check if paid ahead into future months
+            is_paid_ahead = False
+            if self.cycle == self.Cycle.MONTHLY:
+                months_diff = (next_date.year - today.year) * 12 + (next_date.month - today.month)
+                if months_diff > 1:
+                    is_paid_ahead = True
+            if is_paid_ahead:
+                return {
+                    "label": f"Paid ahead · Next {next_date.strftime('%b %d')}",
+                    "short_label": "Paid Ahead",
+                    "class": "due-paid",
+                    "paid": True,
+                    "completed": False,
+                }
             return {
                 "label": f"Next {next_date.strftime('%b %d')}",
                 "short_label": "Paid",
@@ -776,4 +885,38 @@ def cleanup_avatar_on_profile_delete(sender, instance, **kwargs):
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
         UserProfile.objects.get_or_create(user=instance)
+
+
+class TransactionTemplate(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="transaction_templates")
+    name = models.CharField(max_length=80)
+    kind = models.CharField(max_length=10, choices=Transaction.Kind.choices, default=Transaction.Kind.EXPENSE)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="templates")
+    wallet = models.ForeignKey(Wallet, on_delete=models.SET_NULL, null=True, blank=True, related_name="templates")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"), validators=[MinValueValidator(Decimal("0.01"))])
+    note = models.CharField(max_length=200, blank=True, default="")
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "-created_at"]
+
+    def __str__(self):
+        return f"{self.name} (Rp{int(self.amount):,})"
+
+    @property
+    def icon(self):
+        if self.category and self.category.icon:
+            return self.category.icon
+        if self.wallet and self.wallet.icon:
+            return self.wallet.icon
+        return "bolt"
+
+    @property
+    def color(self):
+        if self.category and self.category.color:
+            return self.category.color
+        if self.wallet and self.wallet.color:
+            return self.wallet.color
+        return "#FFB5A7"
 

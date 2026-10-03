@@ -1,0 +1,72 @@
+{% load humanize %}
+<!-- Savings Goal Bottom Sheet Modal -->
+<div class="sheet-overlay" id="goal-sheet-overlay"></div>
+<div class="sheet goal-sheet" id="goal-sheet" role="dialog" aria-modal="true" aria-label="Savings Goal Details">
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="gs-close" aria-label="Close">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div class="sheet-head-title" style="font-weight:800;">Savings Goal</div>
+    <a class="btn btn-sm sheet-edit-btn" id="gs-edit-link" href="#" title="Edit Goal" aria-label="Edit Goal">
+      <svg class="icon"><use href="#icon-edit"></use></svg>
+    </a>
+  </div>
+
+  <div class="goal-sheet-body">
+    <!-- Hero Icon + Wallet Name -->
+    <div class="goal-hero">
+      <div class="goal-hero-icon" id="gs-icon">
+        <svg class="icon"><use href="#icon-target"></use></svg>
+      </div>
+      <div class="goal-hero-info">
+        <h3 class="goal-hero-name" id="gs-name">Savings Goal</h3>
+        <span class="goal-hero-type">Savings Account</span>
+      </div>
+    </div>
+
+    <!-- Live Breakdown Card -->
+    <div class="goal-breakdown-card">
+      <div class="goal-breakdown-row">
+        <div class="goal-stat-box">
+          <span class="goal-stat-label">Current Balance</span>
+          <strong class="goal-stat-val" id="gs-saved">Rp0</strong>
+        </div>
+        <div class="goal-stat-divider">/</div>
+        <div class="goal-stat-box">
+          <span class="goal-stat-label">Goal Target</span>
+          <strong class="goal-stat-val goal-stat-target" id="gs-target">Rp0</strong>
+        </div>
+      </div>
+
+      <!-- Horizontal Progress Bar -->
+      <div class="gp-progress-bar-wrap">
+        <div class="gp-progress-bar">
+          <div class="gp-progress-fill" id="gs-progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Status Banner with Circular Progress Gauge -->
+      <div class="goal-gauge-banner" id="gs-gauge-banner">
+        <div class="w-circle-gauge gp-banner-gauge" id="gs-gauge">
+          <div class="w-gauge-track" id="gs-gauge-track">
+            <div class="w-gauge-center">
+              <span class="w-gauge-val" id="gs-gauge-val">0%</span>
+            </div>
+          </div>
+        </div>
+        <div class="gs-banner-text-wrap">
+          <strong class="gs-banner-headline" id="gs-banner-headline">In Progress</strong>
+          <span class="gs-banner-sub" id="gs-status-text">Rp0 left to reach goal</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1-Tap Quick Deposit Action Button -->
+    <div class="sheet-actions" style="margin-top:8px;">
+      <button type="button" class="btn btn-primary w-100 js-wallet-deposit" id="gs-deposit-btn">
+        <svg class="icon"><use href="#icon-swap_horiz"></use></svg>
+        <span>Deposit / Add Funds</span>
+      </button>
+    </div>
+  </div>
+</div>

@@ -5,7 +5,9 @@
       <svg class="icon"><use href="#icon-close"></use></svg>
     </button>
     <div class="sheet-head-title" style="font-weight:800;">Transaction Details</div>
-    <div style="width:36px"></div>
+    <button type="button" class="btn btn-sm sheet-pin-btn" id="dt-pin-btn" title="Pin as Quick Template" aria-label="Pin as Quick Template">
+      <svg class="icon"><use href="#icon-star"></use></svg>
+    </button>
   </div>
 
   <div class="detail-sheet-body" id="detail-sheet-body">
@@ -69,11 +71,15 @@
 
     <!-- Bottom Actions -->
     <div class="sheet-actions">
+      <button type="button" class="btn btn-secondary detail-btn-dup" id="dt-dup-btn" title="Duplicate this transaction for today" aria-label="Duplicate Transaction">
+        <svg class="icon"><use href="#icon-content_copy"></use></svg>
+        <span>Duplicate</span>
+      </button>
       <button type="button" class="btn btn-primary detail-btn-edit" id="dt-edit-btn" style="flex:1">
         <svg class="icon"><use href="#icon-edit"></use></svg>
-        <span>Edit Transaction</span>
+        <span>Edit</span>
       </button>
-      <button type="button" class="btn btn-delete" id="dt-delete-btn" aria-label="Delete transaction">
+      <button type="button" class="btn btn-delete" id="dt-delete-btn" aria-label="Delete transaction" title="Delete Transaction">
         <svg class="icon" style="font-size:18px"><use href="#icon-trash"></use></svg>
       </button>
     </div>

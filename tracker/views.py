@@ -29,7 +29,7 @@ from .forms import (
     ProfileForm,
     WangSignUpForm,
 )
-from .models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Budget, Debt, DebtPayment, UserProfile
+from .models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Budget, Debt, DebtPayment, UserProfile, TransactionTemplate
 from .receipt_scanner import scan_receipt_with_gemini
 from .turnstile import verify_turnstile
 
@@ -260,6 +260,11 @@ def _sheet_context(user):
         default_wallet = wallets[0]
 
     overall_budget = Budget.objects.filter(user=user, category__isnull=True).first()
+    quick_templates = list(
+        TransactionTemplate.objects.filter(user=user)
+        .select_related("category", "wallet")
+        .order_by("order", "-created_at")[:12]
+    )
     return {
         "expense_cats": cats.filter(kind=Category.Kind.EXPENSE),
         "income_cats": cats.filter(kind=Category.Kind.INCOME),
@@ -269,6 +274,62 @@ def _sheet_context(user):
         "recent_notes": recent_notes,
         "category_notes": dict(category_notes),
         "overall_budget": overall_budget,
+        "quick_templates": quick_templates,
+    }
+
+
+def _compute_receipt_slip_data(user, month):
+    import calendar
+    m_start, m_end = _month_bounds(month)
+    days_in_m = calendar.monthrange(month.year, month.month)[1]
+    qs_month_all = Transaction.objects.filter(user=user, date__gte=m_start, date__lte=m_end)
+    slip_inc = qs_month_all.filter(kind=Transaction.Kind.INCOME).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    slip_exp = qs_month_all.filter(kind=Transaction.Kind.EXPENSE).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    slip_net = slip_inc - slip_exp
+    slip_savings_rate = round(float((slip_net / slip_inc) * 100), 1) if slip_inc > 0 else 0.0
+    slip_tx_count = qs_month_all.count()
+    slip_receipt_count = qs_month_all.filter(Q(image__isnull=False) & ~Q(image="")).count()
+
+    top_cats_raw = (
+        qs_month_all.filter(kind=Transaction.Kind.EXPENSE, category__isnull=False)
+        .values("category__name", "category__icon", "category__color")
+        .annotate(total=Sum("amount"), count=Count("id"))
+        .order_by("-total")[:5]
+    )
+    slip_top_cats = []
+    for r in top_cats_raw:
+        c_tot = r["total"] or Decimal("0")
+        c_pct = round(float((c_tot / slip_exp) * 100), 1) if slip_exp > 0 else 0.0
+        slip_top_cats.append({
+            "name": r["category__name"],
+            "icon": r["category__icon"],
+            "color": r["category__color"],
+            "total": float(c_tot),
+            "pct": c_pct,
+            "count": r["count"],
+        })
+
+    slip_daily_avg = round(float(slip_exp / Decimal(str(days_in_m)))) if days_in_m > 0 else 0
+    slip_user_name = getattr(user, "profile", None).get_display_name() if hasattr(user, "profile") else user.username
+    slip_receipt_no = f"WANG-{month.strftime('%Y%m')}-{user.id:04d}"
+    slip_issued_at = timezone.localtime(timezone.now()).strftime("%Y-%m-%d · %H:%M")
+
+    return {
+        "month_name": month.strftime("%B %Y").upper(),
+        "month_period": f"{month.strftime('%B %Y')} · {days_in_m} Days",
+        "month_short": month.strftime("%b %Y"),
+        "total_income": float(slip_inc),
+        "total_expense": float(slip_exp),
+        "net_savings": float(slip_net),
+        "savings_rate": slip_savings_rate,
+        "tx_count": slip_tx_count,
+        "receipts_count": slip_receipt_count,
+        "top_categories": slip_top_cats,
+        "daily_avg": slip_daily_avg,
+        "user_name": slip_user_name,
+        "receipt_no": slip_receipt_no,
+        "issued_at": slip_issued_at,
+        "days_in_month": days_in_m,
     }
 
 
@@ -313,6 +374,12 @@ def dashboard(request):
     else:
         qs = Transaction.objects.filter(user=request.user, date__gte=m_start, date__lte=m_end)
 
+    # Receipt filter parameter
+    has_receipt = request.GET.get("has_receipt") or request.GET.get("receipt") or ""
+    with_receipt = has_receipt in ("1", "true", "yes")
+    if with_receipt:
+        qs = qs.filter(Q(image__isnull=False) & ~Q(image=""))
+
     def _parse_csv_list(val):
         if not val:
             return []
@@ -327,6 +394,7 @@ def dashboard(request):
     raw_filter = request.GET.getlist("filter") or request.GET.get("filter")
     raw_filter_exclude = request.GET.getlist("filter_exclude") or request.GET.get("filter_exclude")
     filter_kinds_in = [k for k in _parse_csv_list(raw_filter) if k in ("expense", "income", "transfer")]
+    filter_kinds_out = [k for k in _parse_csv_list(raw_filter_exclude) if k in ("expense", "income", "transfer")]
     filter_kinds_out = [k for k in _parse_csv_list(raw_filter_exclude) if k in ("expense", "income", "transfer")]
 
     if filter_kinds_in:
@@ -413,8 +481,8 @@ def dashboard(request):
         income_month = qs_month.filter(kind=Transaction.Kind.INCOME).aggregate(s=Sum("amount"))["s"] or Decimal("0")
         expense_month = qs_month.filter(kind=Transaction.Kind.EXPENSE).aggregate(s=Sum("amount"))["s"] or Decimal("0")
         month_label = month.strftime("%B %Y")
-    spendable_balance = sum((w.current_balance for w in wallets if w.include_in_total and w.type != Wallet.WalletType.SAVINGS and not w.archived), Decimal("0"))
-    savings_balance = sum((w.current_balance for w in wallets if (not w.include_in_total or w.type == Wallet.WalletType.SAVINGS) and not w.archived), Decimal("0"))
+    spendable_balance = sum((w.current_balance for w in wallets if not w.archived and w.type != Wallet.WalletType.SAVINGS), Decimal("0"))
+    savings_balance = sum((w.current_balance for w in wallets if not w.archived and w.type == Wallet.WalletType.SAVINGS), Decimal("0"))
     net_worth = spendable_balance + savings_balance
     total_balance = spendable_balance
 
@@ -424,7 +492,7 @@ def dashboard(request):
     def _build_filter_url(remove_type=None, remove_type_exclude=None,
                           remove_wallet=None, remove_wallet_exclude=None,
                           remove_cat=None, remove_cat_exclude=None,
-                          remove_dates=False):
+                          remove_dates=False, remove_has_receipt=False):
         p = []
         if not custom_dates and not is_current:
             p.append(f"month={month.strftime('%Y-%m')}")
@@ -455,6 +523,9 @@ def dashboard(request):
         if rem_c_out:
             p.append(f"category_exclude={','.join(map(str, rem_c_out))}")
 
+        if with_receipt and not remove_has_receipt:
+            p.append("has_receipt=1")
+
         if custom_dates and not remove_dates:
             if date_from_str:
                 p.append(f"date_from={date_from_str}")
@@ -465,6 +536,17 @@ def dashboard(request):
 
     active_filter_tags = []
     active_filter_count = 0
+
+    if with_receipt:
+        active_filter_count += 1
+        active_filter_tags.append({
+            "key": "has_receipt",
+            "is_exclude": False,
+            "label": "With Receipt",
+            "icon": "camera",
+            "color": "#FF8A65",
+            "remove_url": _build_filter_url(remove_has_receipt=True),
+        })
 
     for k in filter_kinds_in:
         active_filter_count += 1
@@ -715,6 +797,9 @@ def dashboard(request):
         "all_subs": all_subs,
         "upcoming_subs": upcoming_subs,
         "active_debts": active_debts,
+        "has_receipt": "1" if with_receipt else "",
+        "receipt_slip": _compute_receipt_slip_data(request.user, month),
+        "receipt_slip_json": _compute_receipt_slip_data(request.user, month),
         "overall_budget": overall_budget,
         "budget_info": budget_info,
     })
@@ -821,7 +906,7 @@ def graphs(request):
         monthly_avg_spend = (annual_expense / Decimal(str(months_tracked))) if months_tracked > 0 else Decimal("0")
 
         # 12-Month Net Worth Progression
-        inc_wallets = Wallet.objects.filter(user=request.user, include_in_total=True, archived=False)
+        inc_wallets = Wallet.objects.filter(user=request.user, archived=False)
         inc_wallet_ids = list(inc_wallets.values_list("id", flat=True))
         initial_assets = sum((w.initial_balance for w in inc_wallets), Decimal("0"))
         nw_dates_year = [date(sel_year, m_idx, 1) for m_idx in range(1, 13)]
@@ -991,7 +1076,7 @@ def graphs(request):
     avg_6m_rate = round(float((avg_6m_net / avg_6m_income) * 100), 1) if avg_6m_income > 0 else 0
 
     # 6-Month Net Worth Progression
-    inc_wallets = Wallet.objects.filter(user=request.user, include_in_total=True, archived=False)
+    inc_wallets = Wallet.objects.filter(user=request.user, archived=False)
     inc_wallet_ids = list(inc_wallets.values_list("id", flat=True))
     initial_assets = sum((w.initial_balance for w in inc_wallets), Decimal("0"))
     nw_dates = []
@@ -1057,8 +1142,17 @@ def graphs(request):
         "has_older": has_older,
         "has_newer": has_newer,
         "months_nav": _get_months_nav(request.user, sel),
+        "receipt_slip": _compute_receipt_slip_data(request.user, sel),
+        "receipt_slip_json": _compute_receipt_slip_data(request.user, sel),
     })
     return render(request, "tracker/graphs.html", ctx)
+
+
+@login_required
+def receipt_slip_api(request):
+    month = _parse_month_param(request.GET.get("month"))
+    data = _compute_receipt_slip_data(request.user, month)
+    return JsonResponse(data)
 
 
 @login_required
@@ -1084,14 +1178,97 @@ def wallet_balances_api(request):
 
 
 @login_required
+@require_POST
+def api_template_create(request):
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    amount_raw = data.get("amount") or "0"
+    try:
+        amount = Decimal(str(amount_raw))
+    except Exception:
+        amount = Decimal("0.00")
+
+    cat_id = data.get("category_id") or data.get("category") or data.get("cat") or data.get("cat_id")
+    wallet_id = data.get("wallet_id") or data.get("wallet")
+    kind = data.get("kind") or "expense"
+    note = (data.get("note") or "").strip()
+    name = (data.get("name") or "").strip()
+
+    cat = Category.objects.filter(user=request.user, pk=cat_id).first() if cat_id else None
+    wallet = Wallet.objects.filter(user=request.user, pk=wallet_id).first() if wallet_id else None
+
+    if not name:
+        if note:
+            name = note[:30]
+        elif cat:
+            name = cat.name
+        else:
+            name = "Quick Template"
+
+    template = TransactionTemplate.objects.create(
+        user=request.user,
+        name=name,
+        kind=kind,
+        category=cat,
+        wallet=wallet,
+        amount=amount if amount > 0 else Decimal("0.01"),
+        note=note,
+    )
+    bal_int = int(round(template.amount))
+    formatted_bal = f"Rp{intcomma(bal_int)}"
+    return JsonResponse({
+        "status": "ok",
+        "template": {
+            "id": template.id,
+            "name": template.name,
+            "kind": template.kind,
+            "amount": float(template.amount),
+            "formatted_amount": formatted_bal,
+            "category_id": template.category_id,
+            "category_name": template.category.name if template.category else "",
+            "wallet_id": template.wallet_id,
+            "wallet_name": template.wallet.name if template.wallet else "",
+            "note": template.note,
+            "icon": template.icon,
+            "color": template.color,
+        }
+    })
+
+
+@login_required
+@require_POST
+def api_template_delete(request, pk):
+    tmpl = get_object_or_404(TransactionTemplate, pk=pk, user=request.user)
+    tmpl.delete()
+    return JsonResponse({"status": "ok"})
+
+
+
+@login_required
 def wallet_list(request):
     _ensure_defaults(request.user)
     ctx = _sheet_context(request.user)
     wallets = _get_wallets_with_balances(request.user, archived=None)
-    spendable_balance = sum((w.current_balance for w in wallets if w.include_in_total and w.type != Wallet.WalletType.SAVINGS and not w.archived), Decimal("0"))
-    savings_balance = sum((w.current_balance for w in wallets if (not w.include_in_total or w.type == Wallet.WalletType.SAVINGS) and not w.archived), Decimal("0"))
+    active_wallets = [w for w in wallets if not w.archived]
+    archived_wallets = [w for w in wallets if w.archived]
+    spendable_balance = sum((w.current_balance for w in active_wallets if w.type != Wallet.WalletType.SAVINGS), Decimal("0"))
+    savings_balance = sum((w.current_balance for w in active_wallets if w.type == Wallet.WalletType.SAVINGS), Decimal("0"))
     net_worth = spendable_balance + savings_balance
     total_balance = spendable_balance
+
+    # Aggregate savings target progress for active savings accounts
+    savings_with_target = [w for w in active_wallets if w.type == Wallet.WalletType.SAVINGS and w.target_amount and w.target_amount > 0]
+    total_savings_target = sum((w.target_amount for w in savings_with_target), Decimal("0"))
+    total_savings_current = sum((w.current_balance for w in savings_with_target), Decimal("0"))
+    if total_savings_target > 0:
+        total_savings_progress = round((total_savings_current / total_savings_target) * Decimal("100"), 1)
+        total_savings_progress_clamped = min(max(float(total_savings_progress), 0.0), 100.0)
+    else:
+        total_savings_progress = None
+        total_savings_progress_clamped = 0.0
 
     now = timezone.localdate()
     current_m = date(now.year, now.month, 1)
@@ -1101,7 +1278,10 @@ def wallet_list(request):
     expense_month = qs_month.filter(kind=Transaction.Kind.EXPENSE).aggregate(s=Sum("amount"))["s"] or Decimal("0")
 
     ctx.update({
-        "wallets": wallets,
+        "wallets": active_wallets,
+        "all_wallets": wallets,
+        "active_wallets": active_wallets,
+        "archived_wallets": archived_wallets,
         "total_balance": total_balance,
         "spendable_balance": spendable_balance,
         "savings_balance": savings_balance,
@@ -1109,6 +1289,11 @@ def wallet_list(request):
         "income_month": income_month,
         "expense_month": expense_month,
         "balance_change": income_month - expense_month,
+        "savings_with_target": savings_with_target,
+        "total_savings_target": total_savings_target,
+        "total_savings_current": total_savings_current,
+        "total_savings_progress": total_savings_progress,
+        "total_savings_progress_clamped": total_savings_progress_clamped,
     })
     return render(request, "tracker/wallet_list.html", ctx)
 
@@ -1173,6 +1358,8 @@ def wallet_toggle_archive(request, pk):
     w = get_object_or_404(Wallet, pk=pk, user=request.user)
     w.archived = not w.archived
     w.save(update_fields=["archived"])
+    status = "archived (disabled)" if w.archived else "restored (active)"
+    messages.success(request, f"'{w.name}' is now {status}.")
     return redirect("wallet_list")
 
 @login_required
@@ -1474,7 +1661,7 @@ def subscription_pay(request, pk):
     sub.save(update_fields=["last_paid_date"])
 
     if sub.is_completed:
-        messages.success(request, f"Recorded final payment for {sub.name}! Subscription completed ✓")
+        messages.success(request, f"Recorded final payment for {sub.name}! Subscription completed.")
     else:
         messages.success(request, f"Recorded payment of Rp{int(amount):,} for {sub.name} (via {wallet.name})! Marked as paid.")
 
@@ -1831,7 +2018,7 @@ def debt_payment_create(request, pk):
     debt.refresh_from_db()
 
     wallet_sync_txt = f" (synced with {wallet.name})" if wallet else ""
-    status_txt = "Marked as fully settled ✓!" if debt.is_settled else f"Remaining balance: Rp{int(debt.remaining_amount):,}."
+    status_txt = "Marked as fully settled!" if debt.is_settled else f"Remaining balance: Rp{int(debt.remaining_amount):,}."
     messages.success(request, f"Recorded repayment of Rp{int(amount):,} for {debt.person_name}{wallet_sync_txt}. {status_txt}")
     referer = request.META.get("HTTP_REFERER", "")
     if referer and "debts" not in referer:
@@ -1865,7 +2052,7 @@ def debt_settle(request, pk):
     debt.save(update_fields=["status", "updated_at"])
 
     wallet_sync_txt = f" (synced with {wallet.name})" if wallet else ""
-    messages.success(request, f"Debt with {debt.person_name} marked as fully settled ✓{wallet_sync_txt}!")
+    messages.success(request, f"Debt with {debt.person_name} marked as fully settled{wallet_sync_txt}!")
     referer = request.META.get("HTTP_REFERER", "")
     if referer and "debts" not in referer:
         return redirect("dashboard")
@@ -1922,7 +2109,7 @@ def profile_edit_view(request):
         form = ProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
-            messages.success(request, "Profile updated successfully ✨")
+            messages.success(request, "Profile updated successfully.")
             return redirect("more")
     else:
         form = ProfileForm(instance=profile)
@@ -2187,7 +2374,7 @@ class WangPasswordChangeView(auth_views.PasswordChangeView):
         return ctx
 
     def form_valid(self, form):
-        messages.success(self.request, "Password updated successfully ✨")
+        messages.success(self.request, "Password updated successfully.")
         return super().form_valid(form)
 
     def form_invalid(self, form):
@@ -2269,7 +2456,7 @@ def admin_user_approve(request, user_id):
     target_user = get_object_or_404(User, pk=user_id)
     profile, _ = UserProfile.objects.get_or_create(user=target_user)
     profile.approve(admin_user=request.user)
-    messages.success(request, f"Approved @{target_user.username} successfully ✨")
+    messages.success(request, f"Approved @{target_user.username} successfully.")
     tab = request.POST.get("tab", "pending")
     return redirect(f"{reverse('admin_console')}?tab={tab}")
 

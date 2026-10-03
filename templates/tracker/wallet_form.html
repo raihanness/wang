@@ -12,13 +12,23 @@
       <div><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}</div>
       <div><label for="{{ form.type.id_for_label }}">{{ form.type.label }}</label>{{ form.type }}</div>
       <div><label for="{{ form.initial_balance.id_for_label }}">{{ form.initial_balance.label }}</label>{{ form.initial_balance }}</div>
+      <div id="target-amount-group">
+        <label for="{{ form.target_amount.id_for_label }}">
+          <span>Savings Goal Target (Rp)</span>
+          <small class="muted" style="font-weight:normal;margin-left:4px">(Optional)</small>
+        </label>
+        {{ form.target_amount }}
+        <small class="muted" style="display:block;margin-top:4px">Track your progress towards this goal with a visual percentage bar.</small>
+      </div>
+      {% if wallet_pk %}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0">
         <div>
-          <label for="{{ form.include_in_total.id_for_label }}" style="margin:0;cursor:pointer">{{ form.include_in_total.label }}</label>
-          <small class="muted" style="display:block;margin-top:2px">Include this wallet's balance in total balance calculation</small>
+          <label for="{{ form.archived.id_for_label }}" style="margin:0;cursor:pointer">Archive / Disable</label>
+          <small class="muted" style="display:block;margin-top:2px">Hide from transaction pickers while keeping transaction history</small>
         </div>
-        <div style="transform:scale(1.2)">{{ form.include_in_total }}</div>
+        <div style="transform:scale(1.2)">{{ form.archived }}</div>
       </div>
+      {% endif %}
     </div>
     {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
     <div class="sheet-actions">

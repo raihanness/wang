@@ -1,0 +1,147 @@
+{% load static humanize %}
+<!-- Cute Monthly Receipt Slip Bottom Sheet Modal -->
+<div class="sheet-overlay" id="receipt-slip-overlay"></div>
+<div class="sheet receipt-slip-sheet" id="receipt-slip-sheet" role="dialog" aria-modal="true" aria-label="Monthly Receipt Slip">
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="slip-close" aria-label="Close receipt slip">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div class="sheet-head-title" style="font-weight:800;">Monthly Receipt Slip</div>
+    <button type="button" class="btn btn-sm sheet-edit-btn" id="slip-copy-header-btn" title="Copy text summary" aria-label="Copy text summary">
+      <svg class="icon"><use href="#icon-copy"></use></svg>
+    </button>
+  </div>
+
+  <div class="receipt-slip-body">
+    <!-- Thermal Paper Card -->
+    <div class="receipt-paper" id="receipt-paper">
+      <!-- Jagged Top Paper Edge -->
+      <div class="receipt-tear receipt-tear-top" aria-hidden="true">
+        <svg viewBox="0 0 400 12" preserveAspectRatio="none" class="receipt-tear-svg">
+          <path d="M0 12 L10 0 L20 12 L30 0 L40 12 L50 0 L60 12 L70 0 L80 12 L90 0 L100 12 L110 0 L120 12 L130 0 L140 12 L150 0 L160 12 L170 0 L180 12 L190 0 L200 12 L210 0 L220 12 L230 0 L240 12 L250 0 L260 12 L270 0 L280 12 L290 0 L300 12 L310 0 L320 12 L330 0 L340 12 L350 0 L360 12 L370 0 L380 12 L390 0 L400 12 Z" />
+        </svg>
+      </div>
+
+      <div class="receipt-inner">
+        <!-- Store Header -->
+        <div class="receipt-header">
+          <div class="receipt-brand-logo-wrap">
+            <img src="{% static 'img/logo-fix.png' %}" alt="Wang Logo" class="receipt-brand-logo" id="receipt-brand-logo-img">
+          </div>
+          <h2 class="receipt-store-title">WANG MONEY TRACKER</h2>
+          <div class="receipt-sub-title">MONTHLY FINANCIAL STATEMENT</div>
+          <div class="receipt-meta-grid">
+            <div class="receipt-meta-item"><span>PERIOD</span><strong id="r-slip-period">{{ receipt_slip.month_name|default:"CURRENT MONTH" }}</strong></div>
+            <div class="receipt-meta-item"><span>USER</span><strong id="r-slip-user">@{{ receipt_slip.user_name|default:user.username }}</strong></div>
+            <div class="receipt-meta-item"><span>SLIP NO</span><strong id="r-slip-slipno">#{{ receipt_slip.receipt_no|default:"WANG-STATEMENT" }}</strong></div>
+            <div class="receipt-meta-item"><span>DAYS</span><strong id="r-slip-days">{{ receipt_slip.days_in_month|default:"30" }} DAYS</strong></div>
+          </div>
+        </div>
+
+        <div class="receipt-divider-dashed"></div>
+
+        <!-- Cashflow Financial Overview -->
+        <div class="receipt-section">
+          <div class="receipt-line-item">
+            <span class="r-lbl">TOTAL INFLOW (IN)</span>
+            <strong class="r-val r-inc" id="r-slip-inflow">+Rp{{ receipt_slip.total_income|default:0|floatformat:0|intcomma }}</strong>
+          </div>
+          <div class="receipt-line-item">
+            <span class="r-lbl">TOTAL OUTFLOW (OUT)</span>
+            <strong class="r-val r-exp" id="r-slip-outflow">-Rp{{ receipt_slip.total_expense|default:0|floatformat:0|intcomma }}</strong>
+          </div>
+          <div class="receipt-divider-dotted"></div>
+          <div class="receipt-line-item receipt-hero-row">
+            <span class="r-lbl r-bold">NET SAVINGS</span>
+            <strong class="r-val r-bold {% if receipt_slip.net_savings >= 0 %}r-inc{% else %}r-exp{% endif %}" id="r-slip-netsavings">
+              {% if receipt_slip.net_savings >= 0 %}+{% endif %}Rp{{ receipt_slip.net_savings|default:0|floatformat:0|intcomma }}
+            </strong>
+          </div>
+          <div class="receipt-line-item">
+            <span class="r-lbl">SAVINGS RATE</span>
+            <strong class="r-val r-badge" id="r-slip-savingsrate">{{ receipt_slip.savings_rate|default:"0.0" }}% SAVED</strong>
+          </div>
+        </div>
+
+        <div class="receipt-divider-dashed"></div>
+
+        <!-- Category Breakdown -->
+        <div class="receipt-section">
+          <div class="receipt-section-heading">TOP EXPENSE CATEGORIES</div>
+          <div class="receipt-cat-list" id="r-slip-catlist">
+            {% if receipt_slip.top_categories %}
+              {% for c in receipt_slip.top_categories %}
+                <div class="receipt-cat-row">
+                  <div class="r-cat-left">
+                    <span class="r-cat-dot" style="background:{{ c.color }}!important"></span>
+                    <span class="r-cat-name">{{ c.name }}</span>
+                  </div>
+                  <div class="r-cat-dots-filler"></div>
+                  <div class="r-cat-right">
+                    <span class="r-cat-amt">Rp{{ c.total|floatformat:0|intcomma }}</span>
+                    <span class="r-cat-pct">({{ c.pct }}%)</span>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="receipt-empty-cats">No expenses recorded for this month.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="receipt-divider-dashed"></div>
+
+        <!-- Activity & Metrics -->
+        <div class="receipt-section receipt-metrics-section">
+          <div class="receipt-line-item">
+            <span class="r-lbl">DAILY SPEND AVERAGE</span>
+            <strong class="r-val" id="r-slip-dailyavg">Rp{{ receipt_slip.daily_avg|default:0|floatformat:0|intcomma }} / day</strong>
+          </div>
+          <div class="receipt-line-item">
+            <span class="r-lbl">TRANSACTIONS LOGGED</span>
+            <strong class="r-val" id="r-slip-txcount">{{ receipt_slip.tx_count|default:0 }} entries</strong>
+          </div>
+          <div class="receipt-line-item">
+            <span class="r-lbl">RECEIPTS ATTACHED</span>
+            <strong class="r-val" id="r-slip-receiptcount">{{ receipt_slip.receipts_count|default:0 }} photos</strong>
+          </div>
+        </div>
+
+        <div class="receipt-divider-dashed"></div>
+
+        <!-- Barcode & Mottos -->
+        <div class="receipt-footer">
+          <div class="receipt-barcode-wrap" aria-hidden="true">
+            <div class="receipt-barcode-lines"></div>
+            <span class="receipt-barcode-code" id="r-slip-barcode">* {{ receipt_slip.receipt_no|default:"WANG-RECAP" }} *</span>
+          </div>
+          <p class="receipt-motto">*** THANK YOU FOR TRACKING MINDFULLY ***</p>
+          <small class="receipt-timestamp" id="r-slip-timestamp">ISSUED {{ receipt_slip.issued_at }}</small>
+        </div>
+      </div>
+
+      <!-- Jagged Bottom Paper Edge -->
+      <div class="receipt-tear receipt-tear-bottom" aria-hidden="true">
+        <svg viewBox="0 0 400 12" preserveAspectRatio="none" class="receipt-tear-svg">
+          <path d="M0 0 L10 12 L20 0 L30 12 L40 0 L50 12 L60 0 L70 12 L80 0 L90 12 L100 0 L110 12 L120 0 L130 12 L140 0 L150 12 L160 0 L170 12 L180 0 L190 12 L200 0 L210 12 L220 0 L230 12 L240 0 L250 12 L260 0 L270 12 L280 0 L290 12 L300 0 L310 12 L320 0 L330 12 L340 0 L350 12 L360 0 L370 12 L380 0 L390 12 L400 0 Z" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- 1-Tap Action Buttons -->
+    <div class="receipt-actions-row">
+      <button type="button" class="btn btn-primary receipt-action-btn" id="slip-download-btn">
+        <svg class="icon"><use href="#icon-download"></use></svg>
+        <span>Save Image</span>
+      </button>
+      <button type="button" class="btn btn-ghost receipt-action-btn" id="slip-copy-btn">
+        <svg class="icon"><use href="#icon-copy"></use></svg>
+        <span>Copy Text</span>
+      </button>
+      <button type="button" class="btn btn-ghost receipt-action-btn" id="slip-share-btn">
+        <svg class="icon"><use href="#icon-share-2"></use></svg>
+        <span>Share</span>
+      </button>
+    </div>
+  </div>
+</div>

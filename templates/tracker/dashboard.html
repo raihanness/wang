@@ -161,7 +161,11 @@
           data-sub-amount="{{ s.amount|floatformat:0 }}"
           data-sub-cycle="{{ s.get_cycle_display }}"
           data-sub-wallet="{{ s.wallet.id|default:'' }}"
-          data-sub-default-note="{% if s.total_installments %}{{ s.name }} installment ({{ s.already_paid_installments|default:0|add:s.payments.count|add:1 }}/{{ s.total_installments }}){% else %}{{ s.name }} payment{% endif %}"
+          data-sub-total-installments="{{ s.total_installments|default:'' }}"
+          data-sub-remaining-amount="{{ s.remaining_amount|default:''|floatformat:0 }}"
+          data-sub-target-amount="{{ s.target_amount|default:''|floatformat:0 }}"
+          data-sub-paid-count="{{ s.installments_progress.paid_count|default:s.payments.count }}"
+          data-sub-default-note="{% if s.total_installments %}{{ s.name }} installment ({{ s.installments_progress.paid_count|default:s.payments.count|add:1 }}/{{ s.total_installments }}){% else %}{{ s.name }} payment{% endif %}"
           title="Pay {{ s.name }}" aria-label="Pay {{ s.name }}">
           <svg class="icon" style="font-size:16px"><use href="#icon-check"></use></svg>
         </button>
@@ -234,27 +238,33 @@
   data-trend="{% if balance_change >= 0 %}trend-up{% else %}trend-down{% endif %}"
   data-month="{{ view_month|date:'Y-m' }}">
 
+  {% if receipt_slip_json %}{{ receipt_slip_json|json_script:"receipt-slip-data" }}{% endif %}
+
   <!-- Combined Quick Filters & Compact Month Navigator -->
   <div class="dashboard-filter-row">
     <div class="quick-filter-bar">
       <a href="{% url 'dashboard' %}?{% if not is_current and not custom_dates %}month={{ view_month|date:'Y-m' }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}{% if selected_wallet_id %}wallet={{ selected_wallet_id }}&{% endif %}{% if selected_category_id %}category={{ selected_category_id }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}"
-         class="quick-filter-chip {% if not active_filter %}active{% endif %}"
-         data-filter="">
+         class="quick-filter-chip {% if not active_filter and not has_receipt %}active{% endif %}"
+         data-filter=""
+         title="All transactions">
         <svg class="icon" style="font-size:14px"><use href="#icon-apps"></use></svg>
       </a>
-      <a href="{% url 'dashboard' %}?filter=expense{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+      <a href="{% url 'dashboard' %}?filter=expense{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if has_receipt %}&has_receipt={{ has_receipt }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
          class="quick-filter-chip {% if active_filter == 'expense' %}active{% endif %}"
-         data-filter="expense">
+         data-filter="expense"
+         title="Expense only">
         <svg class="icon" style="font-size:14px"><use href="#icon-trending_down"></use></svg>
       </a>
-      <a href="{% url 'dashboard' %}?filter=income{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+      <a href="{% url 'dashboard' %}?filter=income{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if has_receipt %}&has_receipt={{ has_receipt }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
          class="quick-filter-chip {% if active_filter == 'income' %}active{% endif %}"
-         data-filter="income">
+         data-filter="income"
+         title="Income only">
         <svg class="icon" style="font-size:14px"><use href="#icon-trending_up"></use></svg>
       </a>
-      <a href="{% url 'dashboard' %}?filter=transfer{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+      <a href="{% url 'dashboard' %}?filter=transfer{% if not is_current and not custom_dates %}&month={{ view_month|date:'Y-m' }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if has_receipt %}&has_receipt={{ has_receipt }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
          class="quick-filter-chip {% if active_filter == 'transfer' %}active{% endif %}"
-         data-filter="transfer">
+         data-filter="transfer"
+         title="Transfer only">
         <svg class="icon" style="font-size:14px"><use href="#icon-send_money"></use></svg>
       </a>
       <button type="button"
@@ -266,6 +276,7 @@
               data-wallet-exclude="{{ wallet_ids_out }}"
               data-category="{{ cat_ids_in }}"
               data-category-exclude="{{ cat_ids_out }}"
+              data-has-receipt="{{ has_receipt }}"
               data-date-from="{{ date_from }}"
               data-date-to="{{ date_to }}"
               aria-label="Filter transactions"
@@ -277,10 +288,15 @@
       </button>
     </div>
 
-    <!-- Compact Month Navigation with Popover Trigger -->
+
+    <button type="button" class="c-month-btn receipt-slip-trigger-btn js-open-receipt-slip" id="open-receipt-slip-btn" data-month="{{ view_month|date:'Y-m' }}" aria-label="Monthly Receipt Slip" title="View cute monthly receipt slip">
+      <svg class="icon" style="font-size:15px"><use href="#icon-receipt-text"></use></svg>
+    </button>
+
+    <!-- Compact Month Navigation with Popover Trigger & Receipt Slip Trigger -->
     <div class="compact-month-nav" role="navigation" aria-label="Month navigation">
       {% if has_older %}
-        <a class="c-month-btn" href="{% url 'dashboard' %}?month={{ prev_month|date:'Y-m' }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}" aria-label="Previous month" title="Previous month">
+        <a class="c-month-btn" href="{% url 'dashboard' %}?month={{ prev_month|date:'Y-m' }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if has_receipt %}&has_receipt={{ has_receipt }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}" aria-label="Previous month" title="Previous month">
           <svg class="icon"><use href="#icon-chevron_left"></use></svg>
         </a>
       {% else %}
@@ -295,7 +311,7 @@
       </button>
 
       {% if has_newer %}
-        <a class="c-month-btn" href="{% url 'dashboard' %}?month={{ next_month|date:'Y-m' }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}" aria-label="Next month" title="Next month">
+        <a class="c-month-btn" href="{% url 'dashboard' %}?month={{ next_month|date:'Y-m' }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if active_filter %}&filter={{ active_filter }}{% endif %}{% if has_receipt %}&has_receipt={{ has_receipt }}{% endif %}{% if selected_wallet_id %}&wallet={{ selected_wallet_id }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}" aria-label="Next month" title="Next month">
           <svg class="icon"><use href="#icon-chevron_right"></use></svg>
         </a>
       {% else %}
@@ -442,7 +458,7 @@
                 <div class="li-icon li-icon-transfer"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></div>
                 <div class="li-main">
                   <div class="li-title">
-                    <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} → {{ t.to_wallet.name }}{% endif %}</span>
+                    <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} <svg class="icon" style="font-size:11px;margin: 0 2px;"><use href="#icon-move_right"></use></svg> {{ t.to_wallet.name }}{% endif %}</span>
                     {% if t.image %}
                       <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
                     {% endif %}
@@ -465,9 +481,9 @@
                 <div class="li-amt" style="color:{% if t.amount == 0 %}var(--ink){% elif t.kind == 'expense' %}var(--red){% elif t.kind == 'income' %}var(--green){% else %}var(--ink){% endif %}">
                   {% if t.amount > 0 %}{% if t.kind == 'expense' %}-{% elif t.kind == 'income' %}+{% endif %}{% endif %}Rp{{ t.amount|floatformat:0|intcomma }}
                 </div>
-                <div class="li-sub" style="display: flex; justify-content: right;{% if t.kind != 'transfer' %}{% endif %}">
+                <div class="li-sub" style="{% if t.kind != 'transfer' %}{% endif %}">
                   {% if t.kind == 'transfer' %}
-                    {{ t.from_wallet.name }} → {{ t.to_wallet.name }}
+                    {{ t.from_wallet.name }} <svg class="icon" style="font-size:11px;margin: 0 2px;"><use href="#icon-move_right"></use></svg>  {{ t.to_wallet.name }}
                   {% else %}
                     <svg class="icon" style="font-size: 12px; margin:0 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
                   {% endif %}

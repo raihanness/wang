@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
-from tracker.models import Wallet, Category, Transaction
+from tracker.models import Wallet, Category, Transaction, Subscription, SubscriptionPayment, Debt, DebtPayment, TransactionTemplate, UserProfile
 from tracker.views import _month_bounds
 
 
@@ -368,33 +368,33 @@ class TransactionTests(TestCase):
         self.assertEqual(response.context["total_balance"], Decimal("550000"))  # 100k - 50k + 500k = 550k
         self.assertEqual(response.context["expense_month"], Decimal("50000"))
 
-    def test_wallet_toggle_total_action(self):
-        self.assertTrue(self.wallet1.include_in_total)
-        response = self.client.get(reverse("wallet_toggle_total", args=[self.wallet1.pk]))
+    def test_wallet_toggle_archive_action(self):
+        self.assertFalse(self.wallet1.archived)
+        response = self.client.get(reverse("wallet_toggle_archive", args=[self.wallet1.pk]))
         self.assertRedirects(response, reverse("wallet_list"))
         self.wallet1.refresh_from_db()
-        self.assertFalse(self.wallet1.include_in_total)
+        self.assertTrue(self.wallet1.archived)
 
         # Toggle back
-        response = self.client.get(reverse("wallet_toggle_total", args=[self.wallet1.pk]))
+        response = self.client.get(reverse("wallet_toggle_archive", args=[self.wallet1.pk]))
         self.assertRedirects(response, reverse("wallet_list"))
         self.wallet1.refresh_from_db()
-        self.assertTrue(self.wallet1.include_in_total)
+        self.assertFalse(self.wallet1.archived)
 
     def test_total_balance_excludes_wallet_when_toggle_off(self):
         # wallet1 balance = 100k, wallet2 balance = 500k
-        # Initially both included: total = 600k
+        # Initially both active: total = 600k
         response = self.client.get(reverse("wallet_list"))
         self.assertEqual(response.context["total_balance"], Decimal("600000"))
 
-        # Exclude wallet1
-        self.wallet1.include_in_total = False
+        # Archive wallet1
+        self.wallet1.archived = True
         self.wallet1.save()
 
         # Now total balance should only be wallet2 = 500k
         response = self.client.get(reverse("wallet_list"))
         self.assertEqual(response.context["total_balance"], Decimal("500000"))
-        self.assertContains(response, "Excluded")
+        self.assertContains(response, "Archived")
 
         # Dashboard should also reflect 500k
         response = self.client.get(reverse("dashboard"))
@@ -2283,7 +2283,7 @@ class PaymentHistorySyncTests(TestCase):
             name="Emergency Fund",
             type=Wallet.WalletType.SAVINGS,
             initial_balance=Decimal("5000000"),
-            include_in_total=False,
+            include_in_total=True,
         )
         res = self.client.get(reverse("dashboard"))
         self.assertEqual(res.status_code, 200)
@@ -2299,6 +2299,14 @@ class PaymentHistorySyncTests(TestCase):
         self.assertIn('data-raw-savings="Rp5.000.000"', content)
         self.assertIn('data-raw-networth="Rp6.500.000"', content)
 
+        # When savings wallet is archived:
+        savings.archived = True
+        savings.save()
+        res = self.client.get(reverse("dashboard"))
+        self.assertEqual(res.context["spendable_balance"], Decimal("1500000"))
+        self.assertEqual(res.context["savings_balance"], Decimal("0"))
+        self.assertEqual(res.context["net_worth"], Decimal("1500000"))
+
     def test_wallet_list_3way_mode_switcher(self):
         from tracker.models import Wallet
         # wallet1 (1,000,000, cash/spendable), wallet2 (500,000, bank/spendable)
@@ -2307,7 +2315,7 @@ class PaymentHistorySyncTests(TestCase):
             name="Emergency Fund",
             type=Wallet.WalletType.SAVINGS,
             initial_balance=Decimal("5000000"),
-            include_in_total=False,
+            include_in_total=True,
         )
         res = self.client.get(reverse("wallet_list"))
         self.assertEqual(res.status_code, 200)
@@ -2356,14 +2364,14 @@ class UserProfileTests(TestCase):
 
         res_post = self.client.post(reverse("profile_edit"), {
             "display_name": "Raihan Finance",
-            "bio": "Saving for Japan 🌸",
+            "bio": "Saving for vacation",
             "currency_symbol": "IDR",
         })
         self.assertEqual(res_post.status_code, 302)
 
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.display_name, "Raihan Finance")
-        self.assertEqual(self.user.profile.bio, "Saving for Japan 🌸")
+        self.assertEqual(self.user.profile.bio, "Saving for vacation")
         self.assertEqual(self.user.profile.currency_symbol, "IDR")
 
     def test_profile_avatar_upload_and_removal(self):
@@ -2972,5 +2980,466 @@ class DuplicatePostSafeBlockTests(TestCase):
             "password": "ShinyNewPass12345!",
         })
         self.assertRedirects(res_new_login, reverse("dashboard"))
+
+
+class WalletArchiveAndVisibilityTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="walletuser", password="password123")
+        self.user.profile.is_approved = True
+        self.user.profile.approval_status = "approved"
+        self.user.profile.save()
+        self.client = Client()
+        self.client.login(username="walletuser", password="password123")
+
+        self.wallet1 = Wallet.objects.create(
+            user=self.user,
+            name="Cash Wallet",
+            type="cash",
+            initial_balance=Decimal("150000"),
+        )
+        self.wallet2 = Wallet.objects.create(
+            user=self.user,
+            name="Bank Account",
+            type="bank",
+            initial_balance=Decimal("500000"),
+        )
+
+    def test_wallet_archive_toggle_and_collapsible_rendering(self):
+        # 1. User with 2 active wallets
+        res = self.client.get(reverse("wallet_list"))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.context["active_wallets"]), 2)
+        self.assertEqual(len(res.context["archived_wallets"]), 0)
+        self.assertNotContains(res, '<details class="archived-wallets-group">')
+
+        # 2. Archive wallet1 via toggle
+        res_toggle = self.client.post(reverse("wallet_toggle_archive", kwargs={"pk": self.wallet1.pk}))
+        self.assertRedirects(res_toggle, reverse("wallet_list"))
+        self.wallet1.refresh_from_db()
+        self.assertTrue(self.wallet1.archived)
+
+        # 3. View wallet list: wallet1 is in archived_wallets, wallet2 is in active_wallets
+        res_after = self.client.get(reverse("wallet_list"))
+        self.assertEqual(res_after.status_code, 200)
+        self.assertEqual(len(res_after.context["active_wallets"]), 1)
+        self.assertEqual(len(res_after.context["archived_wallets"]), 1)
+        self.assertContains(res_after, '<details class="archived-wallets-group">')
+        self.assertContains(res_after, "Archived Accounts")
+        self.assertContains(res_after, "archived-badge-count")
+
+        # 4. Sheet context excludes archived wallet from transaction picker
+        sheet_wallets = res_after.context.get("wallets", [])
+        active_ids = [w.id for w in sheet_wallets if not w.archived]
+        self.assertNotIn(self.wallet1.id, [w.id for w in res_after.context["active_wallets"] if w.archived])
+
+        # 5. Restore wallet1 via toggle
+        res_restore = self.client.post(reverse("wallet_toggle_archive", kwargs={"pk": self.wallet1.pk}))
+        self.assertRedirects(res_restore, reverse("wallet_list"))
+        self.wallet1.refresh_from_db()
+        self.assertFalse(self.wallet1.archived)
+
+        res_restored = self.client.get(reverse("wallet_list"))
+        self.assertEqual(len(res_restored.context["active_wallets"]), 2)
+        self.assertEqual(len(res_restored.context["archived_wallets"]), 0)
+        self.assertNotContains(res_restored, '<details class="archived-wallets-group">')
+
+    def test_savings_balance_and_archive_svg_symbols(self):
+        # 1. Create a savings wallet
+        savings = Wallet.objects.create(
+            user=self.user,
+            name="Bank Jago Savings",
+            type="savings",
+            initial_balance=Decimal("2500000"),
+            include_in_total=False,  # Legacy field from previous exclusion
+            archived=False,
+        )
+
+        res = self.client.get(reverse("wallet_list"))
+        self.assertEqual(res.status_code, 200)
+        # Even with include_in_total=False in db, active savings wallet is properly included in savings_balance
+        self.assertEqual(res.context["savings_balance"], Decimal("2500000"))
+        self.assertEqual(res.context["spendable_balance"], Decimal("650000"))
+        self.assertEqual(res.context["net_worth"], Decimal("3150000"))
+
+        # Verify SVG sprite contains icon-archive and icon-archive_restore
+        content = res.content.decode("utf-8")
+        self.assertIn('id="icon-archive"', content)
+        self.assertIn('id="icon-archive_restore"', content)
+        self.assertIn('id="icon-archive-restore"', content)
+
+
+class SubscriptionInstallmentsAndAdvancePaymentTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="subuser", password="password123")
+        self.user.profile.is_approved = True
+        self.user.profile.approval_status = "approved"
+        self.user.profile.save()
+        self.client = Client()
+        self.client.login(username="subuser", password="password123")
+
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            name="Main Bank",
+            type="bank",
+            initial_balance=Decimal("2000000"),
+        )
+        self.category = Category.objects.create(
+            user=self.user,
+            name="Gadgets",
+            kind="expense",
+            icon="devices",
+        )
+
+    def test_multi_month_and_target_amount_installments(self):
+        # Create phone installment: total Rp1.000.000, 12 months @ Rp85.000/mo, already paid 2
+        sub = Subscription.objects.create(
+            user=self.user,
+            name="Friend's Phone",
+            amount=Decimal("85000"),
+            total_amount=Decimal("1000000"),
+            total_installments=12,
+            already_paid_installments=2,
+            wallet=self.wallet,
+            category=self.category,
+            cycle=Subscription.Cycle.MONTHLY,
+            due_day=15,
+            active=True,
+        )
+
+        # Initial checks: prior paid = 2 * 85.000 = 170.000. Total target = 1.000.000
+        self.assertEqual(sub.target_amount, Decimal("1000000"))
+        self.assertEqual(sub.total_paid_amount, Decimal("170000"))
+        self.assertEqual(sub.remaining_amount, Decimal("830000"))
+        prog = sub.installments_progress
+        self.assertEqual(prog["paid_count"], 2)
+        self.assertEqual(prog["total"], 12)
+        self.assertEqual(prog["percentage"], 17)
+        self.assertFalse(sub.is_completed)
+
+        # Record payment of 255.000 (covers 3 installments at once!)
+        res = self.client.post(reverse("subscription_pay", args=[sub.pk]), {
+            "amount": "255000",
+            "wallet": str(self.wallet.pk),
+            "note": "Phone installment (3x)",
+        })
+        self.assertEqual(res.status_code, 302)
+        sub.refresh_from_db()
+
+        # Check total paid amount is 170.000 + 255.000 = 425.000
+        self.assertEqual(sub.total_paid_amount, Decimal("425000"))
+        self.assertEqual(sub.remaining_amount, Decimal("575000"))
+        prog_after = sub.installments_progress
+        self.assertEqual(prog_after["paid_count"], 5)  # 5/12 installments paid!
+        self.assertEqual(prog_after["percentage"], 42)  # 42.5% rounded to nearest even integer (42)
+        self.assertIn("5/12 paid", prog_after["text"])
+        self.assertTrue(sub.is_paid_this_cycle)
+
+        # Check status badge reflects paid status / paid ahead
+        badge = sub.status_badge
+        self.assertTrue(badge["paid"])
+
+        # Pay remaining balance of 575.000 to settle early
+        res_final = self.client.post(reverse("subscription_pay", args=[sub.pk]), {
+            "amount": "575000",
+            "wallet": str(self.wallet.pk),
+            "note": "Final settlement",
+        })
+        self.assertEqual(res_final.status_code, 302)
+        sub.refresh_from_db()
+
+        # Verify completed status
+        self.assertEqual(sub.total_paid_amount, Decimal("1000000"))
+        self.assertEqual(sub.remaining_amount, Decimal("0"))
+        self.assertTrue(sub.is_completed)
+        self.assertEqual(sub.status_badge["label"], "Completed")
+
+
+class TransactionTemplateAndFastLoggingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="fastloguser", password="password123")
+        self.user.profile.is_approved = True
+        self.user.profile.approval_status = "approved"
+        self.user.profile.save()
+        self.client = Client()
+        self.client.login(username="fastloguser", password="password123")
+
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            name="Main Cash",
+            type="cash",
+            initial_balance=Decimal("500000"),
+        )
+        self.cat_food = Category.objects.create(
+            user=self.user,
+            name="Food",
+            kind="expense",
+            icon="restaurant",
+            color="#FFB5A7",
+        )
+        self.cat_coffee = Category.objects.create(
+            user=self.user,
+            name="Coffee",
+            kind="expense",
+            icon="local_cafe",
+            color="#FEC8A1",
+        )
+
+    def test_create_and_delete_template_api(self):
+        # 1. Create a template via API
+        res = self.client.post(
+            reverse("api_template_create"),
+            data=json.dumps({
+                "name": "Morning Coffee",
+                "kind": "expense",
+                "amount": "25000",
+                "category_id": self.cat_coffee.id,
+                "wallet_id": self.wallet.id,
+                "note": "Starbucks Americano",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "ok")
+        tmpl_id = data["template"]["id"]
+        self.assertEqual(data["template"]["name"], "Morning Coffee")
+        self.assertEqual(data["template"]["formatted_amount"], "Rp25.000")
+        self.assertEqual(data["template"]["icon"], "local_cafe")
+
+        # 2. Verify template appears in sheet context
+        res_dash = self.client.get(reverse("dashboard"))
+        self.assertEqual(res_dash.status_code, 200)
+        templates_in_ctx = res_dash.context["quick_templates"]
+        self.assertEqual(len(templates_in_ctx), 1)
+        self.assertEqual(templates_in_ctx[0].name, "Morning Coffee")
+
+        content = res_dash.content.decode("utf-8")
+        self.assertIn("sheet-templates-track", content)
+        self.assertIn("Morning Coffee", content)
+        self.assertIn("Rp25.000", content)
+        self.assertIn('id="dt-dup-btn"', content)
+        self.assertIn('id="dt-pin-btn"', content)
+
+        # 3. Delete template via API
+        res_del = self.client.post(reverse("api_template_delete", args=[tmpl_id]))
+        self.assertEqual(res_del.status_code, 200)
+        self.assertEqual(res_del.json()["status"], "ok")
+        self.assertEqual(TransactionTemplate.objects.filter(user=self.user).count(), 0)
+
+    def test_template_model_defaults_and_properties(self):
+        tmpl = TransactionTemplate.objects.create(
+            user=self.user,
+            name="Daily Lunch",
+            amount=Decimal("35000"),
+            category=self.cat_food,
+            wallet=self.wallet,
+            note="Nasi Padang",
+        )
+        self.assertEqual(tmpl.icon, "restaurant")
+        self.assertEqual(tmpl.color, "#FFB5A7")
+        self.assertIn("Daily Lunch", str(tmpl))
+
+
+class SavingsGoalsAndTargetTrackingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="saver", password="password123")
+        self.profile = self.user.profile
+        self.profile.approval_status = "approved"
+        self.profile.is_approved = True
+        self.profile.save()
+
+        self.wallet_cash = Wallet.objects.create(
+            user=self.user,
+            name="Cash Wallet",
+            type=Wallet.WalletType.CASH,
+            initial_balance=Decimal("1000000"),
+        )
+        self.wallet_savings = Wallet.objects.create(
+            user=self.user,
+            name="Emergency Fund",
+            type=Wallet.WalletType.SAVINGS,
+            initial_balance=Decimal("2500000"),
+            target_amount=Decimal("5000000"),
+        )
+        self.client.login(username="saver", password="password123")
+
+    def test_wallet_target_properties(self):
+        # Progress = 2,500,000 / 5,000,000 = 50.0%
+        self.assertEqual(self.wallet_savings.target_progress, Decimal("50.0"))
+        self.assertEqual(self.wallet_savings.target_progress_clamped, 50.0)
+        self.assertEqual(self.wallet_savings.remaining_target, Decimal("2500000"))
+        self.assertFalse(self.wallet_savings.is_target_reached)
+
+        # Deposit to reach target
+        self.wallet_savings.initial_balance = Decimal("5500000")
+        self.wallet_savings.save()
+        delattr(self.wallet_savings, "_cached_balance") if hasattr(self.wallet_savings, "_cached_balance") else None
+
+        self.assertEqual(self.wallet_savings.target_progress, Decimal("110.0"))
+        self.assertEqual(self.wallet_savings.target_progress_clamped, 100.0)
+        self.assertEqual(self.wallet_savings.remaining_target, Decimal("0"))
+        self.assertTrue(self.wallet_savings.is_target_reached)
+
+    def test_wallet_form_and_views_with_target(self):
+        # 1. Create wallet with target amount
+        res = self.client.post(reverse("wallet_create"), {
+            "name": "House Downpayment",
+            "type": Wallet.WalletType.SAVINGS,
+            "icon": "home",
+            "color": "#B5EAD7",
+            "initial_balance": "5000000",
+            "target_amount": "50000000",
+        })
+        self.assertEqual(res.status_code, 302)
+        new_wallet = Wallet.objects.get(user=self.user, name="House Downpayment")
+        self.assertEqual(new_wallet.target_amount, Decimal("50000000"))
+        self.assertEqual(new_wallet.target_progress, Decimal("10.0"))
+
+        # 2. View /wallets/ and verify goal bars, badges, deposit buttons, and aggregate summary
+        res_list = self.client.get(reverse("wallet_list"))
+        self.assertEqual(res_list.status_code, 200)
+        content = res_list.content.decode("utf-8")
+        self.assertIn("House Downpayment", content)
+        self.assertIn("Emergency Fund", content)
+        self.assertIn("w-circle-gauge", content)
+        self.assertIn("js-goal-gauge", content)
+        self.assertIn("data-target=", content)
+        self.assertIn("data-pct=", content)
+        self.assertIn("w-deposit-btn", content)
+        self.assertIn("js-wallet-deposit", content)
+        self.assertIn("goal-sheet", content)
+        self.assertIn("goal-sheet-overlay", content)
+        self.assertIn("gs-deposit-btn", content)
+        self.assertIn("data-edit-url=", content)
+
+
+class ReceiptFilterAndSlipTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="receiptuser", password="password123")
+        self.client = Client()
+        self.client.login(username="receiptuser", password="password123")
+
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            name="Main Cash",
+            type=Wallet.WalletType.CASH,
+            initial_balance=Decimal("1000000"),
+        )
+        self.cat_dining = Category.objects.create(
+            user=self.user,
+            name="Dining & Cafe",
+            kind=Category.Kind.EXPENSE,
+            icon="restaurant",
+            color="#FF8A65",
+        )
+        self.cat_salary = Category.objects.create(
+            user=self.user,
+            name="Monthly Salary",
+            kind=Category.Kind.INCOME,
+            icon="payments",
+            color="#7BD3A4",
+        )
+
+        now = timezone.now()
+        # Transaction WITH receipt image
+        self.tx_with_receipt = Transaction.objects.create(
+            user=self.user,
+            kind=Transaction.Kind.EXPENSE,
+            wallet=self.wallet,
+            category=self.cat_dining,
+            amount=Decimal("75000"),
+            note="Dinner with receipt",
+            image="receipts/sample_dinner.webp",
+            date=now,
+        )
+
+        # Transaction WITHOUT receipt image
+        self.tx_without_receipt = Transaction.objects.create(
+            user=self.user,
+            kind=Transaction.Kind.EXPENSE,
+            wallet=self.wallet,
+            category=self.cat_dining,
+            amount=Decimal("25000"),
+            note="Coffee cash no receipt",
+            image="",
+            date=now,
+        )
+
+        # Income transaction
+        self.tx_income = Transaction.objects.create(
+            user=self.user,
+            kind=Transaction.Kind.INCOME,
+            wallet=self.wallet,
+            category=self.cat_salary,
+            amount=Decimal("500000"),
+            note="Salary payment",
+            date=now,
+        )
+
+    def test_receipt_filter_query(self):
+        # 1. Unfiltered dashboard query returns all 3 transactions
+        res_all = self.client.get(reverse("dashboard"))
+        self.assertEqual(res_all.status_code, 200)
+        tx_groups = res_all.context.get("groups", [])
+        all_tx_ids = [t.id for _, items, _, _ in tx_groups for t in items]
+        self.assertIn(self.tx_with_receipt.id, all_tx_ids)
+        self.assertIn(self.tx_without_receipt.id, all_tx_ids)
+        self.assertIn(self.tx_income.id, all_tx_ids)
+
+        # 2. Filtered with has_receipt=1 returns ONLY transactions with attached receipts
+        res_receipt = self.client.get(reverse("dashboard") + "?has_receipt=1")
+        self.assertEqual(res_receipt.status_code, 200)
+        tx_groups_receipt = res_receipt.context.get("groups", [])
+        filtered_tx_ids = [t.id for _, items, _, _ in tx_groups_receipt for t in items]
+        self.assertIn(self.tx_with_receipt.id, filtered_tx_ids)
+        self.assertNotIn(self.tx_without_receipt.id, filtered_tx_ids)
+        self.assertNotIn(self.tx_income.id, filtered_tx_ids)
+        self.assertEqual(res_receipt.context.get("has_receipt"), "1")
+
+        # 3. Active filter tag rendered in HTML
+        content = res_receipt.content.decode("utf-8")
+        self.assertIn("With Receipt", content)
+        self.assertIn("quick-filter-chip active", content)
+
+    def test_compute_receipt_slip_data(self):
+        from tracker.views import _compute_receipt_slip_data
+        month = timezone.localdate().replace(day=1)
+        slip_data = _compute_receipt_slip_data(self.user, month)
+
+        # Inflow = 500,000, Outflow = 100,000, Net = 400,000
+        self.assertEqual(slip_data["total_income"], 500000.0)
+        self.assertEqual(slip_data["total_expense"], 100000.0)
+        self.assertEqual(slip_data["net_savings"], 400000.0)
+        # Savings rate = (400,000 / 500,000) * 100 = 80.0%
+        self.assertEqual(slip_data["savings_rate"], 80.0)
+        self.assertEqual(slip_data["tx_count"], 3)
+        self.assertEqual(slip_data["receipts_count"], 1)
+        self.assertEqual(len(slip_data["top_categories"]), 1)
+        self.assertEqual(slip_data["top_categories"][0]["name"], "Dining & Cafe")
+        self.assertEqual(slip_data["top_categories"][0]["total"], 100000.0)
+        self.assertEqual(slip_data["top_categories"][0]["pct"], 100.0)
+
+    def test_receipt_slip_modal_rendering(self):
+        # 1. Dashboard page contains receipt slip modal and trigger
+        res_dash = self.client.get(reverse("dashboard"))
+        self.assertEqual(res_dash.status_code, 200)
+        content_dash = res_dash.content.decode("utf-8")
+        self.assertIn("receipt-slip-sheet", content_dash)
+        self.assertIn("receipt-paper", content_dash)
+        self.assertIn("open-receipt-slip-btn", content_dash)
+        self.assertIn("slip-download-btn", content_dash)
+        self.assertIn("slip-copy-btn", content_dash)
+        self.assertIn("slip-share-btn", content_dash)
+
+        # 2. Graphs page contains receipt slip modal and trigger
+        res_graphs = self.client.get(reverse("graphs"))
+        self.assertEqual(res_graphs.status_code, 200)
+        content_graphs = res_graphs.content.decode("utf-8")
+        self.assertIn("receipt-slip-sheet", content_graphs)
+        self.assertIn("open-receipt-slip-btn-graphs", content_graphs)
+
+
+
+
 
 

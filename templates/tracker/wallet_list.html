@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize l10n %}
 {% block page_name %}wallet_list{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -59,11 +59,25 @@
       </div>
     </div>
   </div>
+  {% if total_savings_target > 0 %}
+    <div class="hero-savings-goal" id="hero-savings-goal" style="display:none">
+      <div class="hero-goal-meta">
+        <span style="display:inline-flex;align-items:center;gap:4px">
+          <svg class="icon" style="font-size:14px;color:var(--peach)"><use href="#icon-target"></use></svg>
+          <span>Savings Goals Total</span>
+        </span>
+        <strong>{{ total_savings_progress }}% · Rp{{ total_savings_current|floatformat:0|intcomma }} / Rp{{ total_savings_target|floatformat:0|intcomma }}</strong>
+      </div>
+      <div class="hero-goal-bar">
+        <div class="hero-goal-fill" style="width: {{ total_savings_progress_clamped }}%;"></div>
+      </div>
+    </div>
+  {% endif %}
 </div>
 
 <div class="section-title">
   <h3>Accounts & Wallets</h3>
-  {% if wallets|length > 1 %}
+  {% if active_wallets|length > 1 %}
     <button type="button" class="btn-reorder-toggle" id="btn-reorder-wallets" aria-label="Reorder wallets">
       <svg class="icon"><use href="#icon-swap_vert"></use></svg>
       <span id="reorder-btn-label">Reorder</span>
@@ -72,9 +86,9 @@
 </div>
 
 {% csrf_token %}
-<div class="wallet-grid">
-  {% for w in wallets %}
-    <div class="w-grid-card {% if not w.include_in_total %}w-excluded{% endif %} {% if w.archived %}w-archived{% endif %}"
+<div class="wallet-grid active-wallets-grid">
+  {% for w in active_wallets %}
+    <div class="w-grid-card"
          data-id="{{ w.id }}"
          draggable="false">
       <a class="w-card-link" href="{% url 'wallet_edit' w.pk %}" aria-label="Edit {{ w.name }}" title="Edit {{ w.name }}"></a>
@@ -86,12 +100,14 @@
           <svg class="icon"><use href="#icon-drag_indicator"></use></svg>
         </div>
         <div class="w-grid-actions">
-          <a class="icon-btn w-action-btn {% if w.include_in_total %}included{% else %}excluded{% endif %}"
-             href="{% url 'wallet_toggle_total' w.pk %}"
-             title="{% if w.include_in_total %}Included in total balance (tap to exclude){% else %}Excluded from total balance (tap to include){% endif %}"
-             aria-label="{% if w.include_in_total %}Exclude from total balance{% else %}Include in total balance{% endif %}">
-            <svg class="icon" style="font-size:16px"><use href="#icon-{% if w.include_in_total %}visibility{% else %}visibility_off{% endif %}"></use></svg>
-          </a>
+          <form method="post" action="{% url 'wallet_toggle_archive' w.pk %}" style="display:inline;margin:0">
+            {% csrf_token %}
+            <button type="submit" class="icon-btn w-action-btn w-action-active"
+                    title="Active (tap to archive & disable)"
+                    aria-label="Archive {{ w.name }}">
+              <svg class="icon" style="font-size:16px"><use href="#icon-archive"></use></svg>
+            </button>
+          </form>
           <button type="button" class="icon-btn w-action-btn w-action-delete js-confirm-delete"
                   data-delete-url="{% url 'wallet_delete' w.pk %}"
                   data-delete-title="Delete Wallet?"
@@ -104,18 +120,60 @@
         </div>
       </div>
 
-      <div class="w-grid-body">
-        <strong class="w-grid-name">{{ w.name }}</strong>
-        <div class="w-grid-type">
-          {{ w.get_type_display }}
-          {% if not w.include_in_total %}<span class="w-status-tag">Excluded</span>{% endif %}
-          {% if w.archived %}<span class="w-status-tag">Archived</span>{% endif %}
-        </div>
-      </div>
+      <div style="display: flex; justify-content: space-between; align-items: end; margin-bottom: 5px;">
+        <div style="display:flex; flex-direction: column; gap: 8px;">
+          <div class="w-grid-body">
+            <div class="w-grid-body-info">
+              <strong class="w-grid-name">{{ w.name }}</strong>
+              <div class="w-grid-type">{{ w.get_type_display }}</div>
+            </div>
+          </div>
 
-      <div class="w-grid-footer">
-        <!-- <small class="muted">Balance</small> -->
-        <div class="w-grid-bal">Rp{{ w.current_balance|floatformat:0|intcomma }}</div>
+          <div class="w-grid-footer">
+            <div class="w-grid-bal">Rp{{ w.current_balance|floatformat:0|intcomma }}</div>
+            <!-- {% if w.type == 'savings' or w.target_amount %}
+              <button type="button" class="w-deposit-btn js-wallet-deposit"
+                      data-id="{{ w.id }}"
+                      data-name="{{ w.name }}"
+                      data-icon="{{ w.icon }}"
+                      data-color="{{ w.color }}"
+                      title="Deposit into {{ w.name }}"
+                      aria-label="Deposit into {{ w.name }}">
+                <svg class="icon"><use href="#icon-send_money"></use></svg>
+                <span>Deposit</span>
+              </button>
+            {% endif %} -->
+          </div>
+        </div>
+        {% if w.target_amount %}
+          <button type="button" class="w-circle-gauge js-goal-gauge {% if w.is_target_reached %}w-gauge-reached{% endif %}"
+                  style="--gauge-pct: {{ w.target_progress_clamped|unlocalize }}%;"
+                  data-id="{{ w.id }}"
+                  data-name="{{ w.name }}"
+                  data-icon="{{ w.icon }}"
+                  data-color="{{ w.color }}"
+                  data-target="Rp{{ w.target_amount|floatformat:0|intcomma }}"
+                  data-current="Rp{{ w.current_balance|floatformat:0|intcomma }}"
+                  data-remaining="{% if w.is_target_reached %}Target reached!{% else %}Rp{{ w.remaining_target|floatformat:0|intcomma }} left{% endif %}"
+                  data-pct="{{ w.target_progress|floatformat:0 }}"
+                  data-pct-clamped="{{ w.target_progress_clamped|unlocalize }}"
+                  data-is-reached="{% if w.is_target_reached %}1{% else %}0{% endif %}"
+                  data-edit-url="{% url 'wallet_edit' w.pk %}"
+                  title="Target: Rp{{ w.target_amount|floatformat:0|intcomma }} · Tap for details"
+                  aria-label="View savings goal details for {{ w.name }}">
+            <div class="w-gauge-track">
+              <div class="w-gauge-center">
+                <span class="w-gauge-val">
+                  {% if w.is_target_reached %}
+                    <svg class="icon" style="font-size:11px"><use href="#icon-check"></use></svg>
+                  {% else %}
+                    {{ w.target_progress|floatformat:0 }}%
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          </button>
+        {% endif %}
       </div>
 
       <div class="w-reorder-arrows">
@@ -129,17 +187,197 @@
       </div>
     </div>
   {% empty %}
-    <div class="card muted center" style="grid-column:span 2;padding:32px 16px">
-      No wallets yet — create your first one!
+    <div class="card muted center" style="grid-column:span 2;column-span:all;padding:32px 16px">
+      {% if archived_wallets %}
+        No active wallets. Expand archived accounts below to restore.
+      {% else %}
+        No wallets yet — create your first one!
+      {% endif %}
     </div>
   {% endfor %}
 </div>
 
+{% if archived_wallets %}
+  <details class="archived-wallets-group">
+    <summary class="archived-wallets-head">
+      <div class="archived-head-left">
+        <span class="archived-icon-wrap">
+          <svg class="icon"><use href="#icon-archive"></use></svg>
+        </span>
+        <span class="archived-head-title">Archived Accounts</span>
+        <span class="archived-badge-count">{{ archived_wallets|length }}</span>
+      </div>
+      <div class="archived-head-right">
+        <svg class="icon archived-chevron"><use href="#icon-expand_more"></use></svg>
+      </div>
+    </summary>
+    <div class="archived-wallets-body">
+      <div class="wallet-grid archived-grid">
+        {% for w in archived_wallets %}
+          <div class="w-grid-card w-archived" data-id="{{ w.id }}">
+            <a class="w-card-link" href="{% url 'wallet_edit' w.pk %}" aria-label="Edit {{ w.name }}" title="Edit {{ w.name }}"></a>
+            <div class="w-grid-head">
+              <div class="w-grid-icon" style="background:{{ w.color }}20;color:{{ w.color }}">
+                <svg class="icon"><use href="#icon-{{ w.icon }}"></use></svg>
+              </div>
+              <div class="w-grid-actions">
+                <form method="post" action="{% url 'wallet_toggle_archive' w.pk %}" style="display:inline;margin:0">
+                  {% csrf_token %}
+                  <button type="submit" class="icon-btn w-action-btn w-action-archived"
+                          title="Archived (tap to restore & activate)"
+                          aria-label="Restore {{ w.name }}">
+                    <svg class="icon" style="font-size:16px"><use href="#icon-archive_restore"></use></svg>
+                  </button>
+                </form>
+                <button type="button" class="icon-btn w-action-btn w-action-delete js-confirm-delete"
+                        data-delete-url="{% url 'wallet_delete' w.pk %}"
+                        data-delete-title="Delete Wallet?"
+                        data-delete-desc="Are you sure you want to delete “{{ w.name }}”? All transactions associated with this wallet will also be permanently deleted."
+                        data-delete-preview="{{ w.name }} · Rp{{ w.current_balance|floatformat:0|intcomma }}"
+                        data-delete-icon="{{ w.icon }}"
+                        aria-label="Delete {{ w.name }}" title="Delete {{ w.name }}">
+                  <svg class="icon" style="font-size:16px"><use href="#icon-trash"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="w-grid-body">
+              <strong class="w-grid-name">{{ w.name }}</strong>
+              <div class="w-grid-type">
+                {{ w.get_type_display }}
+                <span class="w-status-tag w-tag-archived">Archived</span>
+              </div>
+            </div>
+
+            <div class="w-grid-footer">
+              <div class="w-grid-bal">Rp{{ w.current_balance|floatformat:0|intcomma }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+{% endif %}
+
 <script>
 (function() {
+  function initGoalSheet() {
+    const sheet = document.getElementById('goal-sheet');
+    const overlay = document.getElementById('goal-sheet-overlay');
+    if (!sheet || !overlay) return;
+    if (sheet.dataset.sheetBound) return;
+    sheet.dataset.sheetBound = 'true';
+
+    function openGoalSheet(gauge) {
+      const d = gauge.dataset;
+      const nameEl = document.getElementById('gs-name');
+      const savedEl = document.getElementById('gs-saved');
+      const targetEl = document.getElementById('gs-target');
+      const editLink = document.getElementById('gs-edit-link');
+
+      if (nameEl) nameEl.textContent = d.name || 'Savings Goal';
+      if (savedEl) savedEl.textContent = d.current || 'Rp0';
+      if (targetEl) targetEl.textContent = d.target || 'Rp0';
+      if (editLink && d.editUrl) editLink.href = d.editUrl;
+
+      const iconUse = document.querySelector('#gs-icon svg use');
+      if (iconUse) {
+        iconUse.setAttribute('href', '#icon-' + (d.icon || 'target'));
+      }
+      const iconWrap = document.getElementById('gs-icon');
+      if (iconWrap && d.color) {
+        iconWrap.style.background = d.color + '20';
+        iconWrap.style.color = d.color;
+      }
+
+      const isReached = d.isReached === '1';
+      const pctClamped = parseFloat(d.pctClamped || '0');
+      const pct = d.pct || '0';
+
+      const gsGauge = document.getElementById('gs-gauge');
+      const gsTrack = document.getElementById('gs-gauge-track');
+      const gsVal = document.getElementById('gs-gauge-val');
+      const gsFill = document.getElementById('gs-progress-fill');
+      const gsBanner = document.getElementById('gs-gauge-banner');
+      const gsHeadline = document.getElementById('gs-banner-headline');
+      const gsText = document.getElementById('gs-status-text');
+
+      if (gsGauge) gsGauge.classList.toggle('w-gauge-reached', isReached);
+      if (gsTrack) gsTrack.style.setProperty('--gauge-pct', pctClamped + '%');
+      if (gsFill) {
+        gsFill.style.width = pctClamped + '%';
+        gsFill.classList.toggle('reached', isReached);
+      }
+
+      if (gsVal) {
+        if (isReached) {
+          gsVal.innerHTML = '<svg class="icon" style="font-size:12px"><use href="#icon-check"></use></svg>';
+        } else {
+          gsVal.textContent = pct + '%';
+        }
+      }
+
+      if (gsBanner) gsBanner.classList.toggle('reached', isReached);
+      if (gsHeadline) {
+        gsHeadline.textContent = isReached ? 'Target Goal Reached!' : (pct + '% Completed');
+      }
+      if (gsText) {
+        gsText.textContent = isReached ? 'Congratulations, you have reached your target!' : (d.remaining + ' to reach target');
+      }
+
+      const depBtn = document.getElementById('gs-deposit-btn');
+      if (depBtn) {
+        depBtn.dataset.id = d.id;
+        depBtn.dataset.name = d.name;
+        depBtn.dataset.color = d.color;
+        depBtn.dataset.icon = d.icon;
+      }
+
+      sheet.classList.add('open');
+      overlay.classList.add('open');
+      overlay.classList.add('show');
+      document.body.style.overflow = 'hidden';
+      if (window.wangPlaySound) window.wangPlaySound('pop');
+    }
+
+    function closeGoalSheet() {
+      if (!sheet.classList.contains('open')) return;
+      sheet.classList.remove('open');
+      overlay.classList.remove('open');
+      overlay.classList.remove('show');
+      document.body.style.overflow = '';
+      if (window.wangPlaySound) window.wangPlaySound('tap');
+    }
+
+    document.addEventListener('click', (e) => {
+      const gaugeBtn = e.target.closest('.js-goal-gauge');
+      if (gaugeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        openGoalSheet(gaugeBtn);
+        return;
+      }
+
+      if (e.target.closest('#gs-close') || e.target === overlay) {
+        e.preventDefault();
+        closeGoalSheet();
+        return;
+      }
+
+      if (e.target.closest('#gs-deposit-btn')) {
+        closeGoalSheet();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sheet.classList.contains('open')) {
+        closeGoalSheet();
+      }
+    });
+  }
   function initWalletReordering() {
     const toggleBtn = document.getElementById('btn-reorder-wallets');
-    const grid = document.querySelector('.wallet-grid');
+    const grid = document.querySelector('.wallet-grid.active-wallets-grid') || document.querySelector('.wallet-grid');
     if (!toggleBtn || !grid) return;
     if (grid.dataset.reorderBound) return;
     grid.dataset.reorderBound = 'true';
@@ -331,12 +569,101 @@
     grid.addEventListener('pointercancel', onPointerUp);
   }
 
-  if (!window.wangWalletReorderInit) {
-    window.wangWalletReorderInit = true;
-    document.addEventListener('turbo:load', initWalletReordering);
-    document.addEventListener('turbo:render', initWalletReordering);
+  function initArchivedWalletsAccordion() {
+    const details = document.querySelector('.archived-wallets-group');
+    if (!details || details.dataset.accordionBound) return;
+    details.dataset.accordionBound = 'true';
+
+    const summary = details.querySelector('.archived-wallets-head');
+    const body = details.querySelector('.archived-wallets-body') || details.querySelector('.archived-grid');
+    if (!summary || !body) return;
+
+    let animation = null;
+    let isClosing = false;
+    let isExpanding = false;
+
+    summary.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (isClosing || !details.open) {
+        openDetails();
+      } else if (isExpanding || details.open) {
+        closeDetails();
+      }
+    });
+
+    function closeDetails() {
+      isClosing = true;
+      isExpanding = false;
+      details.classList.add('is-closing');
+      details.classList.remove('is-expanding');
+      if (window.wangPlaySound) window.wangPlaySound('pop');
+
+      const startHeight = body.offsetHeight;
+      const keyframes = [
+        { opacity: 1, transform: 'translateY(0)', maxHeight: startHeight + 'px', overflow: 'hidden' },
+        { opacity: 0, transform: 'translateY(-8px)', maxHeight: '0px', overflow: 'hidden' }
+      ];
+
+      if (animation) animation.cancel();
+      animation = body.animate(keyframes, {
+        duration: 190,
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+      });
+
+      animation.onfinish = () => {
+        details.removeAttribute('open');
+        details.classList.remove('is-closing');
+        isClosing = false;
+        animation = null;
+      };
+      animation.oncancel = () => {
+        isClosing = false;
+      };
+    }
+
+    function openDetails() {
+      details.setAttribute('open', 'true');
+      isExpanding = true;
+      isClosing = false;
+      details.classList.add('is-expanding');
+      details.classList.remove('is-closing');
+      if (window.wangPlaySound) window.wangPlaySound('tap');
+
+      const endHeight = body.offsetHeight;
+      const keyframes = [
+        { opacity: 0, transform: 'translateY(-8px)', maxHeight: '0px', overflow: 'hidden' },
+        { opacity: 1, transform: 'translateY(0)', maxHeight: endHeight + 'px', overflow: 'hidden' }
+      ];
+
+      if (animation) animation.cancel();
+      animation = body.animate(keyframes, {
+        duration: 220,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+      });
+
+      animation.onfinish = () => {
+        details.classList.remove('is-expanding');
+        isExpanding = false;
+        animation = null;
+      };
+      animation.oncancel = () => {
+        isExpanding = false;
+      };
+    }
   }
-  initWalletReordering();
+
+  function initWalletPage() {
+    initGoalSheet();
+    initWalletReordering();
+    initArchivedWalletsAccordion();
+  }
+
+  if (!window.wangWalletInitBound) {
+    window.wangWalletInitBound = true;
+    document.addEventListener('turbo:load', initWalletPage);
+    document.addEventListener('turbo:render', initWalletPage);
+  }
+  initWalletPage();
 })();
 </script>
 {% endblock %}

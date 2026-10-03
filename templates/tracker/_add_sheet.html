@@ -25,6 +25,35 @@
     <input type="hidden" name="image_clear" id="sheet-image-clear" value="0">
 
     <div class="sheet-scroll">
+      <!-- Quick Templates / Pinned Favorites Carousel Strip -->
+      <div class="sheet-templates-bar" id="sheet-templates-bar" {% if not quick_templates %}style="display:none"{% endif %}>
+        <div class="sheet-templates-track" id="sheet-templates-track">
+          {% for t in quick_templates %}
+            <button type="button" class="template-chip js-template-chip"
+                    data-id="{{ t.id }}"
+                    data-name="{{ t.name }}"
+                    data-kind="{{ t.kind }}"
+                    data-amount="{{ t.amount|floatformat:0 }}"
+                    data-formatted-amount="Rp{{ t.amount|floatformat:0|intcomma }}"
+                    data-cat-id="{{ t.category_id|default:'' }}"
+                    data-wallet-id="{{ t.wallet_id|default:'' }}"
+                    data-note="{{ t.note|default:'' }}"
+                    title="1-tap fill {{ t.name }}">
+              <span class="template-chip-icon" style="background:{{ t.color }}20;color:{{ t.color }}">
+                <svg class="icon"><use href="#icon-{{ t.icon }}"></use></svg>
+              </span>
+              <div class="template-chip-info">
+                <strong class="template-chip-title">{{ t.name }}</strong>
+                <span class="template-chip-amt">Rp{{ t.amount|floatformat:0|intcomma }}</span>
+              </div>
+              <span class="template-chip-delete js-template-delete" data-id="{{ t.id }}" title="Remove template" aria-label="Remove template">
+                <svg class="icon"><use href="#icon-close"></use></svg>
+              </span>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+
       <div id="grid-expense" class="cat-grid">
         {% for c in expense_cats %}<button type="button" class="cat-cell" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-name="{{ c.name }}"><span class="cat-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><svg class="icon"><use href="#icon-{{ c.icon }}"></use></svg></span><span>{{ c.name }}</span></button>{% endfor %}
       </div>
@@ -387,6 +416,37 @@
     }
     return false;
   }
+
+  function setTransferToById(id) {
+    if (!pickerList || !id) return false;
+    const item = pickerList.querySelector(`.picker-item[data-wallet="${id}"]`);
+    if (item) {
+      setTransferBlock('to', item);
+      return true;
+    }
+    return false;
+  }
+
+  function openTransferToWallet(toWalletId, toWalletName, toWalletColor, toWalletIcon) {
+    if (window.openSheet) {
+      window.openSheet();
+    }
+    const transferTab = document.querySelector('.sheet-tab[data-kind="transfer"]');
+    if (transferTab) {
+      transferTab.click();
+    }
+    if (toWalletId) {
+      setTransferToById(toWalletId);
+      if (fromWalletHidden && String(fromWalletHidden.value) === String(toWalletId) && pickerList) {
+        const otherItem = pickerList.querySelector(`.picker-item:not([data-wallet="${toWalletId}"])`);
+        if (otherItem) {
+          setTransferBlock('from', otherItem);
+        }
+      }
+    }
+    if (window.wangPlaySound) window.wangPlaySound('tap');
+  }
+  window.openTransferToWallet = openTransferToWallet;
 
   const fmt = n => n.toLocaleString('id-ID');
 
@@ -1223,7 +1283,7 @@
             } else if (formattedAmt) {
               summary = `Scanned ${formattedAmt}`;
             } else {
-              summary = 'Receipt scanned ✓';
+              summary = 'Receipt scanned';
             }
             if (scanText) scanText.textContent = summary;
             if (window.wangPlaySound) window.wangPlaySound('success');
@@ -1510,6 +1570,221 @@
   }
   window.openEditTransaction = openEditTransaction;
 
+  /* duplicate transaction into bottom sheet with today's date */
+  function duplicateTransaction(data){
+    if (!data) return;
+    resetSheet();
+    form.dataset.mode = 'add';
+    form.action = "{% url 'transaction_create' %}";
+    deleteBtn.hidden = true;
+    saveBtn.textContent = 'Save';
+    if (sheetTitleRow) sheetTitleRow.hidden = true;
+
+    // 1. Kind & tabs
+    const k = data.kind || 'expense';
+    kindInput.value = k;
+    tabs.forEach(t => {
+      const match = t.dataset.kind === k;
+      t.classList.toggle('active', match);
+    });
+    gridExpense.hidden = k !== 'expense';
+    gridIncome.hidden = k !== 'income';
+    gridTransfer.hidden = k !== 'transfer';
+    walletChip.hidden = k === 'transfer';
+
+    // 2. Amount
+    const amt = data.amount ? parseFloat(data.amount) : 0;
+    rawExpr = String(Math.round(amt));
+    updateKeypadDisplay();
+
+    // 3. Note
+    noteInput.value = data.note || '';
+    noteHidden.value = data.note || '';
+
+    // 4. Date: always fresh today
+    selDate = getToday();
+    dateHidden.value = formatLocalISO(selDate);
+    syncDateUI();
+
+    // 5. Category
+    if (k !== 'transfer'){
+      const catId = data.cat || data.catId;
+      let cell = catId ? document.querySelector(`.cat-cell[data-cat="${catId}"]`) : null;
+      if (cell){
+        document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
+        cell.classList.add('selected');
+        selectedCat = cell;
+        catHidden.value = catId;
+      } else {
+        setDefaultCategory(k);
+      }
+    }
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel) {
+      if (k === 'transfer') amountLabel.textContent = 'Transfer';
+      else if (selectedCat && selectedCat.dataset.name) amountLabel.textContent = selectedCat.dataset.name;
+      else amountLabel.textContent = 'Amount';
+    }
+
+    // 6. Wallets
+    const wId = data.wallet || data.walletId;
+    if (k !== 'transfer' && wId){
+      if (!selectWalletById(wId)){
+        walletId = wId;
+        if (walletHidden) walletHidden.value = wId;
+        if (data.walletName && walletChipName) {
+          walletChipName.textContent = data.walletName;
+        }
+      }
+    } else if (k === 'transfer'){
+      const fromId = data.from || data.fromId;
+      const toId = data.to || data.toId;
+      if (fromId){
+        const fItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${fromId}"]`) : null;
+        if (fItem){
+          fromName.textContent = fItem.querySelector('.picker-name')?.textContent || 'From';
+          fromName.dataset.id = fromId;
+          fromIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(fItem.dataset.icon) : ('#icon-' + fItem.dataset.icon)) + '"></use></svg>';
+          fromIcon.style.background = fItem.dataset.color + '20';
+          fromIcon.style.color = fItem.dataset.color;
+          fromBlock.classList.add('selected');
+          fromWalletHidden.value = fromId;
+        }
+      }
+      if (toId){
+        const tItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${toId}"]`) : null;
+        if (tItem){
+          toName.textContent = tItem.querySelector('.picker-name')?.textContent || 'To';
+          toName.dataset.id = toId;
+          toIcon.innerHTML = '<svg class="icon"><use href="' + (window.getIconHref ? window.getIconHref(tItem.dataset.icon) : ('#icon-' + tItem.dataset.icon)) + '"></use></svg>';
+          toIcon.style.background = tItem.dataset.color + '20';
+          toIcon.style.color = tItem.dataset.color;
+          toBlock.classList.add('selected');
+          toWalletHidden.value = toId;
+        }
+      }
+      checkTransfer();
+    }
+    fetchRealtimeWallets();
+
+    if (window.openSheet) window.openSheet();
+  }
+  window.duplicateTransaction = duplicateTransaction;
+
+  /* apply 1-tap template */
+  function applyTemplate(data){
+    if (!data) return;
+    const k = data.kind || 'expense';
+    kindInput.value = k;
+    tabs.forEach(t => {
+      const match = t.dataset.kind === k;
+      t.classList.toggle('active', match);
+    });
+    gridExpense.hidden = k !== 'expense';
+    gridIncome.hidden = k !== 'income';
+    gridTransfer.hidden = k !== 'transfer';
+    walletChip.hidden = k === 'transfer';
+
+    const amt = data.amount ? parseFloat(data.amount) : 0;
+    rawExpr = String(Math.round(amt));
+    updateKeypadDisplay();
+
+    if (data.note !== undefined){
+      noteInput.value = data.note || '';
+      noteHidden.value = data.note || '';
+    }
+
+    if (k !== 'transfer' && data.catId){
+      let cell = document.querySelector(`.cat-cell[data-cat="${data.catId}"]`);
+      if (cell){
+        document.querySelectorAll('.cat-cell').forEach(x => x.classList.remove('selected'));
+        cell.classList.add('selected');
+        selectedCat = cell;
+        catHidden.value = data.catId;
+        cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    const amountLabel = document.getElementById('sheet-amount-label');
+    if (amountLabel) {
+      if (selectedCat && selectedCat.dataset.name) amountLabel.textContent = selectedCat.dataset.name;
+      else amountLabel.textContent = 'Amount';
+    }
+
+    if (k !== 'transfer' && data.walletId){
+      selectWalletById(data.walletId);
+    }
+    fetchRealtimeWallets();
+    if (window.wangPlaySound) window.wangPlaySound('tap');
+  }
+  window.applyTemplate = applyTemplate;
+
+  // Handle Template Chip clicks & delete in Add Sheet
+  document.getElementById('sheet-templates-track')?.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('.js-template-delete');
+    if (delBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const tmplId = delBtn.dataset.id;
+      const chip = delBtn.closest('.template-chip');
+      if (!tmplId) return;
+
+      const tmplName = chip?.dataset.name || 'Quick Template';
+      const formattedAmount = chip?.dataset.formattedAmount || (chip?.dataset.amount ? `Rp${parseInt(chip.dataset.amount, 10).toLocaleString('id-ID')}` : '');
+      const previewText = formattedAmount ? `${tmplName} · ${formattedAmount}` : tmplName;
+
+      function performDelete() {
+        function getCsrfToken() {
+          const input = document.querySelector('[name=csrfmiddlewaretoken]');
+          if (input && input.value) return input.value;
+          const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+          return cookie ? cookie.split('=')[1] : '';
+        }
+        fetch(`/api/templates/${tmplId}/delete/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'Content-Type': 'application/json',
+          }
+        }).then(r => r.json()).then(res => {
+          if (res.status === 'ok') {
+            if (chip) chip.remove();
+            const track = document.getElementById('sheet-templates-track');
+            if (track && track.children.length === 0) {
+              const bar = document.getElementById('sheet-templates-bar');
+              if (bar) bar.style.display = 'none';
+            }
+            if (window.showToastMessage) {
+              window.showToastMessage('Template removed');
+            }
+          }
+        }).catch(() => {});
+      }
+
+      if (window.openConfirmSheet) {
+        window.openConfirmSheet({
+          title: 'Remove Quick Template?',
+          desc: `Are you sure you want to remove “${tmplName}”? You can re-pin it anytime from transaction details.`,
+          preview: previewText,
+          submitText: 'Remove',
+          icon: 'trash',
+          btnClass: 'btn-delete',
+          keepParentSheet: true,
+          onConfirm: performDelete
+        });
+      } else if (confirm('Remove this quick template?')) {
+        performDelete();
+      }
+      return;
+    }
+
+    const chip = e.target.closest('.js-template-chip');
+    if (chip) {
+      e.preventDefault();
+      applyTemplate(chip.dataset);
+    }
+  });
+
   // ── Note Auto-Suggestions ────────────────────────────
   const noteSuggestionsStrip = document.getElementById('note-suggestions-strip');
   /* ── Note Auto-Suggestions & Category-Scoped Notes ── */
@@ -1746,12 +2021,109 @@
   }
   window.wangUpdateNoteSuggestions = updateNoteSuggestions;
 
+  const KEYWORD_CAT_RULES = [
+    {
+      keywords: ['kopi', 'coffee', 'starbucks', 'fore', 'janji jiwa', 'kenangan', 'point coffee', 'cafe', 'latte', 'espresso', 'cappuccino', 'teh', 'boba', 'chatime', 'kopken', 'tomoro'],
+      iconMatch: ['local_cafe', 'coffee', 'cup', 'restaurant'],
+      nameMatch: ['coffee', 'kopi', 'kafe', 'cafe', 'minum', 'drink', 'daily']
+    },
+    {
+      keywords: ['makan', 'nasi', 'lunch', 'dinner', 'breakfast', 'sarapan', 'ayam', 'bakso', 'mie', 'soto', 'padang', 'resto', 'warteg', 'mcd', 'kfc', 'burger', 'pizza', 'sushi', 'hokben', 'snack', 'roti', 'dapur', 'food', 'martabak', 'geprek', 'seblak'],
+      iconMatch: ['restaurant', 'bakery_dining', 'croissant', 'dinner_dining', 'local_dining', 'fastfood', 'cake'],
+      nameMatch: ['food', 'makan', 'kuliner', 'snack', 'daily']
+    },
+    {
+      keywords: ['gojek', 'goride', 'gocar', 'grab', 'grabfood', 'maxim', 'krl', 'mrt', 'lrt', 'bus', 'transjakarta', 'tj', 'kereta', 'bensin', 'pertalite', 'pertamax', 'shell', 'spbu', 'tol', 'toll', 'parkir', 'parking', 'ojek', 'taxi', 'ojol', 'service motor', 'bengkel', 'tambal ban', 'cuci motor', 'cuci mobil'],
+      iconMatch: ['directions_car', 'directions_bus', 'local_gas_station', 'commute', 'train', 'local_taxi', 'two_wheeler', 'car', 'fuel'],
+      nameMatch: ['transport', 'bensin', 'kendaraan', 'commute', 'fuel', 'mobil', 'motor']
+    },
+    {
+      keywords: ['indomaret', 'alfamart', 'superindo', 'hypermart', 'alfamidi', 'belanja', 'sabun', 'shampoo', 'odol', 'detergen', 'sembako', 'pasar', 'galon', 'gas lpg', 'toko'],
+      iconMatch: ['shopping_cart', 'local_mall', 'storefront', 'shopping_bag', 'store', 'cart'],
+      nameMatch: ['daily', 'groceries', 'belanja', 'harian', 'supermarket', 'pasar']
+    },
+    {
+      keywords: ['pln', 'listrik', 'token', 'pdam', 'air', 'wifi', 'indihome', 'biznet', 'myrepublic', 'firstmedia', 'pulsa', 'kuota', 'paket data', 'telkomsel', 'by.u', 'xl', 'axis', 'tri', 'indosat', 'smartfren', 'iuran', 'kontrakan', 'kost', 'kos', 'sewa'],
+      iconMatch: ['receipt', 'bolt', 'zap', 'cell_tower', 'water_drop', 'wifi', 'apartment', 'home'],
+      nameMatch: ['bills', 'tagihan', 'utilities', 'listrik', 'pulsa', 'iuran', 'sewa']
+    },
+    {
+      keywords: ['shopee', 'tokopedia', 'tiktok', 'lazada', 'zalora', 'baju', 'celana', 'sepatu', 'tas', 'kaos', 'jacket', 'jaket', 'hoodie', 'zara', 'uniqlo', 'h&m', 'outfit', 'skincare', 'makeup', 'parfum'],
+      iconMatch: ['checkroom', 'shirt', 'shopping_bag', 'local_mall', 'diamond'],
+      nameMatch: ['shopping', 'belanja', 'fashion', 'clothing', 'baju']
+    },
+    {
+      keywords: ['obat', 'apotek', 'k24', 'kimia farma', 'dokter', 'klinik', 'rs', 'rumah sakit', 'panadol', 'paracetamol', 'bodrex', 'vitamin', 'tolak angin', 'periksa', 'lab'],
+      iconMatch: ['medical_services', 'health_and_safety', 'medication', 'local_hospital', 'stethoscope'],
+      nameMatch: ['health', 'kesehatan', 'obat', 'medis', 'medical']
+    },
+    {
+      keywords: ['bioskop', 'cinema', 'xxi', 'cgv', 'cinepolis', 'film', 'movie', 'netflix', 'spotify', 'youtube', 'disney', 'steam', 'game', 'playstation', 'ps5', 'nintendo', 'karaoke', 'billiard', 'liburan', 'travel', 'hotel'],
+      iconMatch: ['movie', 'sports_esports', 'attractions', 'gamepad', 'hotel', 'flight'],
+      nameMatch: ['entertainment', 'hiburan', 'game', 'hobi', 'liburan', 'leisure']
+    },
+    {
+      keywords: ['gaji', 'salary', 'bonus', 'thr', 'dividen', 'dividend', 'freelance', 'proyek', 'project', 'side hustle', 'penjualan', 'cair', 'komisi'],
+      iconMatch: ['payments', 'account_balance', 'attach_money', 'wallet', 'monetization_on'],
+      nameMatch: ['salary', 'gaji', 'income', 'bonus', 'freelance', 'pendapatan'],
+      targetKind: 'income'
+    }
+  ];
+
+  function autoDetectCategoryFromNote(text) {
+    if (!text || typeof text !== 'string') return;
+    const q = text.trim().toLowerCase();
+    if (q.length < 2) return;
+
+    const currentKind = kindInput ? kindInput.value : 'expense';
+    if (currentKind === 'transfer') return;
+
+    // 1. Check user's category notes history
+    const catMap = getCategoryNotesMap();
+    for (const [catId, notes] of Object.entries(catMap)) {
+      for (const n of notes) {
+        const nLower = (n || '').toLowerCase();
+        if (nLower === q || q.includes(nLower) || (nLower.length >= 3 && nLower.includes(q))) {
+          const cell = document.querySelector(`.cat-cell[data-cat="${catId}"]`);
+          if (cell && cell !== selectedCat) {
+            selectCategory(cell);
+            cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Check keyword heuristics
+    const allCells = Array.from(document.querySelectorAll('.cat-cell'));
+    for (const rule of KEYWORD_CAT_RULES) {
+      const matchWord = rule.keywords.some(kw => q.includes(kw));
+      if (matchWord) {
+        if (rule.targetKind && rule.targetKind !== currentKind) {
+          const targetTab = document.querySelector(`.sheet-tab[data-kind="${rule.targetKind}"]`);
+          if (targetTab) targetTab.click();
+        }
+        const matchedCell = allCells.find(cell => {
+          const catName = (cell.dataset.name || '').toLowerCase();
+          const catIcon = (cell.dataset.icon || '').toLowerCase();
+          return rule.nameMatch.some(nm => catName.includes(nm)) || rule.iconMatch.some(ic => catIcon.includes(ic));
+        });
+        if (matchedCell && matchedCell !== selectedCat) {
+          selectCategory(matchedCell);
+          matchedCell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
+      }
+    }
+  }
+
   let focusTimeout = null;
   let blurTimeout = null;
 
   noteInput?.addEventListener('input', () => {
     noteHidden.value = noteInput.value;
     updateNoteSuggestions();
+    autoDetectCategoryFromNote(noteInput.value);
   });
 
   noteInput?.addEventListener('focus', () => {

@@ -6,10 +6,18 @@ from .models import Wallet, Category, Transaction, Subscription, Debt, DebtPayme
 class WalletForm(forms.ModelForm):
     class Meta:
         model = Wallet
-        fields = ["name", "type", "icon", "color", "initial_balance", "include_in_total"]
+        fields = ["name", "type", "icon", "color", "initial_balance", "target_amount", "archived"]
         widgets = {
             "color": forms.TextInput(attrs={"type": "color"}),
+            "target_amount": forms.NumberInput(attrs={"placeholder": "e.g. 10000000", "step": "any", "min": "0"}),
+            "initial_balance": forms.NumberInput(attrs={"step": "any"}),
         }
+
+    def clean_target_amount(self):
+        val = self.cleaned_data.get("target_amount")
+        if val is not None and val <= 0:
+            return None
+        return val
 
 
 class CategoryForm(forms.ModelForm):
@@ -72,8 +80,10 @@ class TransactionForm(forms.ModelForm):
 class SubscriptionForm(forms.ModelForm):
     class Meta:
         model = Subscription
-        fields = ["name", "amount", "wallet", "category", "cycle", "due_month", "due_day", "icon", "color", "total_installments", "already_paid_installments", "end_date", "active"]
+        fields = ["name", "amount", "total_amount", "wallet", "category", "cycle", "due_month", "due_day", "icon", "color", "total_installments", "already_paid_installments", "end_date", "active"]
         widgets = {
+            "amount": forms.NumberInput(attrs={"placeholder": "e.g. 85000", "step": "any", "min": 0, "class": "input"}),
+            "total_amount": forms.NumberInput(attrs={"placeholder": "e.g. 1000000 (total target)", "step": "any", "min": 0, "class": "input"}),
             "color": forms.TextInput(attrs={"type": "color"}),
             "due_month": forms.Select(attrs={"class": "input"}),
             "due_day": forms.NumberInput(attrs={"min": 1, "max": 31, "placeholder": "Day of month (1-31)"}),
@@ -87,6 +97,7 @@ class SubscriptionForm(forms.ModelForm):
         if user is not None:
             self.fields["wallet"].queryset = Wallet.objects.filter(user=user, archived=False)
             self.fields["category"].queryset = Category.objects.filter(user=user, kind=Category.Kind.EXPENSE)
+        self.fields["total_amount"].required = False
         self.fields["wallet"].required = False
         self.fields["category"].required = False
         self.fields["due_month"].required = False
@@ -158,7 +169,7 @@ class ProfileForm(forms.ModelForm):
         fields = ["display_name", "avatar", "bio", "currency_symbol"]
         widgets = {
             "display_name": forms.TextInput(attrs={"placeholder": "e.g. Raihan", "class": "input"}),
-            "bio": forms.TextInput(attrs={"placeholder": "e.g. Saving for Japan 🌸", "class": "input"}),
+            "bio": forms.TextInput(attrs={"placeholder": "e.g. Saving for vacation", "class": "input"}),
             "currency_symbol": forms.TextInput(attrs={"placeholder": "e.g. Rp", "class": "input"}),
             "avatar": forms.FileInput(attrs={"accept": "image/*", "class": "profile-avatar-file-input", "id": "id_avatar"}),
         }
