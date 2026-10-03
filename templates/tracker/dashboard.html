@@ -458,7 +458,7 @@
                 <div class="li-icon li-icon-transfer"><svg class="icon"><use href="#icon-swap_horiz"></use></svg></div>
                 <div class="li-main">
                   <div class="li-title">
-                    <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} <svg class="icon" style="font-size:11px;margin: 0 2px;"><use href="#icon-move_right"></use></svg> {{ t.to_wallet.name }}{% endif %}</span>
+                    <span>{% if t.note %}{{ t.note }}{% else %}{{ t.from_wallet.name }} <svg class="icon" style="font-size:11px;margin: 0 2px;"><use href="#icon-chevron_right"></use></svg> {{ t.to_wallet.name }}{% endif %}</span>
                     {% if t.image %}
                       <span class="li-receipt-badge" title="Has receipt photo"><svg class="icon" style="font-size: 11px;"><use href="#icon-receipt_long"></use></svg></span>
                     {% endif %}
@@ -483,7 +483,7 @@
                 </div>
                 <div class="li-sub" style="{% if t.kind != 'transfer' %}{% endif %}">
                   {% if t.kind == 'transfer' %}
-                    {{ t.from_wallet.name }} <svg class="icon" style="font-size:11px;margin: 0 2px;"><use href="#icon-move_right"></use></svg>  {{ t.to_wallet.name }}
+                    {{ t.from_wallet.name }} <svg class="icon" style="font-size:11px;margin: 0 2px;"><use href="#icon-chevron_right"></use></svg>  {{ t.to_wallet.name }}
                   {% else %}
                     <svg class="icon" style="font-size: 12px; margin:0 4px 0 0;"><use href="#icon-{{ t.wallet.icon }}"></use></svg>{{ t.wallet.name }}
                   {% endif %}
