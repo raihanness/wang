@@ -3,17 +3,26 @@ package dev.raihan.wang;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
@@ -34,17 +43,16 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-
-import android.content.res.Configuration;
-import android.graphics.Color;
-import android.view.Window;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -55,19 +63,36 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
+    public static final String PREFS_NAME = "wang_prefs";
+    public static final String KEY_BIOMETRIC_ENABLED = "biometric_enabled";
+    public static final String KEY_HAPTICS_ENABLED = "haptics_enabled";
+
     private WebView mWebView;
     private SwipeRefreshLayout mSwipeRefresh;
+    private View mBiometricLockOverlay;
     private ValueCallback<Uri[]> mFilePathCallback;
     private String mCameraPhotoPath;
     private Uri mCameraPhotoUri;
     private String mPendingCapturedPhotoBase64;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
+    private ActivityResultLauncher<String> mNotificationPermissionLauncher;
+    private int mPendingReminderHour = 20;
+    private int mPendingReminderMinute = 0;
 
-    // Controls whether the current page and active DOM elements allow pull-to-refresh
+    // Vibrator engine
+    private Vibrator mVibrator;
+    private boolean mHapticsEnabled = true;
+
+    // Biometric security
+    private boolean mIsAppLocked = false;
+    private long mLastPausedTimestamp = 0;
+    private static final long LOCK_GRACE_PERIOD_MS = 60000; // 1 minute grace period before locking on resume
+
+    // Pull-to-refresh & scroll states
     private volatile boolean mPageAllowsRefresh = true;
     private volatile boolean mIsScrollableActive = false;
 
-    // Last recorded system bar insets in dp
+    // System bar insets in dp
     private int mLastTopInsetsDp = 0;
     private int mLastBottomInsetsDp = 0;
 
@@ -104,21 +129,125 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+
+        // ── Native Haptics Bridge ──
+        @JavascriptInterface
+        public void vibrateEffect(String effect) {
+            performHaptic(effect);
+        }
+
+        @JavascriptInterface
+        public boolean isHapticsEnabled() {
+            return mHapticsEnabled;
+        }
+
+        @JavascriptInterface
+        public void setHapticsEnabled(boolean enabled) {
+            mHapticsEnabled = enabled;
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(KEY_HAPTICS_ENABLED, enabled)
+                    .apply();
+        }
+
+        // ── Native Biometrics Bridge ──
+        @JavascriptInterface
+        public boolean isBiometricAvailable() {
+            BiometricManager bm = BiometricManager.from(MainActivity.this);
+            int canAuth = bm.canAuthenticate(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            );
+            return canAuth == BiometricManager.BIOMETRIC_SUCCESS;
+        }
+
+        @JavascriptInterface
+        public boolean isBiometricEnabled() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean(KEY_BIOMETRIC_ENABLED, false);
+        }
+
+        @JavascriptInterface
+        public void setBiometricEnabled(boolean enabled) {
+            runOnUiThread(() -> {
+                if (enabled) {
+                    promptBiometricToEnable();
+                } else {
+                    getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(KEY_BIOMETRIC_ENABLED, false)
+                            .apply();
+                    notifyWebBiometricState(false);
+                    Toast.makeText(MainActivity.this, "Biometric app lock disabled", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        // ── Native Daily Reminder Bridge ──
+        @JavascriptInterface
+        public boolean isReminderEnabled() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getBoolean(DailyReminderReceiver.KEY_REMINDER_ENABLED, false);
+        }
+
+        @JavascriptInterface
+        public int getReminderHour() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getInt(DailyReminderReceiver.KEY_REMINDER_HOUR, 20);
+        }
+
+        @JavascriptInterface
+        public int getReminderMinute() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getInt(DailyReminderReceiver.KEY_REMINDER_MINUTE, 0);
+        }
+
+        @JavascriptInterface
+        public void setDailyReminder(boolean enabled, int hour, int minute) {
+            runOnUiThread(() -> {
+                if (enabled) {
+                    mPendingReminderHour = hour;
+                    mPendingReminderMinute = minute;
+
+                    // On Android 13+ (API 33+), check if notification permission needs to be requested
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.POST_NOTIFICATIONS)
+                                    != PackageManager.PERMISSION_GRANTED) {
+                        try {
+                            mNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
+                        } catch (Exception e) {
+                            Toast.makeText(MainActivity.this, "Cannot request notification permission", Toast.LENGTH_SHORT).show();
+                        }
+                        return;
+                    }
+
+                    // Permission is already granted or not needed on pre-Android 13
+                    applyAndScheduleReminder(hour, minute);
+                } else {
+                    getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                            .putBoolean(DailyReminderReceiver.KEY_REMINDER_ENABLED, false)
+                            .apply();
+                    DailyReminderReceiver.cancelReminder(MainActivity.this);
+                    notifyWebReminderState(false);
+                    Toast.makeText(MainActivity.this, "Daily reminder turned off", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     private void updateSystemBarIcons(boolean isDark) {
         Window window = getWindow();
         WindowInsetsControllerCompat insetsController = WindowCompat.getInsetsController(window, window.getDecorView());
         if (insetsController != null) {
-            // isAppearanceLightStatusBars(true) means dark icons (for light theme)
-            // isAppearanceLightStatusBars(false) means white/light icons (for dark theme)
             insetsController.setAppearanceLightStatusBars(!isDark);
             insetsController.setAppearanceLightNavigationBars(!isDark);
+        }
+        if (mBiometricLockOverlay != null) {
+            mBiometricLockOverlay.setBackgroundColor(isDark ? getColor(R.color.bg_dark) : getColor(R.color.bg_light));
         }
     }
 
     private void setupEdgeToEdgeInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.swipe_refresh), (v, windowInsets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root_container), (v, windowInsets) -> {
             Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
             float density = getResources().getDisplayMetrics().density;
             int topDp = Math.round(insets.top / density);
@@ -144,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Enable true Edge-to-Edge display with transparent system bars
+        // Edge-to-Edge display with transparent system bars
         Window window = getWindow();
         WindowCompat.setDecorFitsSystemWindows(window, false);
         window.setStatusBarColor(Color.TRANSPARENT);
@@ -156,15 +285,45 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        // Initialize system bar icons based on current device night mode
+        // Initialize system bar icons based on system night mode
         int nightMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         updateSystemBarIcons(nightMode == Configuration.UI_MODE_NIGHT_YES);
 
-        // Setup Edge-to-Edge window insets listening and CSS injection
+        // Setup Edge-to-Edge window insets
         setupEdgeToEdgeInsets();
 
+        // Initialize hardware vibrator service
+        setupVibrator();
+
+        // SharedPreferences
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        mHapticsEnabled = prefs.getBoolean(KEY_HAPTICS_ENABLED, true);
+
+        // Views
         mWebView = findViewById(R.id.web_view);
         mSwipeRefresh = findViewById(R.id.swipe_refresh);
+        mBiometricLockOverlay = findViewById(R.id.biometric_lock_overlay);
+
+        findViewById(R.id.btn_unlock_biometric).setOnClickListener(v -> {
+            performHaptic("click");
+            showBiometricPromptForUnlock();
+        });
+
+        // Setup Notification Permission Launcher
+        mNotificationPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        applyAndScheduleReminder(mPendingReminderHour, mPendingReminderMinute);
+                    } else {
+                        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                                .putBoolean(DailyReminderReceiver.KEY_REMINDER_ENABLED, false)
+                                .apply();
+                        notifyWebReminderState(false);
+                        Toast.makeText(this, "Notification permission is required for daily reminders", Toast.LENGTH_LONG).show();
+                    }
+                }
+        );
 
         // Configure SwipeRefreshLayout with Wang pastel primary & accent colors
         mSwipeRefresh.setColorSchemeColors(
@@ -173,14 +332,10 @@ public class MainActivity extends AppCompatActivity {
         );
         mSwipeRefresh.setOnRefreshListener(() -> mWebView.reload());
 
-        // Fix scroll-to-refresh conflict:
-        // 1. If the current view is a form (e.g. /new, /edit), pull-to-refresh is disabled to protect inputs.
-        // 2. If a bottom sheet (e.g. Add/Edit Transaction sheet, Categories, Wallet Picker, Filters)
-        //    is open or being touched, return true so SwipeRefreshLayout NEVER intercepts downward gestures.
-        // 3. Otherwise, pull-to-refresh is only allowed when genuine scroll is at the top of the root page.
+        // Fix scroll-to-refresh conflict
         mSwipeRefresh.setOnChildScrollUpCallback((parent, child) -> {
             if (!mPageAllowsRefresh || mIsScrollableActive) {
-                return true; // Child can scroll or refresh is prevented -> do NOT intercept
+                return true;
             }
             return mWebView.canScrollVertically(-1) || mWebView.getScrollY() > 0;
         });
@@ -189,17 +344,22 @@ public class MainActivity extends AppCompatActivity {
             syncSwipeRefreshState();
         });
 
-        // Setup Modern Activity Result Launcher for Camera & File Uploads (Receipt Attachments)
+        // File chooser for receipts
         setupFileChooserLauncher();
 
-        // Setup WebView settings and clients
+        // Setup WebView
         setupWebView();
 
-        // Setup native Back navigation (WebView history before app exit)
+        // Setup smart back navigation (handles sheets before history/exit)
         setupBackNavigation();
 
-        // Load configured hosted domain URL
-        String targetUrl = getString(R.string.app_web_url);
+        // Check Biometric lock on startup
+        if (prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)) {
+            lockAppWithBiometrics();
+        }
+
+        // Determine initial URL (handles shortcuts and deep links)
+        String initialUrl = getUrlFromIntent(getIntent());
         if (savedInstanceState != null) {
             mWebView.restoreState(savedInstanceState);
             mCameraPhotoPath = savedInstanceState.getString("camera_photo_path");
@@ -211,8 +371,274 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if (mWebView.getUrl() == null) {
-            mWebView.loadUrl(targetUrl);
+            mWebView.loadUrl(initialUrl);
         }
+    }
+
+    private void setupVibrator() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+            if (vm != null) {
+                mVibrator = vm.getDefaultVibrator();
+            }
+        } else {
+            mVibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        }
+    }
+
+    public void performHaptic(String effect) {
+        if (!mHapticsEnabled || mVibrator == null || !mVibrator.hasVibrator()) {
+            return;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                switch (effect) {
+                    case "tap":
+                        mVibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
+                        break;
+                    case "click":
+                        mVibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK));
+                        break;
+                    case "heavy":
+                        mVibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK));
+                        break;
+                    case "success":
+                        mVibrator.vibrate(VibrationEffect.createWaveform(
+                                new long[]{0, 12, 35, 18},
+                                new int[]{0, 110, 0, 190},
+                                -1
+                        ));
+                        break;
+                    case "delete":
+                    case "error":
+                        mVibrator.vibrate(VibrationEffect.createWaveform(
+                                new long[]{0, 20, 40, 25},
+                                new int[]{0, 160, 0, 190},
+                                -1
+                        ));
+                        break;
+                    default:
+                        mVibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
+                        break;
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                mVibrator.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                mVibrator.vibrate(12);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    // ── Biometric Authentication ──
+
+    private void lockAppWithBiometrics() {
+        mIsAppLocked = true;
+        if (mBiometricLockOverlay != null) {
+            mBiometricLockOverlay.setVisibility(View.VISIBLE);
+            mBiometricLockOverlay.setAlpha(1f);
+        }
+        showBiometricPromptForUnlock();
+    }
+
+    private void unlockAppWithBiometrics() {
+        mIsAppLocked = false;
+        performHaptic("success");
+        if (mBiometricLockOverlay != null) {
+            mBiometricLockOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(220)
+                    .withEndAction(() -> mBiometricLockOverlay.setVisibility(View.GONE))
+                    .start();
+        }
+    }
+
+    private void showBiometricPromptForUnlock() {
+        BiometricPrompt.PromptInfo promptInfo;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(getString(R.string.biometric_title))
+                    .setSubtitle(getString(R.string.biometric_subtitle))
+                    .setAllowedAuthenticators(
+                            BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    )
+                    .build();
+        } else {
+            promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(getString(R.string.biometric_title))
+                    .setSubtitle(getString(R.string.biometric_subtitle))
+                    .setDeviceCredentialAllowed(true)
+                    .build();
+        }
+
+        BiometricPrompt biometricPrompt = new BiometricPrompt(
+                this,
+                ContextCompat.getMainExecutor(this),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                        super.onAuthenticationSucceeded(result);
+                        unlockAppWithBiometrics();
+                    }
+
+                    @Override
+                    public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                        super.onAuthenticationError(errorCode, errString);
+                        // Remain locked; user can tap unlock button
+                    }
+
+                    @Override
+                    public void onAuthenticationFailed() {
+                        super.onAuthenticationFailed();
+                        performHaptic("error");
+                    }
+                }
+        );
+
+        try {
+            biometricPrompt.authenticate(promptInfo);
+        } catch (Exception e) {
+            // Fallback unlock if device lacks lock mechanism
+            unlockAppWithBiometrics();
+        }
+    }
+
+    private void promptBiometricToEnable() {
+        BiometricPrompt.PromptInfo promptInfo;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Verify Identity")
+                    .setSubtitle("Confirm fingerprint or lock to enable Wang App Lock")
+                    .setAllowedAuthenticators(
+                            BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    )
+                    .build();
+        } else {
+            promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Verify Identity")
+                    .setSubtitle("Confirm fingerprint or lock to enable Wang App Lock")
+                    .setDeviceCredentialAllowed(true)
+                    .build();
+        }
+
+        BiometricPrompt biometricPrompt = new BiometricPrompt(
+                this,
+                ContextCompat.getMainExecutor(this),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                        super.onAuthenticationSucceeded(result);
+                        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                                .edit()
+                                .putBoolean(KEY_BIOMETRIC_ENABLED, true)
+                                .apply();
+                        performHaptic("success");
+                        notifyWebBiometricState(true);
+                        Toast.makeText(MainActivity.this, "Biometric App Lock enabled! 🔒", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                        super.onAuthenticationError(errorCode, errString);
+                        notifyWebBiometricState(false);
+                    }
+                }
+        );
+
+        try {
+            biometricPrompt.authenticate(promptInfo);
+        } catch (Exception e) {
+            Toast.makeText(this, "Biometric authentication not configured on this device", Toast.LENGTH_LONG).show();
+            notifyWebBiometricState(false);
+        }
+    }
+
+    private void notifyWebBiometricState(boolean enabled) {
+        if (mWebView != null) {
+            String js = "if (window.wangOnBiometricStateChanged) { window.wangOnBiometricStateChanged(" + enabled + "); }";
+            mWebView.evaluateJavascript(js, null);
+        }
+    }
+
+    private void applyAndScheduleReminder(int hour, int minute) {
+        try {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putBoolean(DailyReminderReceiver.KEY_REMINDER_ENABLED, true)
+                    .putInt(DailyReminderReceiver.KEY_REMINDER_HOUR, hour)
+                    .putInt(DailyReminderReceiver.KEY_REMINDER_MINUTE, minute)
+                    .apply();
+
+            DailyReminderReceiver.createNotificationChannel(this);
+            DailyReminderReceiver.scheduleReminder(this, hour, minute);
+
+            notifyWebReminderState(true);
+            String timeStr = String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+            Toast.makeText(this, "Daily reminder scheduled for " + timeStr + " 🔔", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Unable to schedule reminder on this device", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void notifyWebReminderState(boolean enabled) {
+        if (mWebView != null) {
+            String js = "if (window.wangOnReminderStateChanged) { window.wangOnReminderStateChanged(" + enabled + "); }";
+            mWebView.evaluateJavascript(js, null);
+        }
+    }
+
+    // ── Intent & Shortcut URL routing ──
+
+    private String getUrlFromIntent(Intent intent) {
+        String base = getString(R.string.app_web_url);
+        if (!base.endsWith("/")) base += "/";
+
+        if (intent != null) {
+            String action = intent.getStringExtra("shortcut_action");
+            if (action != null) {
+                switch (action) {
+                    case "new_expense":
+                        return base + "?action=new_expense";
+                    case "new_income":
+                        return base + "?action=new_income";
+                    case "graphs":
+                        return base + "graphs/";
+                    case "wallets":
+                        return base + "wallets/";
+                }
+            }
+            Uri data = intent.getData();
+            if (data != null && data.toString().startsWith("http")) {
+                return data.toString();
+            }
+        }
+        return base;
+    }
+
+    private void handleShortcutIntent(Intent intent) {
+        if (intent == null || mWebView == null) return;
+        String action = intent.getStringExtra("shortcut_action");
+        String base = getString(R.string.app_web_url);
+        if (!base.endsWith("/")) base += "/";
+
+        if ("new_expense".equals(action)) {
+            mWebView.loadUrl(base + "?action=new_expense");
+        } else if ("new_income".equals(action)) {
+            mWebView.loadUrl(base + "?action=new_income");
+        } else if ("graphs".equals(action)) {
+            mWebView.loadUrl(base + "graphs/");
+        } else if ("wallets".equals(action)) {
+            mWebView.loadUrl(base + "wallets/");
+        } else if (intent.getData() != null && intent.getData().toString().startsWith("http")) {
+            mWebView.loadUrl(intent.getData().toString());
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleShortcutIntent(intent);
     }
 
     private void syncSwipeRefreshState() {
@@ -245,7 +671,7 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
 
-        // Enable hardware acceleration and audio without requiring user gesture tap
+        // Hardware acceleration and gesture-free audio
         webSettings.setMediaPlaybackRequiresUserGesture(false);
 
         // Cache & responsive viewport
@@ -257,7 +683,7 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDisplayZoomControls(false);
 
         // Identify as Wang Native Android wrapper in User-Agent header
-        String customUA = webSettings.getUserAgentString() + " WangNativeAndroid/1.0.5";
+        String customUA = webSettings.getUserAgentString() + " WangNativeAndroid/1.1.0";
         webSettings.setUserAgentString(customUA);
 
         // Persistent Cookies & Session management
@@ -265,13 +691,13 @@ public class MainActivity extends AppCompatActivity {
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(mWebView, true);
 
-        // Enable fast scroll physics and disable overscroll glow
+        // Fast scroll physics
         mWebView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         // Register AndroidBridge JavaScript interface
         mWebView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
 
-        // Set DownloadListener for files (e.g. CSV Export)
+        // DownloadListener for CSV Exports
         mWebView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             handleDownload(url, userAgent, contentDisposition, mimetype);
         });
@@ -285,7 +711,6 @@ public class MainActivity extends AppCompatActivity {
 
                 if (scheme == null) return false;
 
-                // Handle external protocols (tel, mailto, whatsapp, market, etc.)
                 if (scheme.equalsIgnoreCase("tel") ||
                     scheme.equalsIgnoreCase("mailto") ||
                     scheme.equalsIgnoreCase("sms") ||
@@ -300,7 +725,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                // Keep all HTTP / HTTPS navigation inside the WebView
                 return false;
             }
 
@@ -353,7 +777,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Set WebChromeClient for Receipt File Chooser (Camera & Gallery picker)
+        // Set WebChromeClient for Receipt File Chooser
         mWebView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
@@ -366,7 +790,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
                                               FileChooserParams fileChooserParams) {
-                // Cancel any pending callbacks
                 if (mFilePathCallback != null) {
                     mFilePathCallback.onReceiveValue(null);
                     mFilePathCallback = null;
@@ -392,7 +815,6 @@ public class MainActivity extends AppCompatActivity {
                     mCameraPhotoUri = null;
                 }
 
-                // Gallery picker intent
                 Intent contentSelectionIntent = fileChooserParams.createIntent();
                 contentSelectionIntent.setType("image/*");
 
@@ -545,9 +967,9 @@ public class MainActivity extends AppCompatActivity {
             storageDir = getCacheDir();
         }
         return File.createTempFile(
-                imageFileName,  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
+                imageFileName,
+                ".jpg",
+                storageDir
         );
     }
 
@@ -559,11 +981,8 @@ public class MainActivity extends AppCompatActivity {
                     public void onActivityResult(ActivityResult result) {
                         Uri[] results = null;
 
-                        // Check if response is positive
                         if (result.getResultCode() == RESULT_OK) {
                             Intent intent = result.getData();
-
-                            // 1. Check if camera capture succeeded and produced a valid photo file
                             boolean isCamera = false;
                             if (mCameraPhotoPath != null) {
                                 File file = new File(mCameraPhotoPath);
@@ -572,7 +991,6 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             }
 
-                            // If camera produced the photo and intent has no specific gallery data
                             if (isCamera && (intent == null || (intent.getData() == null && intent.getClipData() == null))) {
                                 if (mCameraPhotoUri != null) {
                                     results = new Uri[]{mCameraPhotoUri};
@@ -587,13 +1005,11 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 }
 
-                                // If callback was lost due to activity recreation under memory pressure
                                 if (mFilePathCallback == null && mCameraPhotoPath != null) {
                                     mPendingCapturedPhotoBase64 = readImageAsBase64DataUrl(mCameraPhotoPath);
                                     deliverPendingPhotoToWebView();
                                 }
                             } else if (intent != null) {
-                                // 2. Gallery / Document / File picker selection
                                 if (intent.getClipData() != null) {
                                     int count = intent.getClipData().getItemCount();
                                     results = new Uri[count];
@@ -614,7 +1030,6 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Cleanup empty temp file if camera was cancelled without capture
                         if (results == null && mCameraPhotoPath != null) {
                             try {
                                 File file = new File(mCameraPhotoPath);
@@ -678,24 +1093,36 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ── Smart Back Navigation ──
+
     private void setupBackNavigation() {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (mWebView != null && mWebView.canGoBack()) {
-                    mWebView.goBack();
-                } else {
-                    setEnabled(false);
-                    getOnBackPressedDispatcher().onBackPressed();
+                if (mWebView != null) {
+                    // Check if open web bottom sheet or modal can consume back gesture
+                    mWebView.evaluateJavascript(
+                            "(function() { return !!(window.wangHandleBackPressed && window.wangHandleBackPressed()); })()",
+                            result -> {
+                                boolean consumed = "true".equalsIgnoreCase(String.valueOf(result).trim().replace("\"", ""));
+                                if (!consumed) {
+                                    runOnUiThread(() -> {
+                                        if (mWebView != null && mWebView.canGoBack()) {
+                                            mWebView.goBack();
+                                        } else {
+                                            setEnabled(false);
+                                            getOnBackPressedDispatcher().onBackPressed();
+                                        }
+                                    });
+                                }
+                            }
+                    );
+                    return;
                 }
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
             }
         });
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
     }
 
     @Override
@@ -721,6 +1148,7 @@ public class MainActivity extends AppCompatActivity {
         if (mWebView != null) {
             mWebView.onPause();
         }
+        mLastPausedTimestamp = System.currentTimeMillis();
         CookieManager.getInstance().flush();
     }
 
@@ -729,7 +1157,6 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (mWebView != null) {
             mWebView.onResume();
-            // If the WebView was killed, cleared or lost while in background, reload immediately
             if (mWebView.getUrl() == null) {
                 mWebView.loadUrl(getString(R.string.app_web_url));
             }
@@ -738,6 +1165,14 @@ public class MainActivity extends AppCompatActivity {
             mSwipeRefresh.setRefreshing(false);
         }
         CookieManager.getInstance().flush();
+
+        // Biometric re-lock if past grace period
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean biometricEnabled = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false);
+        if (biometricEnabled && mLastPausedTimestamp > 0 &&
+                (System.currentTimeMillis() - mLastPausedTimestamp) > LOCK_GRACE_PERIOD_MS) {
+            lockAppWithBiometrics();
+        }
     }
 
     @Override

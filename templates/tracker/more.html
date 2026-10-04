@@ -173,6 +173,54 @@
 </div>
 {% endif %}
 
+<!-- Group: Android App Features (Shown only inside native Android APK) -->
+<div class="more-group js-android-only" id="android-settings-group" style="display:none">
+  <div class="more-group-title">Android App Features</div>
+  <div class="card more-card">
+    <!-- Biometric Unlock -->
+    <div class="more-row js-android-biometric-row" id="android-biometric-toggle" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(255, 138, 101, 0.18);color:var(--coral)">
+        <svg class="icon"><use href="#icon-fingerprint_pattern"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Biometric App Lock</strong>
+        <small class="muted" id="android-biometric-sub">Fingerprint or face to open</small>
+      </div>
+      <div class="more-badge-wrap">
+        <span class="badge" id="android-biometric-badge">Off</span>
+      </div>
+    </div>
+
+    <!-- Daily Spending Reminder -->
+    <div class="more-row js-android-reminder-row" id="android-reminder-toggle" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(123, 211, 164, 0.18);color:var(--green)">
+        <svg class="icon"><use href="#icon-bell"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Daily Spending Reminder</strong>
+        <small class="muted" id="android-reminder-sub">Evening check-in at 8:00 PM</small>
+      </div>
+      <div class="more-badge-wrap">
+        <span class="badge" id="android-reminder-badge">Off</span>
+      </div>
+    </div>
+
+    <!-- Haptic Touch Feedback -->
+    <div class="more-row js-android-haptics-row" id="android-haptics-toggle" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(108, 108, 224, 0.15);color:#6C6CE0">
+        <svg class="icon"><use href="#icon-vibrate"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>Haptic Feedback</strong>
+        <small class="muted" id="android-haptics-sub">Physical vibration on taps</small>
+      </div>
+      <div class="more-badge-wrap">
+        <span class="badge" id="android-haptics-badge">On</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Group 3: Preferences & System -->
 <div class="more-group">
   <div class="more-group-title">Preferences &amp; System</div>

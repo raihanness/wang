@@ -2,4 +2,27 @@
     <string name="app_name">Wang</string>
     <!-- Change this URL to your live hosted DOM Cloud URL, e.g. https://wang.yourdomain.dev -->
     <string name="app_web_url">https://wang.baihkki.my.id/</string>
+
+    <!-- App Launcher Shortcuts -->
+    <string name="shortcut_add_expense_short">Add Expense</string>
+    <string name="shortcut_add_expense_long">Log a new expense</string>
+    <string name="shortcut_add_income_short">Add Income</string>
+    <string name="shortcut_add_income_long">Log a new income</string>
+    <string name="shortcut_graphs_short">Graphs</string>
+    <string name="shortcut_graphs_long">View analytics and trends</string>
+    <string name="shortcut_wallets_short">Wallets</string>
+    <string name="shortcut_wallets_long">View accounts and balances</string>
+
+    <!-- Notifications -->
+    <string name="reminder_channel_name">Daily Spending Reminders</string>
+    <string name="reminder_channel_desc">Reminds you in the evening to log today\'s transactions</string>
+    <string name="reminder_title">Wang • Daily Check-in</string>
+    <string name="reminder_message">Don\'t forget to record your expenses today! 💰</string>
+
+    <!-- Biometrics -->
+    <string name="biometric_title">Wang Authentication</string>
+    <string name="biometric_subtitle">Confirm fingerprint or screen lock to open Wang</string>
+    <string name="biometric_locked_title">Wang is Locked</string>
+    <string name="biometric_locked_desc">Verify your identity to view your finances</string>
+    <string name="biometric_unlock_btn">Unlock Wang</string>
 </resources>

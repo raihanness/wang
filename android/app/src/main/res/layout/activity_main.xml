@@ -1,17 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipe_refresh"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <WebView
-        android:id="@+id/web_view"
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/web_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="none"
+            android:overScrollMode="never" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- Native Biometric Lock Screen Overlay -->
+    <LinearLayout
+        android:id="@+id/biometric_lock_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scrollbars="none"
-        android:overScrollMode="never" />
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:background="@color/bg_light"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        tools:visibility="visible">
 
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+        <ImageView
+            android:id="@+id/iv_biometric_icon"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/ic_fingerprint"
+            android:contentDescription="@string/biometric_locked_title"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:id="@+id/tv_biometric_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/biometric_locked_title"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#2D2A26"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_biometric_desc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/biometric_locked_desc"
+            android:textSize="14sp"
+            android:textColor="#7A7265"
+            android:gravity="center"
+            android:layout_marginBottom="36dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_unlock_biometric"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:text="@string/biometric_unlock_btn"
+            android:textSize="15sp"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            app:cornerRadius="26dp"
+            app:backgroundTint="@color/primary"
+            app:elevation="2dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

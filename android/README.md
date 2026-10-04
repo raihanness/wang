@@ -7,11 +7,15 @@ This is a complete, standalone native Android Studio project that wraps your hos
 ## Key Features
 
 - **Standalone Native App**: Appears with its own launcher icon, splash background, and full-screen layout without any browser address bars or navigation chrome.
+- **Biometric App Lock (Fingerprint & Face Unlock)**: AndroidX `BiometricPrompt` with device credential fallback (PIN/pattern/password). Locks on app start and resume after backgrounding, keeping your financial records completely secure. Can be toggled on/off in the app's More settings.
+- **Native Hardware Haptic Feedback**: Direct integration with Android's `Vibrator` and `VibrationEffect` engine for crisp, zero-latency physical clicks on keypads, tabs, and buttons.
+- **App Launcher Shortcuts**: Long-press the Wang app icon on your Android home screen to jump directly into **Add Expense**, **Add Income**, **Graphs**, or **Wallets**.
+- **Local Daily Reminders**: Background alarms via `AlarmManager` and `DailyReminderReceiver` that notify you at 8:00 PM to track your spending, with automatic reboot rescheduling (`BootReceiver`) and zero external server dependencies.
+- **Smart Sheet Back Navigation**: Pressing Android's back gesture/button closes open bottom sheets, modals, or calendar pickers first (`window.wangHandleBackPressed()`) before navigating web history or exiting.
 - **Camera & Gallery Photo Attachments**: Complete `WebChromeClient.onShowFileChooser()` implementation with `FileProvider` so tapping the camera icon in Wang opens the Android camera or photo gallery seamlessly for receipt uploads.
 - **Session & Cookie Persistence**: Fully integrates Android `CookieManager` with automatic flushing on pause/resume so your login session stays alive across app launches.
 - **Hardware Acceleration & Sound**: Hardware accelerated rendering for 60fps Chart.js charts and pastel bottom sheet animations, plus gesture-free Web Audio synthesizer support for tactile feedback.
 - **Pull-to-Refresh**: Native `SwipeRefreshLayout` with Wang primary peach/mint color scheme.
-- **Smart Back Navigation**: Back gestures and physical back buttons navigate WebView page history (`webView.goBack()`) before exiting the application.
 - **Live Automatic Updates**: Because the WebView loads your live DOM Cloud URL, any changes you deploy to DOM Cloud are immediately reflected in the app without reinstalling the APK.
 
 ---

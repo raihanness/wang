@@ -489,6 +489,16 @@ input[type="submit"]:disabled,
   /* font-size: 14.5px; */
 }
 
+.badge-green {
+  color: var(--green) !important;
+  background: rgba(42, 181, 115, 0.12) !important;
+}
+
+[data-theme="dark"] .badge-green {
+  color: #7BD3A4 !important;
+  background: rgba(42, 181, 115, 0.22) !important;
+}
+
 [data-theme="dark"] .badge-income {
   /* background: rgba(42, 181, 115, .2); */
   color: var(--green);

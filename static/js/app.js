@@ -302,8 +302,12 @@
       }
     } catch (e) { }
 
-    // Haptic feedback for supported mobile devices
-    if (navigator.vibrate) {
+    // Haptic feedback: native AndroidBridge hardware vibrator takes priority over web vibration
+    if (window.AndroidBridge && typeof window.AndroidBridge.vibrateEffect === 'function') {
+      try {
+        window.AndroidBridge.vibrateEffect(type);
+      } catch (e) { }
+    } else if (navigator.vibrate) {
       try {
         if (type === 'tap') navigator.vibrate(8);
         else if (type === 'success') navigator.vibrate([12, 40, 18]);
@@ -2274,6 +2278,196 @@
     if (backdrop) backdrop.hidden = true;
     if (trigger) trigger.setAttribute('aria-expanded', 'false');
   }
+  window.closeMonthPopover = closeMonthPopover;
+
+  // ── Native Android Bridge Helpers & Smart Back-Press ──
+  function wangHandleBackPressed() {
+    // 1. Lightbox
+    const lb = document.getElementById('receipt-lightbox');
+    if (lb && !lb.hidden) {
+      lb.hidden = true;
+      return true;
+    }
+    // 2. Picker sheet (wallet picker inside add sheet)
+    const pickerSheet = document.getElementById('picker-sheet');
+    if (pickerSheet && pickerSheet.classList.contains('open')) {
+      const pickerClose = document.getElementById('picker-close');
+      if (pickerClose) pickerClose.click();
+      else pickerSheet.classList.remove('open');
+      const pickerOverlay = document.getElementById('picker-overlay');
+      if (pickerOverlay) pickerOverlay.classList.remove('show');
+      return true;
+    }
+    // 3. Date sheet (calendar picker inside add sheet)
+    const dateSheet = document.getElementById('date-sheet');
+    if (dateSheet && dateSheet.classList.contains('open')) {
+      const dateClose = document.getElementById('date-close');
+      if (dateClose) dateClose.click();
+      else dateSheet.classList.remove('open');
+      const dateOverlay = document.getElementById('date-overlay');
+      if (dateOverlay) dateOverlay.classList.remove('show');
+      return true;
+    }
+    // 4. Month Popover
+    const monthPop = document.getElementById('month-popover');
+    if (monthPop && !monthPop.hidden) {
+      closeMonthPopover();
+      return true;
+    }
+    // 5. Goal sheet
+    const goalSheet = document.getElementById('goal-sheet');
+    if (goalSheet && goalSheet.classList.contains('open')) {
+      closeGoalSheet();
+      return true;
+    }
+    // 6. Subscription sheets
+    const subPaySheet = document.getElementById('sub-pay-sheet');
+    if (subPaySheet && subPaySheet.classList.contains('open')) {
+      closeSubPaySheet();
+      return true;
+    }
+    const subHistSheet = document.getElementById('sub-history-sheet');
+    if (subHistSheet && subHistSheet.classList.contains('open')) {
+      closeSubHistorySheet();
+      return true;
+    }
+    // 7. Debt sheets
+    const debtPaySheet = document.getElementById('debt-pay-sheet');
+    if (debtPaySheet && debtPaySheet.classList.contains('open')) {
+      closeDebtPaySheet();
+      return true;
+    }
+    const debtHistSheet = document.getElementById('debt-history-sheet');
+    if (debtHistSheet && debtHistSheet.classList.contains('open')) {
+      closeDebtHistorySheet();
+      return true;
+    }
+    // 8. Category Tx sheet
+    const catTxSheet = document.getElementById('cat-tx-sheet');
+    if (catTxSheet && catTxSheet.classList.contains('open')) {
+      closeCatTxSheet();
+      return true;
+    }
+    // 9. Receipt slip sheet
+    const receiptSlipSheet = document.getElementById('receipt-slip-sheet');
+    if (receiptSlipSheet && receiptSlipSheet.classList.contains('open')) {
+      closeReceiptSlipSheet();
+      return true;
+    }
+    // 10. Confirm sheet
+    const confirmSheet = document.getElementById('confirm-sheet');
+    if (confirmSheet && confirmSheet.classList.contains('open')) {
+      closeConfirmSheet();
+      return true;
+    }
+    // 11. Filter sheet
+    const filterSheet = document.getElementById('filter-sheet');
+    if (filterSheet && filterSheet.classList.contains('open')) {
+      closeFilterSheet();
+      return true;
+    }
+    // 12. Budget sheet
+    const budgetSheet = document.getElementById('budget-sheet');
+    if (budgetSheet && budgetSheet.classList.contains('open')) {
+      closeBudgetSheet();
+      return true;
+    }
+    // 13. Transaction Detail sheet
+    const detailSheet = document.getElementById('detail-sheet');
+    if (detailSheet && detailSheet.classList.contains('open')) {
+      closeDetailSheet();
+      return true;
+    }
+    // 14. Main Add Transaction sheet
+    const addSheet = document.getElementById('add-sheet');
+    if (addSheet && addSheet.classList.contains('open')) {
+      closeSheet();
+      return true;
+    }
+    return false;
+  }
+  window.wangHandleBackPressed = wangHandleBackPressed;
+
+  function handleUrlShortcuts() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get('action');
+      if (action === 'new_expense' || action === 'new_income') {
+        setTimeout(() => {
+          openSheet();
+          const targetTab = action === 'new_expense' ? 'expense' : 'income';
+          const tabBtn = document.querySelector(`.sheet-tab[data-tab="${targetTab}"]`);
+          if (tabBtn) tabBtn.click();
+        }, 120);
+        params.delete('action');
+        const newQuery = params.toString();
+        const newUrl = window.location.pathname + (newQuery ? '?' + newQuery : '');
+        window.history.replaceState({}, '', newUrl);
+      }
+    } catch (e) { }
+  }
+  window.wangHandleUrlShortcuts = handleUrlShortcuts;
+
+  function syncAndroidSettingsUI() {
+    const group = document.getElementById('android-settings-group');
+    if (!group) return;
+
+    if (!window.AndroidBridge) {
+      group.style.display = 'none';
+      return;
+    }
+
+    group.style.display = '';
+
+    // Biometrics
+    const bioBadge = document.getElementById('android-biometric-badge');
+    const bioSub = document.getElementById('android-biometric-sub');
+    if (bioBadge && typeof window.AndroidBridge.isBiometricEnabled === 'function') {
+      const isAvail = typeof window.AndroidBridge.isBiometricAvailable === 'function' ? window.AndroidBridge.isBiometricAvailable() : true;
+      const isEnabled = window.AndroidBridge.isBiometricEnabled();
+      if (!isAvail) {
+        bioBadge.textContent = 'Not supported';
+        bioBadge.className = 'badge';
+        if (bioSub) bioSub.textContent = 'No biometric hardware detected';
+      } else {
+        bioBadge.textContent = isEnabled ? 'Protected' : 'Off';
+        bioBadge.className = isEnabled ? 'badge badge-green' : 'badge';
+        if (bioSub) bioSub.textContent = isEnabled ? 'Fingerprint or lock required on open' : 'Tap to enable biometric lock';
+      }
+    }
+
+    // Reminders
+    const remBadge = document.getElementById('android-reminder-badge');
+    const remSub = document.getElementById('android-reminder-sub');
+    if (remBadge && typeof window.AndroidBridge.isReminderEnabled === 'function') {
+      const isRem = window.AndroidBridge.isReminderEnabled();
+      const h = typeof window.AndroidBridge.getReminderHour === 'function' ? window.AndroidBridge.getReminderHour() : 20;
+      const m = typeof window.AndroidBridge.getReminderMinute === 'function' ? window.AndroidBridge.getReminderMinute() : 0;
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      remBadge.textContent = isRem ? 'Active' : 'Off';
+      remBadge.className = isRem ? 'badge badge-green' : 'badge';
+      if (remSub) remSub.textContent = isRem ? `Evening reminder at ${timeStr}` : 'Tap to enable evening reminder';
+    }
+
+    // Haptics
+    const hapBadge = document.getElementById('android-haptics-badge');
+    const hapSub = document.getElementById('android-haptics-sub');
+    if (hapBadge && typeof window.AndroidBridge.isHapticsEnabled === 'function') {
+      const isHap = window.AndroidBridge.isHapticsEnabled();
+      hapBadge.textContent = isHap ? 'On' : 'Off';
+      hapBadge.className = isHap ? 'badge badge-green' : 'badge';
+      if (hapSub) hapSub.textContent = isHap ? 'Tactile vibration active' : 'Tactile vibration disabled';
+    }
+  }
+  window.wangSyncAndroidSettingsUI = syncAndroidSettingsUI;
+
+  window.wangOnBiometricStateChanged = function() {
+    syncAndroidSettingsUI();
+  };
+
+  window.wangOnReminderStateChanged = function() {
+    syncAndroidSettingsUI();
+  };
 
   function toggleMonthPopover() {
     const popover = document.getElementById('month-popover');
@@ -3185,6 +3379,45 @@
     if (soundToggle) {
       e.preventDefault();
       toggleSound();
+      return;
+    }
+
+    // Android Biometrics toggle
+    const bioToggle = e.target.closest('#android-biometric-toggle, .js-android-biometric-row');
+    if (bioToggle) {
+      e.preventDefault();
+      playSound('tap');
+      if (window.AndroidBridge && typeof window.AndroidBridge.setBiometricEnabled === 'function') {
+        const cur = window.AndroidBridge.isBiometricEnabled();
+        window.AndroidBridge.setBiometricEnabled(!cur);
+        syncAndroidSettingsUI();
+      }
+      return;
+    }
+
+    // Android Daily Reminder toggle
+    const remToggle = e.target.closest('#android-reminder-toggle, .js-android-reminder-row');
+    if (remToggle) {
+      e.preventDefault();
+      playSound('tap');
+      if (window.AndroidBridge && typeof window.AndroidBridge.setDailyReminder === 'function') {
+        const cur = window.AndroidBridge.isReminderEnabled();
+        window.AndroidBridge.setDailyReminder(!cur, 20, 0);
+        syncAndroidSettingsUI();
+      }
+      return;
+    }
+
+    // Android Haptics toggle
+    const hapToggle = e.target.closest('#android-haptics-toggle, .js-android-haptics-row');
+    if (hapToggle) {
+      e.preventDefault();
+      if (window.AndroidBridge && typeof window.AndroidBridge.setHapticsEnabled === 'function') {
+        const cur = window.AndroidBridge.isHapticsEnabled();
+        window.AndroidBridge.setHapticsEnabled(!cur);
+        playSound('tap');
+        syncAndroidSettingsUI();
+      }
       return;
     }
 
@@ -4128,6 +4361,8 @@
     initIconPicker();
     initToasts();
     resolveExternalIcons();
+    syncAndroidSettingsUI();
+    handleUrlShortcuts();
   });
   document.addEventListener('turbo:render', () => {
     syncAppbar();
@@ -4144,6 +4379,7 @@
     initIconPicker();
     initToasts();
     resolveExternalIcons();
+    syncAndroidSettingsUI();
     if (window.wangRefreshWallets) window.wangRefreshWallets();
   });
   document.addEventListener('turbo:frame-load', () => {
@@ -4431,5 +4667,7 @@
   mountGraphs();
   initIconPicker();
   resolveExternalIcons();
+  syncAndroidSettingsUI();
+  handleUrlShortcuts();
 })();
 
