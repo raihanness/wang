@@ -20,6 +20,8 @@ public class BootReceiver extends BroadcastReceiver {
                 int minute = prefs.getInt(DailyReminderReceiver.KEY_REMINDER_MINUTE, 0);
                 DailyReminderReceiver.scheduleReminder(context, hour, minute);
             }
+
+            WangBalanceWidgetProvider.updateAllWidgets(context);
         }
     }
 }

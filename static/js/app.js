@@ -2469,6 +2469,21 @@
     syncAndroidSettingsUI();
   };
 
+  function syncWidgetDataToNative() {
+    if (!window.AndroidBridge || typeof window.AndroidBridge.updateWidgetData !== 'function') return;
+    const heroCard = document.getElementById('hero-balance-card');
+    if (!heroCard) return;
+
+    const balanceEl = document.getElementById('hero-balance-amount');
+    let bal = heroCard.dataset.widgetBalance || '';
+    if (!bal && balanceEl) {
+      bal = balanceEl.textContent.trim().replace(/\s+/g, ' ');
+    }
+    const spent = heroCard.dataset.widgetSpent || '';
+    window.AndroidBridge.updateWidgetData(bal, spent);
+  }
+  window.wangSyncWidgetDataToNative = syncWidgetDataToNative;
+
   function toggleMonthPopover() {
     const popover = document.getElementById('month-popover');
     if (!popover) return;
@@ -4362,6 +4377,7 @@
     initToasts();
     resolveExternalIcons();
     syncAndroidSettingsUI();
+    syncWidgetDataToNative();
     handleUrlShortcuts();
   });
   document.addEventListener('turbo:render', () => {
@@ -4380,6 +4396,7 @@
     initToasts();
     resolveExternalIcons();
     syncAndroidSettingsUI();
+    syncWidgetDataToNative();
     if (window.wangRefreshWallets) window.wangRefreshWallets();
   });
   document.addEventListener('turbo:frame-load', () => {
@@ -4668,6 +4685,7 @@
   initIconPicker();
   resolveExternalIcons();
   syncAndroidSettingsUI();
+  syncWidgetDataToNative();
   handleUrlShortcuts();
 })();
 

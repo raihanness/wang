@@ -232,6 +232,19 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+
+        // ── Native Home Screen Widget Sync ──
+        @JavascriptInterface
+        public void updateWidgetData(String balance, String todaySpent) {
+            if (balance == null || balance.isEmpty()) return;
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString("widget_balance", balance)
+                    .putString("widget_today_spent", todaySpent != null ? todaySpent : "")
+                    .putLong("widget_last_updated", System.currentTimeMillis())
+                    .apply();
+
+            WangBalanceWidgetProvider.updateAllWidgets(MainActivity.this);
+        }
     }
 
     private void updateSystemBarIcons(boolean isDark) {

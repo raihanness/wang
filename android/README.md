@@ -15,6 +15,10 @@ This is a complete, standalone native Android Studio project that wraps your hos
 - **Camera & Gallery Photo Attachments**: Complete `WebChromeClient.onShowFileChooser()` implementation with `FileProvider` so tapping the camera icon in Wang opens the Android camera or photo gallery seamlessly for receipt uploads.
 - **Session & Cookie Persistence**: Fully integrates Android `CookieManager` with automatic flushing on pause/resume so your login session stays alive across app launches.
 - **Hardware Acceleration & Sound**: Hardware accelerated rendering for 60fps Chart.js charts and pastel bottom sheet animations, plus gesture-free Web Audio synthesizer support for tactile feedback.
+- **Home Screen App Widgets**:
+  - **Hero Finance Widget (4x2 / 3x2)**: Displays your live total balance, today's spending, sync timestamp, and 1-tap "+ Expense" and "+ Income" quick action buttons. Tapping the balance area directly opens the dashboard.
+  - **Quick Actions Bar Widget (4x1 / 2x1)**: An ultra-compact horizontal pill with 4 shortcuts (+ Expense, + Income, Graphs, Wallets).
+  - **Bridge Pattern Live Sync**: Automatically syncs balance and today's spending numbers to Android's `SharedPreferences` on page load, Turbo render, and transaction logging so widgets remain updated and work offline. Supports dynamic light & dark theme mode.
 - **Pull-to-Refresh**: Native `SwipeRefreshLayout` with Wang primary peach/mint color scheme.
 - **Live Automatic Updates**: Because the WebView loads your live DOM Cloud URL, any changes you deploy to DOM Cloud are immediately reflected in the app without reinstalling the APK.
 

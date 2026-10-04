@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_bar_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_widget_card"
+    android:gravity="center_vertical"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- Action 1: Add Expense -->
+    <LinearLayout
+        android:id="@+id/btn_bar_expense"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_widget_circle_peach"
+            android:src="@drawable/ic_shortcut_expense"
+            android:padding="6dp"
+            android:contentDescription="@string/shortcut_add_expense_short" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+ Expense"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_expense_text"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- Action 2: Add Income -->
+    <LinearLayout
+        android:id="@+id/btn_bar_income"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_widget_circle_mint"
+            android:src="@drawable/ic_shortcut_income"
+            android:padding="6dp"
+            android:contentDescription="@string/shortcut_add_income_short" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+ Income"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_income_text"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- Action 3: Graphs -->
+    <LinearLayout
+        android:id="@+id/btn_bar_graphs"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_widget_circle_lilac"
+            android:src="@drawable/ic_shortcut_graphs"
+            android:padding="6dp"
+            android:contentDescription="@string/shortcut_graphs_short" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Graphs"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_graphs_text"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- Action 4: Wallets -->
+    <LinearLayout
+        android:id="@+id/btn_bar_wallets"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_widget_circle_amber"
+            android:src="@drawable/ic_shortcut_wallets"
+            android:padding="6dp"
+            android:contentDescription="@string/shortcut_wallets_short" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Wallets"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_wallets_text"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+</LinearLayout>

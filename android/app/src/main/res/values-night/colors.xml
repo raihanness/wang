@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget theme tokens (Dark Mode) -->
+    <color name="widget_bg">#1E1C1A</color>
+    <color name="widget_border">#332E2A</color>
+    <color name="widget_text_title">#F8F5F2</color>
+    <color name="widget_text_muted">#A8A095</color>
+    <color name="widget_expense_bg">#36221E</color>
+    <color name="widget_expense_stroke">#4A2C26</color>
+    <color name="widget_expense_text">#FF9E80</color>
+    <color name="widget_income_bg">#1B3326</color>
+    <color name="widget_income_stroke">#254735</color>
+    <color name="widget_income_text">#7BD3A4</color>
+    <color name="widget_graphs_bg">#252542</color>
+    <color name="widget_graphs_text">#A5A6F6</color>
+    <color name="widget_wallets_bg">#362E1A</color>
+    <color name="widget_wallets_text">#F7D070</color>
+</resources>
