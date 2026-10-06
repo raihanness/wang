@@ -311,6 +311,40 @@ class TransactionTests(TestCase):
         self.assertContains(response, 'id="sheet-category-notes"')
         self.assertContains(response, 'id="turbo-category-notes"')
 
+    def test_latest_note_ranks_first_over_frequent_notes(self):
+        # Create an older note used 3 times
+        for _ in range(3):
+            Transaction.objects.create(
+                user=self.user,
+                kind="expense",
+                amount=Decimal("15000"),
+                wallet=self.wallet1,
+                category=self.cat_food,
+                note="Frequent Old Note",
+                date=timezone.now() - timedelta(days=2),
+            )
+        # Create a brand new note used only once today
+        Transaction.objects.create(
+            user=self.user,
+            kind="expense",
+            amount=Decimal("20000"),
+            wallet=self.wallet1,
+            category=self.cat_food,
+            note="Brand New Latest Note",
+            date=timezone.now(),
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        recent_notes = response.context["recent_notes"]
+        category_notes = response.context["category_notes"][str(self.cat_food.id)]
+
+        # The latest note must appear at the top (index 0)
+        self.assertEqual(recent_notes[0], "Brand New Latest Note")
+        self.assertEqual(category_notes[0], "Brand New Latest Note")
+        # And the frequent older note must still be present in the suggestions list
+        self.assertIn("Frequent Old Note", recent_notes)
+        self.assertIn("Frequent Old Note", category_notes)
+
 
     def test_graphs_page_loads_with_turbo_frame_and_months_nav(self):
         Transaction.objects.create(

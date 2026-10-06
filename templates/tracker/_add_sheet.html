@@ -1566,6 +1566,7 @@
       }
     }
 
+    if (typeof updateNoteSuggestions === 'function') updateNoteSuggestions();
     if (window.openSheet) window.openSheet();
   }
   window.openEditTransaction = openEditTransaction;
@@ -1667,6 +1668,7 @@
     }
     fetchRealtimeWallets();
 
+    if (typeof updateNoteSuggestions === 'function') updateNoteSuggestions();
     if (window.openSheet) window.openSheet();
   }
   window.duplicateTransaction = duplicateTransaction;
@@ -1715,6 +1717,7 @@
       selectWalletById(data.walletId);
     }
     fetchRealtimeWallets();
+    if (typeof updateNoteSuggestions === 'function') updateNoteSuggestions();
     if (window.wangPlaySound) window.wangPlaySound('tap');
   }
   window.applyTemplate = applyTemplate;
@@ -1867,7 +1870,7 @@
       try {
         const parsed = JSON.parse(turboEl.textContent);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          recentNotesList = sanitizeAndDedupeNotes([...(recentNotesList || []), ...parsed]);
+          recentNotesList = sanitizeAndDedupeNotes([...parsed, ...(recentNotesList || [])]);
           saveRecentNotesToStorage(recentNotesList);
           return recentNotesList;
         }
@@ -1908,18 +1911,18 @@
     if (!trimmed) return;
     const lower = trimmed.toLowerCase();
 
-    // 1. Update general recent notes
+    // 1. Update general recent notes (new note always at index 0)
     const current = getRecentNotes();
     const updated = [trimmed, ...current.filter(n => (n || '').trim().toLowerCase() !== lower)];
     recentNotesList = sanitizeAndDedupeNotes(updated);
     saveRecentNotesToStorage(recentNotesList);
 
-    // 2. Update category-specific notes map
+    // 2. Update category-specific notes map (new note always at index 0)
     if (catId) {
       const catMap = { ...getCategoryNotesMap() };
       const currentCatNotes = catMap[catId] || [];
       const updatedCatNotes = [trimmed, ...currentCatNotes.filter(n => (n || '').trim().toLowerCase() !== lower)];
-      catMap[catId] = sanitizeAndDedupeNotes(updatedCatNotes).slice(0, 30);
+      catMap[catId] = sanitizeAndDedupeNotes(updatedCatNotes).slice(0, 40);
       categoryNotesMap = catMap;
       saveCategoryNotesToStorage(catMap);
     }
@@ -1939,7 +1942,7 @@
       try {
         const parsed = JSON.parse(turboRecentEl.textContent);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          recentNotesList = sanitizeAndDedupeNotes([...(recentNotesList || []), ...parsed]);
+          recentNotesList = sanitizeAndDedupeNotes([...parsed, ...(recentNotesList || [])]);
           saveRecentNotesToStorage(recentNotesList);
         }
       } catch (e) { }
@@ -1949,7 +1952,13 @@
       try {
         const parsed = JSON.parse(turboCatEl.textContent);
         if (parsed && typeof parsed === 'object') {
-          categoryNotesMap = parsed;
+          const merged = { ...getCategoryNotesMap() };
+          for (const [k, v] of Object.entries(parsed)) {
+            if (Array.isArray(v)) {
+              merged[k] = sanitizeAndDedupeNotes([...v, ...(merged[k] || [])]);
+            }
+          }
+          categoryNotesMap = merged;
           saveCategoryNotesToStorage(categoryNotesMap);
         }
       } catch (e) { }
@@ -1966,17 +1975,19 @@
     const catNotes = (catId && catMap[catId]) ? catMap[catId] : [];
     const allRecent = getRecentNotes();
 
-    // Strictly scoped: if expense/income category is selected, ONLY use notes from this category's history
-    const pool = (kind === 'transfer' || !catId) ? allRecent : catNotes;
+    // Context pool: category notes first, supplemented with general recent notes if category has few notes
+    const pool = (kind === 'transfer' || !catId)
+      ? allRecent
+      : sanitizeAndDedupeNotes([...catNotes, ...allRecent]);
 
     const q = noteInput.value.trim().toLowerCase();
 
     let candidates = [];
     if (!q) {
-      // Straight up: show this category's notes history. If no notes exist for this category, 0 badges are shown.
-      candidates = sanitizeAndDedupeNotes(pool).slice(0, 15);
+      // Empty query: show category notes first, then recent notes (up to 15 badges)
+      candidates = pool.slice(0, 15);
     } else {
-      // Filtering when typing within this category's notes history
+      // Filtering when typing: rank exact match > prefix match > substring match
       const seen = new Set();
       const exactMatches = [];
       const prefixMatches = [];
@@ -2000,7 +2011,7 @@
         }
       }
 
-      candidates = [...exactMatches, ...prefixMatches, ...substringMatches].slice(0, 12);
+      candidates = [...exactMatches, ...prefixMatches, ...substringMatches].slice(0, 15);
     }
 
     if (candidates.length === 0) {

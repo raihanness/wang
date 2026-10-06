@@ -202,7 +202,15 @@ def _sheet_context(user):
     cats = Category.objects.filter(user=user).annotate(
         tx_count=Count("transactions")
     ).order_by("-tx_count", "name")
-    raw_notes = (
+    # General recent notes (latest notes first, followed by frequently used notes)
+    raw_recent_notes = list(
+        Transaction.objects.filter(user=user)
+        .exclude(note="")
+        .exclude(note__isnull=True)
+        .order_by("-id")
+        .values_list("note", flat=True)[:150]
+    )
+    raw_freq_notes = list(
         Transaction.objects.filter(user=user)
         .exclude(note="")
         .exclude(note__isnull=True)
@@ -213,33 +221,41 @@ def _sheet_context(user):
     )
     seen = set()
     recent_notes = []
-    for n in raw_notes:
+    for n in raw_recent_notes + raw_freq_notes:
         cleaned = n.strip()
         lower = cleaned.lower()
         if cleaned and lower not in seen:
             seen.add(lower)
             recent_notes.append(cleaned)
-        if len(recent_notes) >= 60:
+        if len(recent_notes) >= 80:
             break
 
-    # Category-scoped note suggestions
-    cat_notes_qs = (
+    # Category-scoped note suggestions (latest category notes first, followed by frequent category notes)
+    cat_recent_qs = list(
+        Transaction.objects.filter(user=user, category__isnull=False)
+        .exclude(note="")
+        .exclude(note__isnull=True)
+        .order_by("-id")
+        .values("category_id", "note")[:300]
+    )
+    cat_freq_qs = list(
         Transaction.objects.filter(user=user, category__isnull=False)
         .exclude(note="")
         .exclude(note__isnull=True)
         .values("category_id", "note")
         .annotate(note_count=Count("id"), last_id=Max("id"))
-        .order_by("category_id", "-note_count", "-last_id")
+        .order_by("-note_count", "-last_id")
+        .values("category_id", "note")[:200]
     )
     cat_seen = defaultdict(set)
     category_notes = defaultdict(list)
-    for item in cat_notes_qs:
+    for item in cat_recent_qs + cat_freq_qs:
         cat_id = str(item["category_id"])
         cleaned = item["note"].strip()
         lower = cleaned.lower()
         if cleaned and lower not in cat_seen[cat_id]:
             cat_seen[cat_id].add(lower)
-            if len(category_notes[cat_id]) < 25:
+            if len(category_notes[cat_id]) < 35:
                 category_notes[cat_id].append(cleaned)
 
     wallets = _get_wallets_with_balances(user, archived=False)
