@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Widget theme tokens (Dark Mode) -->
-    <color name="widget_bg">#1E1C1A</color>
-    <color name="widget_border">#332E2A</color>
-    <color name="widget_text_title">#F8F5F2</color>
-    <color name="widget_text_muted">#A8A095</color>
+    <color name="widget_bg">#181716</color>
+    <color name="widget_border">#2C2926</color>
+    <color name="widget_panel_bg">#23211E</color>
+    <color name="widget_divider">#383430</color>
+    <color name="widget_text_title">#FFFFFF</color>
+    <color name="widget_text_subtitle">#D4CEC8</color>
+    <color name="widget_text_muted">#9E968D</color>
+    <color name="widget_text_value">#FFFFFF</color>
+    <color name="widget_squircle_bg">#FF8A65</color>
+    <color name="widget_squircle_icon">#FFFFFF</color>
     <color name="widget_expense_bg">#36221E</color>
     <color name="widget_expense_stroke">#4A2C26</color>
     <color name="widget_expense_text">#FF9E80</color>

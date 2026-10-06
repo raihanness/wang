@@ -2479,8 +2479,9 @@
     if (!bal && balanceEl) {
       bal = balanceEl.textContent.trim().replace(/\s+/g, ' ');
     }
-    const spent = heroCard.dataset.widgetSpent || '';
-    window.AndroidBridge.updateWidgetData(bal, spent);
+    const spent = heroCard.dataset.widgetSpent || 'Rp0';
+    const income = heroCard.dataset.widgetIncome || 'Rp0';
+    window.AndroidBridge.updateWidgetData(bal, spent, income);
   }
   window.wangSyncWidgetDataToNative = syncWidgetDataToNative;
 

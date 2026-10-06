@@ -13,7 +13,8 @@
   <!-- Card 1: Dual Header (Spendable & Net Worth) Balance & Cashflow -->
   <div class="today-card hero-balance-card" id="hero-balance-card"
        data-widget-balance="Rp{{ spendable_balance|floatformat:0|intcomma }}"
-       data-widget-spent="Rp{{ today_expense|floatformat:0|intcomma }}">
+       data-widget-spent="Rp{{ today_expense|floatformat:0|intcomma }}"
+       data-widget-income="Rp{{ today_income|floatformat:0|intcomma }}">
     <div class="hero-card-head">
       <div class="hero-head-left">
         <div class="hero-toggle-pill" id="hero-mode-toggle" role="tablist" aria-label="Balance mode switcher">

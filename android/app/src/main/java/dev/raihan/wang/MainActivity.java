@@ -236,14 +236,21 @@ public class MainActivity extends AppCompatActivity {
         // ── Native Home Screen Widget Sync ──
         @JavascriptInterface
         public void updateWidgetData(String balance, String todaySpent) {
+            updateWidgetData(balance, todaySpent, "Rp0");
+        }
+
+        @JavascriptInterface
+        public void updateWidgetData(String balance, String todaySpent, String todayIncome) {
             if (balance == null || balance.isEmpty()) return;
             getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
                     .putString("widget_balance", balance)
-                    .putString("widget_today_spent", todaySpent != null ? todaySpent : "")
+                    .putString("widget_today_spent", todaySpent != null && !todaySpent.isEmpty() ? todaySpent : "Rp0")
+                    .putString("widget_today_income", todayIncome != null && !todayIncome.isEmpty() ? todayIncome : "Rp0")
                     .putLong("widget_last_updated", System.currentTimeMillis())
                     .apply();
 
             WangBalanceWidgetProvider.updateAllWidgets(MainActivity.this);
+            WangSquareWidgetProvider.updateAllWidgets(MainActivity.this);
         }
     }
 

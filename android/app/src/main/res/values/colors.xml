@@ -8,10 +8,16 @@
     <color name="ic_launcher_background">#FF9271</color>
 
     <!-- Widget theme tokens (Light Mode) -->
-    <color name="widget_bg">#FFF7F3</color>
-    <color name="widget_border">#FFE2D7</color>
-    <color name="widget_text_title">#2D2A26</color>
-    <color name="widget_text_muted">#7A7265</color>
+    <color name="widget_bg">#FFF8F5</color>
+    <color name="widget_border">#F0DDD6</color>
+    <color name="widget_panel_bg">#F5ECE6</color>
+    <color name="widget_divider">#E2D5CC</color>
+    <color name="widget_text_title">#201E1C</color>
+    <color name="widget_text_subtitle">#5A544D</color>
+    <color name="widget_text_muted">#8A8278</color>
+    <color name="widget_text_value">#201E1C</color>
+    <color name="widget_squircle_bg">#FF8A65</color>
+    <color name="widget_squircle_icon">#FFFFFF</color>
     <color name="widget_expense_bg">#FFEBE5</color>
     <color name="widget_expense_stroke">#FFCCBE</color>
     <color name="widget_expense_text">#D84315</color>

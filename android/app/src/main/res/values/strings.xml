@@ -29,9 +29,14 @@
     <!-- App Widgets -->
     <string name="widget_balance_title">Wang Balance &amp; Actions</string>
     <string name="widget_balance_desc">Live account balance, today\'s spend, and quick add buttons</string>
+    <string name="widget_today_square_title">Wang Today Summary</string>
+    <string name="widget_today_square_desc">Today\'s date, total balance, daily expenses and income in a square card</string>
     <string name="widget_quick_actions_title">Wang Quick Actions Bar</string>
     <string name="widget_quick_actions_desc">1-tap shortcuts for Expense, Income, Graphs, and Wallets</string>
     <string name="widget_default_balance">Rp0</string>
     <string name="widget_tap_to_sync">Tap to sync balance</string>
-    <string name="widget_total_balance_label">TOTAL BALANCE</string>
+    <string name="widget_total_balance_label">TOTAL BALANCE:</string>
+    <string name="widget_today_title">Today</string>
+    <string name="widget_today_expenses_label">TODAY\'S EXPENSES</string>
+    <string name="widget_today_income_label">TODAY\'S INCOME</string>
 </resources>
