@@ -329,7 +329,57 @@
   }
   window.wangPlaySound = playSound;
 
-  function syncBottomNav() {
+  function updateFloatingNavIndicator(targetItem, immediate) {
+    const bottomNav = document.querySelector('.bottomnav');
+    const indicator = document.getElementById('bn-pill-indicator');
+    if (!bottomNav || !indicator) return;
+
+    const navStyle = document.documentElement.getAttribute('data-bottomnav') || (document.body && document.body.getAttribute('data-bottomnav'));
+    if (navStyle !== 'floating') {
+      indicator.style.opacity = '0';
+      return;
+    }
+
+    const activeItem = targetItem || bottomNav.querySelector('.bn-item.active');
+    if (!activeItem || activeItem.offsetParent === null) {
+      indicator.style.opacity = '0';
+      return;
+    }
+
+    const navRect = bottomNav.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+
+    // Generous, spacious capsule with ample negative space (44px height, ~70px width)
+    const insetX = 3;
+    const insetY = 2;
+
+    const left = Math.round(itemRect.left - navRect.left + insetX);
+    const top = Math.round(itemRect.top - navRect.top + insetY);
+    const width = Math.max(0, Math.round(itemRect.width - (insetX * 2)));
+    const height = Math.max(0, Math.round(itemRect.height - (insetY * 2)));
+
+    if (immediate) {
+      indicator.classList.add('no-transition');
+      indicator.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+      indicator.style.width = `${width}px`;
+      indicator.style.height = `${height}px`;
+      indicator.style.opacity = '1';
+      void indicator.offsetWidth;
+      indicator.classList.remove('no-transition');
+    } else {
+      indicator.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+      indicator.style.width = `${width}px`;
+      indicator.style.height = `${height}px`;
+      indicator.style.opacity = '1';
+    }
+  }
+  window.wangUpdateFloatingNavIndicator = updateFloatingNavIndicator;
+
+  window.addEventListener('resize', () => {
+    updateFloatingNavIndicator(null, true);
+  }, { passive: true });
+
+  function syncBottomNav(immediate) {
     const page = document.body.dataset.page || '';
     const bottomNav = document.querySelector('.bottomnav');
     if (bottomNav) {
@@ -340,6 +390,7 @@
       }
     }
     const navItems = document.querySelectorAll('.bottomnav .bn-item');
+    let activeItem = null;
     navItems.forEach(item => {
       const target = item.dataset.nav;
       let active = false;
@@ -349,10 +400,15 @@
         active = true;
       } else if (target === 'graphs' && page === 'graphs') {
         active = true;
-      } else if (target === 'more' && (page === 'more' || page.startsWith('category') || page.startsWith('subscription') || page.startsWith('debt'))) {
+      } else if (target === 'more' && (page === 'more' || page.startsWith('category') || page.startsWith('subscription') || page.startsWith('debt') || page.startsWith('admin_console'))) {
         active = true;
       }
       item.classList.toggle('active', active);
+      if (active) activeItem = item;
+    });
+
+    requestAnimationFrame(() => {
+      updateFloatingNavIndicator(activeItem, !!immediate);
     });
   }
 
@@ -2660,6 +2716,9 @@
       if (document.body) document.body.removeAttribute('data-bottomnav');
     }
     syncNavbarStyleUI();
+    requestAnimationFrame(() => {
+      updateFloatingNavIndicator(null, true);
+    });
   }
 
   function toggleNavbarStyle() {
@@ -4393,12 +4452,13 @@
       return;
     }
 
-    // Optimistic highlight on bottom nav click
+    // Optimistic highlight & pill glide on bottom nav click
     const bnItem = e.target.closest('.bottomnav .bn-item');
     if (bnItem) {
       playSound('click');
       document.querySelectorAll('.bottomnav .bn-item').forEach(i => i.classList.remove('active'));
       bnItem.classList.add('active');
+      updateFloatingNavIndicator(bnItem, false);
     }
   });
 
@@ -4641,7 +4701,7 @@
     syncAppbar();
     syncThemeUI();
     syncSoundUI();
-    syncBottomNav();
+    syncBottomNav(true);
     syncHeroBalanceUI();
     bindSheet();
     syncReceiptSlipData();
@@ -4660,7 +4720,7 @@
     syncAppbar();
     syncThemeUI();
     syncSoundUI();
-    syncBottomNav();
+    syncBottomNav(false);
     syncHeroBalanceUI();
     bindSheet();
     resetOverlays();
@@ -4722,8 +4782,14 @@
     }
   }
 
-  // Instant preload on pointerdown (fires the exact millisecond the finger touches the screen, 150-300ms before click)
+  // Instant preload & pill glide on pointerdown (fires the exact millisecond finger touches screen)
   document.addEventListener('pointerdown', (e) => {
+    const bnItem = e.target.closest('.bottomnav .bn-item');
+    if (bnItem) {
+      document.querySelectorAll('.bottomnav .bn-item').forEach(i => i.classList.remove('active'));
+      bnItem.classList.add('active');
+      updateFloatingNavIndicator(bnItem, false);
+    }
     const link = e.target.closest('.bottomnav .bn-item, a[data-turbo-preload]');
     if (link) {
       preloadNavLink(link);
