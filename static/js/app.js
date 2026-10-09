@@ -170,8 +170,19 @@
       localStorage.setItem('wang-balance-hidden', next ? '1' : '0');
     } catch (e) { }
     syncBalancePrivacy();
+    if (window.AndroidBridge && typeof window.AndroidBridge.setBalanceHidden === 'function') {
+      window.AndroidBridge.setBalanceHidden(next);
+    }
+    syncWidgetDataToNative();
     if (window.wangPlaySound) window.wangPlaySound('tap');
   }
+
+  window.wangSetBalanceHidden = function(hidden) {
+    try {
+      localStorage.setItem('wang-balance-hidden', hidden ? '1' : '0');
+    } catch (e) { }
+    syncBalancePrivacy();
+  };
 
   document.addEventListener('click', (e) => {
     const modeBtn = e.target.closest('.hero-toggle-btn');
@@ -2470,7 +2481,7 @@
   };
 
   function syncWidgetDataToNative() {
-    if (!window.AndroidBridge || typeof window.AndroidBridge.updateWidgetData !== 'function') return;
+    if (!window.AndroidBridge) return;
     const heroCard = document.getElementById('hero-balance-card');
     if (!heroCard) return;
 
@@ -2481,7 +2492,15 @@
     }
     const spent = heroCard.dataset.widgetSpent || 'Rp0';
     const income = heroCard.dataset.widgetIncome || 'Rp0';
-    window.AndroidBridge.updateWidgetData(bal, spent, income);
+    const budgetRemaining = heroCard.dataset.widgetBudget || '';
+    const budgetLabel = heroCard.dataset.widgetBudgetLabel || '';
+    const isHidden = isBalanceHidden();
+
+    if (typeof window.AndroidBridge.updateWidgetDataWithBudget === 'function') {
+      window.AndroidBridge.updateWidgetDataWithBudget(bal, spent, income, budgetRemaining, budgetLabel, isHidden);
+    } else if (typeof window.AndroidBridge.updateWidgetData === 'function') {
+      window.AndroidBridge.updateWidgetData(bal, spent, income);
+    }
   }
   window.wangSyncWidgetDataToNative = syncWidgetDataToNative;
 

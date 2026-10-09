@@ -57,7 +57,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Center Section: Total Balance -->
+    <!-- Center Section: Today's Expense Hero -->
     <LinearLayout
         android:id="@+id/widget_square_balance_area"
         android:layout_width="match_parent"
@@ -71,18 +71,19 @@
         android:focusable="true">
 
         <TextView
+            android:id="@+id/tv_widget_hero_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/widget_total_balance_label"
-            android:textSize="10sp"
+            android:text="@string/widget_today_expenses_label"
+            android:textSize="9.5sp"
             android:textStyle="bold"
             android:textColor="@color/widget_text_muted" />
 
         <TextView
-            android:id="@+id/tv_widget_balance"
+            android:id="@+id/tv_widget_hero_amount"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/widget_default_balance"
+            android:text="Rp0"
             android:textSize="24sp"
             android:textStyle="bold"
             android:textColor="@color/widget_text_title"
@@ -91,7 +92,7 @@
             android:ellipsize="end" />
     </LinearLayout>
 
-    <!-- Bottom Section: 2 Columns (Today's Expenses & Today's Income) -->
+    <!-- Bottom Section: 2 Columns (Remaining Budget & Total Balance with Privacy) -->
     <LinearLayout
         android:id="@+id/widget_square_bottom_panel"
         android:layout_width="match_parent"
@@ -104,9 +105,9 @@
         android:paddingEnd="10dp"
         android:gravity="center_vertical">
 
-        <!-- Column 1: Today's Expenses -->
+        <!-- Column 1: Remaining Budget (or Today's Income) -->
         <LinearLayout
-            android:id="@+id/btn_widget_square_expense"
+            android:id="@+id/btn_widget_square_col1"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -115,21 +116,22 @@
             android:focusable="true">
 
             <TextView
+                android:id="@+id/tv_widget_square_col1_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/widget_today_expenses_label"
-                android:textSize="9sp"
+                android:text="@string/widget_daily_budget_label"
+                android:textSize="8.5sp"
                 android:textStyle="bold"
                 android:textColor="@color/widget_text_muted"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
             <TextView
-                android:id="@+id/tv_widget_today_expenses"
+                android:id="@+id/tv_widget_square_col1_val"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Rp0"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/widget_text_value"
                 android:layout_marginTop="1dp"
@@ -146,9 +148,9 @@
             android:layout_marginEnd="6dp"
             android:contentDescription="@null" />
 
-        <!-- Column 2: Today's Income -->
+        <!-- Column 2: Total Balance with Privacy Toggle -->
         <LinearLayout
-            android:id="@+id/btn_widget_square_income"
+            android:id="@+id/btn_widget_square_col2"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -156,22 +158,41 @@
             android:clickable="true"
             android:focusable="true">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/widget_today_income_label"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:textColor="@color/widget_text_muted"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tv_widget_square_col2_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/widget_total_balance_label"
+                    android:textSize="8.5sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/widget_text_muted"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <ImageView
+                    android:id="@+id/btn_widget_square_privacy"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:padding="1dp"
+                    android:src="@drawable/ic_widget_visibility"
+                    android:contentDescription="Toggle balance visibility"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/tv_widget_today_income"
+                android:id="@+id/tv_widget_square_balance"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Rp0"
-                android:textSize="14sp"
+                android:text="@string/widget_default_balance"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/widget_text_value"
                 android:layout_marginTop="1dp"

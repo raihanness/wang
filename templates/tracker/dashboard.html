@@ -14,7 +14,14 @@
   <div class="today-card hero-balance-card" id="hero-balance-card"
        data-widget-balance="Rp{{ spendable_balance|floatformat:0|intcomma }}"
        data-widget-spent="Rp{{ today_expense|floatformat:0|intcomma }}"
-       data-widget-income="Rp{{ today_income|floatformat:0|intcomma }}">
+       data-widget-income="Rp{{ today_income|floatformat:0|intcomma }}"
+       {% if budget_info %}
+       data-widget-budget="{% if budget_info.over > 0 %}-Rp{{ budget_info.over|floatformat:0|intcomma }}{% else %}Rp{{ budget_info.remaining|floatformat:0|intcomma }}{% endif %}"
+       data-widget-budget-label="{% if budget_info.over > 0 %}Budget Over{% else %}Sisa Budget{% endif %}"
+       {% else %}
+       data-widget-budget=""
+       data-widget-budget-label=""
+       {% endif %}>
     <div class="hero-card-head">
       <div class="hero-head-left">
         <div class="hero-toggle-pill" id="hero-mode-toggle" role="tablist" aria-label="Balance mode switcher">

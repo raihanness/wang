@@ -241,16 +241,40 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void updateWidgetData(String balance, String todaySpent, String todayIncome) {
+            boolean hidden = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean("widget_balance_hidden", false);
+            updateWidgetDataWithBudget(balance, todaySpent, todayIncome, "", "", hidden);
+        }
+
+        @JavascriptInterface
+        public void updateWidgetDataWithBudget(String balance, String todaySpent, String todayIncome, String budgetRemaining, String budgetLabel, boolean isBalanceHidden) {
             if (balance == null || balance.isEmpty()) return;
             getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
                     .putString("widget_balance", balance)
                     .putString("widget_today_spent", todaySpent != null && !todaySpent.isEmpty() ? todaySpent : "Rp0")
                     .putString("widget_today_income", todayIncome != null && !todayIncome.isEmpty() ? todayIncome : "Rp0")
+                    .putString("widget_budget_remaining", budgetRemaining != null ? budgetRemaining : "")
+                    .putString("widget_budget_label", budgetLabel != null ? budgetLabel : "")
+                    .putBoolean("widget_balance_hidden", isBalanceHidden)
                     .putLong("widget_last_updated", System.currentTimeMillis())
                     .apply();
 
             WangBalanceWidgetProvider.updateAllWidgets(MainActivity.this);
             WangSquareWidgetProvider.updateAllWidgets(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void setBalanceHidden(boolean hidden) {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putBoolean("widget_balance_hidden", hidden)
+                    .apply();
+
+            WangBalanceWidgetProvider.updateAllWidgets(MainActivity.this);
+            WangSquareWidgetProvider.updateAllWidgets(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean isWidgetBalanceHidden() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean("widget_balance_hidden", false);
         }
     }
 
@@ -1192,6 +1216,12 @@ public class MainActivity extends AppCompatActivity {
         if (biometricEnabled && mLastPausedTimestamp > 0 &&
                 (System.currentTimeMillis() - mLastPausedTimestamp) > LOCK_GRACE_PERIOD_MS) {
             lockAppWithBiometrics();
+        }
+
+        // Sync widget balance privacy state to web view
+        boolean isHidden = prefs.getBoolean("widget_balance_hidden", false);
+        if (mWebView != null) {
+            mWebView.evaluateJavascript("if (window.wangSetBalanceHidden) window.wangSetBalanceHidden(" + isHidden + ");", null);
         }
     }
 

@@ -35,8 +35,9 @@
     <string name="widget_quick_actions_desc">1-tap shortcuts for Expense, Income, Graphs, and Wallets</string>
     <string name="widget_default_balance">Rp0</string>
     <string name="widget_tap_to_sync">Tap to sync balance</string>
-    <string name="widget_total_balance_label">TOTAL BALANCE:</string>
+    <string name="widget_total_balance_label">TOTAL BALANCE</string>
     <string name="widget_today_title">Today</string>
-    <string name="widget_today_expenses_label">TODAY\'S EXPENSES</string>
+    <string name="widget_today_expenses_label">TODAY\'S EXPENSE</string>
     <string name="widget_today_income_label">TODAY\'S INCOME</string>
+    <string name="widget_daily_budget_label">REMAINING BUDGET</string>
 </resources>
