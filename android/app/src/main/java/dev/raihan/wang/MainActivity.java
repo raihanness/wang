@@ -276,6 +276,18 @@ public class MainActivity extends AppCompatActivity {
         public boolean isWidgetBalanceHidden() {
             return getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean("widget_balance_hidden", false);
         }
+
+        @JavascriptInterface
+        public String getNavbarStyle() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getString("navbar_style", "docked");
+        }
+
+        @JavascriptInterface
+        public void setNavbarStyle(String style) {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString("navbar_style", "floating".equals(style) ? "floating" : "docked")
+                    .apply();
+        }
     }
 
     private void updateSystemBarIcons(boolean isDark) {

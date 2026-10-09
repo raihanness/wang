@@ -2469,8 +2469,64 @@
       hapBadge.className = isHap ? 'badge badge-green' : 'badge';
       if (hapSub) hapSub.textContent = isHap ? 'Tactile vibration active' : 'Tactile vibration disabled';
     }
+
+    // Navbar Style (Docked vs Floating)
+    const navBadge = document.getElementById('android-navbar-badge');
+    const navSub = document.getElementById('android-navbar-sub');
+    if (navBadge) {
+      const currentNav = getNavbarStyle();
+      const isFloating = currentNav === 'floating';
+      navBadge.textContent = isFloating ? 'Floating Island' : 'Docked';
+      navBadge.className = isFloating ? 'badge badge-green' : 'badge';
+      if (navSub) {
+        navSub.textContent = isFloating ? 'Modern floating pill with margin' : 'Attached flush to screen bottom';
+      }
+    }
   }
   window.wangSyncAndroidSettingsUI = syncAndroidSettingsUI;
+
+  function getNavbarStyle() {
+    try {
+      const saved = localStorage.getItem('wang-navbar-style');
+      if (saved) return saved;
+      if (window.AndroidBridge && typeof window.AndroidBridge.getNavbarStyle === 'function') {
+        const bridgeVal = window.AndroidBridge.getNavbarStyle();
+        if (bridgeVal) return bridgeVal;
+      }
+    } catch (e) {}
+    return 'docked';
+  }
+
+  function applyNavbarStyle(style) {
+    const s = style || getNavbarStyle();
+    if (s === 'floating') {
+      document.documentElement.setAttribute('data-bottomnav', 'floating');
+      if (document.body) document.body.setAttribute('data-bottomnav', 'floating');
+    } else {
+      document.documentElement.removeAttribute('data-bottomnav');
+      if (document.body) document.body.removeAttribute('data-bottomnav');
+    }
+  }
+
+  function toggleNavbarStyle() {
+    const current = getNavbarStyle();
+    const next = current === 'floating' ? 'docked' : 'floating';
+    try {
+      localStorage.setItem('wang-navbar-style', next);
+    } catch (e) {}
+    if (window.AndroidBridge && typeof window.AndroidBridge.setNavbarStyle === 'function') {
+      window.AndroidBridge.setNavbarStyle(next);
+    }
+    applyNavbarStyle(next);
+    syncAndroidSettingsUI();
+    playSound('tap');
+    if (window.AndroidBridge && typeof window.AndroidBridge.vibrateEffect === 'function') {
+      window.AndroidBridge.vibrateEffect('click');
+    }
+  }
+  window.wangGetNavbarStyle = getNavbarStyle;
+  window.wangApplyNavbarStyle = applyNavbarStyle;
+  window.wangToggleNavbarStyle = toggleNavbarStyle;
 
   window.wangOnBiometricStateChanged = function() {
     syncAndroidSettingsUI();
@@ -3456,6 +3512,14 @@
       return;
     }
 
+    // Android Navbar Style toggle
+    const navToggle = e.target.closest('#android-navbar-toggle, .js-android-navbar-row');
+    if (navToggle) {
+      e.preventDefault();
+      toggleNavbarStyle();
+      return;
+    }
+
     // Theme toggle
     const themeToggle = e.target.closest('#theme-toggle, .js-theme-toggle');
     if (themeToggle) {
@@ -4398,6 +4462,7 @@
     resolveExternalIcons();
     syncAndroidSettingsUI();
     syncWidgetDataToNative();
+    applyNavbarStyle();
     handleUrlShortcuts();
   });
   document.addEventListener('turbo:render', () => {
@@ -4417,6 +4482,7 @@
     resolveExternalIcons();
     syncAndroidSettingsUI();
     syncWidgetDataToNative();
+    applyNavbarStyle();
     if (window.wangRefreshWallets) window.wangRefreshWallets();
   });
   document.addEventListener('turbo:frame-load', () => {
@@ -4706,6 +4772,7 @@
   resolveExternalIcons();
   syncAndroidSettingsUI();
   syncWidgetDataToNative();
+  applyNavbarStyle();
   handleUrlShortcuts();
 })();
 

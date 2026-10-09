@@ -795,6 +795,7 @@ def dashboard(request):
         "today_net": today_net,
         "today_date": today,
         "history_groups": groups,
+        "groups": groups,
         "q": q or "",
         "active_filter": ",".join(filter_kinds_in) if filter_kinds_in else "",
         "view_month": month,

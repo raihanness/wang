@@ -278,7 +278,7 @@
         <svg class="icon" style="font-size:14px"><use href="#icon-send_money"></use></svg>
       </a>
       <button type="button"
-              class="quick-filter-chip filter-btn-trigger {% if active_filter_count > 0 %}has-filters{% endif %}"
+              class="quick-filter-chip {% if active_filter_count > 0 %}active has-filters{% endif %} filter-btn-trigger"
               id="multi-filter-trigger"
               data-type="{{ filter_kinds_in }}"
               data-type-exclude="{{ filter_kinds_out }}"

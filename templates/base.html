@@ -17,13 +17,25 @@
         if (window.AndroidBridge && typeof window.AndroidBridge.setSystemTheme === 'function') {
           window.AndroidBridge.setSystemTheme(theme === 'dark');
         }
+
+        var navStyle = localStorage.getItem('wang-navbar-style');
+        if (window.AndroidBridge && typeof window.AndroidBridge.getNavbarStyle === 'function') {
+          var bridgeNav = window.AndroidBridge.getNavbarStyle();
+          if (bridgeNav) {
+            navStyle = bridgeNav;
+            localStorage.setItem('wang-navbar-style', navStyle);
+          }
+        }
+        if (navStyle === 'floating') {
+          document.documentElement.setAttribute('data-bottomnav', 'floating');
+        }
       } catch (e) {}
     })();
   </script>
   <title>{% block title %}Wang{% endblock %}</title>
   <!-- Self-Hosted Fonts (GDPR Compliant) -->
   <link rel="preload" href="{% static 'fonts/plus-jakarta-sans-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=13">
+  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=15">
   <link rel="prefetch" href="{% static 'img/icons.svg' %}">
   <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
   <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
@@ -35,7 +47,7 @@
   <meta name="turbo-cache-control" content="no-preview">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.4/dist/turbo.es2017-umd.js"></script>
-  <script src="{% static 'js/app.js' %}?v=14"></script>
+  <script src="{% static 'js/app.js' %}?v=15"></script>
 </head>
 <body data-page="{% block page_name %}{% endblock %}">
   {% include "tracker/_svg_symbols.html" %}

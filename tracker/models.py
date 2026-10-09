@@ -155,8 +155,11 @@ class Transaction(models.Model):
         # 2. Optimize newly uploaded image to WebP with auto-resizing
         if self.image:
             from django.core.files.uploadedfile import UploadedFile
-            f = getattr(self.image, "file", None)
-            if isinstance(f, UploadedFile) or not self.image.name.endswith(".webp"):
+            try:
+                f = getattr(self.image, "file", None)
+            except (FileNotFoundError, OSError):
+                f = None
+            if isinstance(f, UploadedFile) or (f and not self.image.name.endswith(".webp")):
                 optimized = optimize_receipt_image(self.image)
                 if optimized and optimized != self.image:
                     self.image.save(optimized.name, optimized, save=False)
@@ -865,9 +868,12 @@ class UserProfile(models.Model):
 
         # 2. Optimize newly uploaded avatar to square WebP
         if self.avatar:
-            f = getattr(self.avatar, "file", None)
+            try:
+                f = getattr(self.avatar, "file", None)
+            except (FileNotFoundError, OSError):
+                f = None
             from django.core.files.uploadedfile import UploadedFile
-            if isinstance(f, UploadedFile) or not self.avatar.name.endswith(".webp"):
+            if isinstance(f, UploadedFile) or (f and not self.avatar.name.endswith(".webp")):
                 from .image_utils import optimize_avatar_image
                 self.avatar = optimize_avatar_image(self.avatar, size=512, quality=85)
 

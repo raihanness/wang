@@ -671,6 +671,12 @@ body[data-page="signup"] .sheet-root {
   padding: 6px 8px calc(6px + var(--safe-area-bottom));
   background: var(--bottomnav-bg);
   border-top: 1px solid var(--line);
+  transition: bottom 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              border-radius 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.28s ease,
+              background 0.2s ease,
+              border 0.2s ease;
 }
 
 .bn-item {
@@ -741,6 +747,77 @@ body[data-page="signup"] .sheet-root {
 
 .bn-fab:active {
   transform: translateY(-10px) scale(.94);
+}
+
+/* ── Floating Island Bottom Navbar (Switchable Option) ── */
+[data-bottomnav="floating"] .bottomnav {
+  bottom: calc(12px + var(--safe-area-bottom));
+  left: 0;
+  right: 0;
+  width: calc(100% - 24px);
+  max-width: 440px;
+  margin: 0 auto;
+  border-radius: 36px;
+  padding: 6px 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--bottomnav-bg);
+  box-shadow: 0 14px 34px -4px rgba(46, 32, 22, 0.12), 0 4px 14px -2px rgba(46, 32, 22, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+[data-theme="dark"][data-bottomnav="floating"] .bottomnav {
+  background: rgba(28, 27, 26, 0.90);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 18px 44px -4px rgba(0, 0, 0, 0.60), 0 4px 14px -2px rgba(0, 0, 0, 0.35);
+}
+
+[data-bottomnav="floating"] .bn-item {
+  padding: 8px 0;
+  justify-content: center;
+  border-radius: 20px;
+  transition: color .18s ease, transform .15s ease;
+}
+
+[data-bottomnav="floating"] .bn-item small {
+  display: none !important;
+}
+
+[data-bottomnav="floating"] .bn-item:active {
+  transform: scale(0.90);
+}
+
+[data-bottomnav="floating"] .bn-item svg {
+  font-size: 23px;
+}
+
+[data-bottomnav="floating"] .bn-fab {
+  width: 46px;
+  height: 46px;
+  transform: translateY(-2px);
+  box-shadow: none !important;
+}
+
+[data-bottomnav="floating"] .bn-fab:hover {
+  background: linear-gradient(135deg, var(--peach), var(--peach-2));
+  filter: brightness(1.05);
+}
+
+[data-bottomnav="floating"] .bn-fab:hover svg {
+  color: #fff;
+}
+
+[data-bottomnav="floating"] .bn-fab:active {
+  transform: translateY(-2px) scale(0.92);
+}
+
+[data-bottomnav="floating"] .content-bottom-space {
+  height: 48px;
+}
+
+[data-bottomnav="floating"] .content {
+  padding-bottom: calc(100px + var(--safe-area-bottom));
 }
 
 /* ── Dashboard ───────────────────────────── */
