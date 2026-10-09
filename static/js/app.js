@@ -2619,20 +2619,24 @@
       if (hapSub) hapSub.textContent = isHap ? 'Tactile vibration active' : 'Tactile vibration disabled';
     }
 
-    // Navbar Style (Docked vs Floating)
-    const navBadge = document.getElementById('android-navbar-badge');
-    const navSub = document.getElementById('android-navbar-sub');
-    if (navBadge) {
-      const currentNav = getNavbarStyle();
-      const isFloating = currentNav === 'floating';
-      navBadge.textContent = isFloating ? 'Floating Island' : 'Docked';
-      navBadge.className = isFloating ? 'badge badge-green' : 'badge';
-      if (navSub) {
-        navSub.textContent = isFloating ? 'Modern floating pill with margin' : 'Attached flush to screen bottom';
-      }
-    }
+    syncNavbarStyleUI();
   }
   window.wangSyncAndroidSettingsUI = syncAndroidSettingsUI;
+
+  function syncNavbarStyleUI() {
+    const navBadges = document.querySelectorAll('#navbar-style-badge, #android-navbar-badge');
+    const navSubs = document.querySelectorAll('#navbar-style-sub, #android-navbar-sub');
+    const currentNav = getNavbarStyle();
+    const isFloating = currentNav === 'floating';
+    navBadges.forEach(b => {
+      b.textContent = isFloating ? 'Floating Island' : 'Docked';
+      b.className = isFloating ? 'badge badge-green' : 'badge';
+    });
+    navSubs.forEach(s => {
+      s.textContent = isFloating ? 'Modern floating pill with margin' : 'Attached flush to screen bottom';
+    });
+  }
+  window.wangSyncNavbarStyleUI = syncNavbarStyleUI;
 
   function getNavbarStyle() {
     try {
@@ -2655,6 +2659,7 @@
       document.documentElement.removeAttribute('data-bottomnav');
       if (document.body) document.body.removeAttribute('data-bottomnav');
     }
+    syncNavbarStyleUI();
   }
 
   function toggleNavbarStyle() {
@@ -2667,7 +2672,6 @@
       window.AndroidBridge.setNavbarStyle(next);
     }
     applyNavbarStyle(next);
-    syncAndroidSettingsUI();
     playSound('tap');
     if (window.AndroidBridge && typeof window.AndroidBridge.vibrateEffect === 'function') {
       window.AndroidBridge.vibrateEffect('click');
@@ -3661,8 +3665,8 @@
       return;
     }
 
-    // Android Navbar Style toggle
-    const navToggle = e.target.closest('#android-navbar-toggle, .js-android-navbar-row');
+    // Universal Navbar Style toggle (Web, iOS PWA, Android)
+    const navToggle = e.target.closest('#navbar-style-toggle, .js-navbar-style-toggle, #android-navbar-toggle, .js-android-navbar-row');
     if (navToggle) {
       e.preventDefault();
       toggleNavbarStyle();
