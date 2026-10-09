@@ -101,12 +101,30 @@
       </div>
       <div class="filter-date-inputs">
         <div class="filter-date-box">
-          <label for="filter-date-from">From</label>
-          <input type="date" id="filter-date-from" class="filter-date-field" value="{{ date_from }}">
+          <label>From</label>
+          <div class="custom-date-trigger-wrap">
+            <button type="button" class="custom-date-trigger-btn" id="filter-date-from-btn" aria-label="Select start date">
+              <svg class="icon"><use href="#icon-calendar_today"></use></svg>
+              <span class="custom-date-text {% if not date_from %}is-placeholder{% endif %}" id="filter-date-from-text">
+                {% if date_from %}{{ date_from }}{% else %}Select date{% endif %}
+              </span>
+              <span class="custom-date-clear-btn" id="filter-date-from-clear" {% if not date_from %}style="display:none"{% endif %} title="Clear date" aria-label="Clear date">✕</span>
+            </button>
+            <input type="hidden" id="filter-date-from" value="{{ date_from|default:'' }}">
+          </div>
         </div>
         <div class="filter-date-box">
-          <label for="filter-date-to">To</label>
-          <input type="date" id="filter-date-to" class="filter-date-field" value="{{ date_to }}">
+          <label>To</label>
+          <div class="custom-date-trigger-wrap">
+            <button type="button" class="custom-date-trigger-btn" id="filter-date-to-btn" aria-label="Select end date">
+              <svg class="icon"><use href="#icon-calendar_today"></use></svg>
+              <span class="custom-date-text {% if not date_to %}is-placeholder{% endif %}" id="filter-date-to-text">
+                {% if date_to %}{{ date_to }}{% else %}Select date{% endif %}
+              </span>
+              <span class="custom-date-clear-btn" id="filter-date-to-clear" {% if not date_to %}style="display:none"{% endif %} title="Clear date" aria-label="Clear date">✕</span>
+            </button>
+            <input type="hidden" id="filter-date-to" value="{{ date_to|default:'' }}">
+          </div>
         </div>
       </div>
     </div>

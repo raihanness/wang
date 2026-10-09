@@ -1,5 +1,8 @@
 {% extends "base.html" %}
+{% load humanize %}
 {% block page_name %}wallet_form{% endblock %}
+{% block title %} {{ title }} // Wang{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <h2>{{ title }}</h2>
@@ -10,7 +13,32 @@
     {% include "tracker/_icon_color_picker.html" %}
     <div class="form-row" style="margin-top:16px">
       <div><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}</div>
-      <div><label for="{{ form.type.id_for_label }}">{{ form.type.label }}</label>{{ form.type }}</div>
+      <div>
+        <label style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Account Type</label>
+        <div class="segmented-pill-bar five-up" id="wallet-type-selector">
+          <button type="button" class="segmented-pill-btn {% if form.type.value == 'cash' or not form.type.value %}active{% endif %}" data-value="cash">
+            <svg class="icon"><use href="#icon-payments"></use></svg>
+            <span>Cash</span>
+          </button>
+          <button type="button" class="segmented-pill-btn {% if form.type.value == 'bank' %}active{% endif %}" data-value="bank">
+            <svg class="icon"><use href="#icon-account_balance"></use></svg>
+            <span>Bank</span>
+          </button>
+          <button type="button" class="segmented-pill-btn {% if form.type.value == 'ewallet' %}active{% endif %}" data-value="ewallet">
+            <svg class="icon"><use href="#icon-smartphone"></use></svg>
+            <span>E-Wallet</span>
+          </button>
+          <button type="button" class="segmented-pill-btn {% if form.type.value == 'savings' %}active{% endif %}" data-value="savings">
+            <svg class="icon"><use href="#icon-savings"></use></svg>
+            <span>Savings</span>
+          </button>
+          <button type="button" class="segmented-pill-btn {% if form.type.value == 'other' %}active{% endif %}" data-value="other">
+            <svg class="icon"><use href="#icon-more_horiz"></use></svg>
+            <span>Other</span>
+          </button>
+        </div>
+        <input type="hidden" name="type" id="id_type" value="{{ form.type.value|default:'cash' }}">
+      </div>
       <div><label for="{{ form.initial_balance.id_for_label }}">{{ form.initial_balance.label }}</label>{{ form.initial_balance }}</div>
       <div id="target-amount-group">
         <label for="{{ form.target_amount.id_for_label }}">
@@ -47,4 +75,25 @@
     </div>
   </form>
 </div>
+
+<script>
+(function() {
+  function initWalletTypeSelector() {
+    const selector = document.getElementById('wallet-type-selector');
+    const input = document.getElementById('id_type');
+    if (!selector || !input) return;
+    selector.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented-pill-btn');
+      if (!btn) return;
+      selector.querySelectorAll('.segmented-pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      input.value = btn.dataset.value;
+      if (window.wangPlaySound) window.wangPlaySound('tap');
+    });
+  }
+  initWalletTypeSelector();
+  document.addEventListener('turbo:render', initWalletTypeSelector);
+  document.addEventListener('turbo:load', initWalletTypeSelector);
+})();
+</script>
 {% endblock %}

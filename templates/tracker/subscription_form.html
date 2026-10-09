@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% load humanize %}
 {% block page_name %}subscription_form{% endblock %}
-{% block title %}{{ title }} — Wang{% endblock %}
+{% block title %}{{ title }} // Wang{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -24,12 +25,31 @@
 
     <div class="form-row" style="margin-top:12px">
       <div>
-        <label for="{{ form.cycle.id_for_label }}">{{ form.cycle.label }}</label>
-        {{ form.cycle }}
+        <label style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Billing Cycle</label>
+        <div class="segmented-pill-bar three-up" id="sub-cycle-selector">
+          <button type="button" class="segmented-pill-btn {% if form.cycle.value == 'monthly' or not form.cycle.value %}active{% endif %}" data-value="monthly">Monthly</button>
+          <button type="button" class="segmented-pill-btn {% if form.cycle.value == 'yearly' %}active{% endif %}" data-value="yearly">Yearly</button>
+          <button type="button" class="segmented-pill-btn {% if form.cycle.value == 'weekly' %}active{% endif %}" data-value="weekly">Weekly</button>
+        </div>
+        <input type="hidden" name="cycle" id="id_cycle" value="{{ form.cycle.value|default:'monthly' }}">
       </div>
       <div id="due-month-group" style="display:none">
-        <label for="{{ form.due_month.id_for_label }}">Due Month</label>
-        {{ form.due_month }}
+        <label style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Due Month</label>
+        <div class="month-chip-grid" id="sub-month-grid">
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 1 or not form.due_month.value %}active{% endif %}" data-month="1">Jan</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 2 %}active{% endif %}" data-month="2">Feb</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 3 %}active{% endif %}" data-month="3">Mar</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 4 %}active{% endif %}" data-month="4">Apr</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 5 %}active{% endif %}" data-month="5">May</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 6 %}active{% endif %}" data-month="6">Jun</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 7 %}active{% endif %}" data-month="7">Jul</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 8 %}active{% endif %}" data-month="8">Aug</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 9 %}active{% endif %}" data-month="9">Sep</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 10 %}active{% endif %}" data-month="10">Oct</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 11 %}active{% endif %}" data-month="11">Nov</button>
+          <button type="button" class="month-chip-btn {% if form.due_month.value == 12 %}active{% endif %}" data-month="12">Dec</button>
+        </div>
+        <input type="hidden" name="due_month" id="id_due_month" value="{{ form.due_month.value|default:'1' }}">
       </div>
       <div>
         <label for="{{ form.due_day.id_for_label }}" id="due-day-label">Due Day (1-31)</label>
@@ -39,12 +59,42 @@
 
     <div class="form-row" style="margin-top:12px">
       <div>
-        <label for="{{ form.wallet.id_for_label }}">{{ form.wallet.label }} (Optional)</label>
-        {{ form.wallet }}
+        <label for="id_wallet" style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Account (Optional)</label>
+        <button type="button" class="wallet-select-card" id="sub-wallet-trigger" aria-label="Select Account">
+          <div class="w-card-left">
+            <div class="w-card-icon" id="sub-wallet-icon" style="background:{{ form.instance.wallet.color|default:'#A9A9AE' }}20;color:{{ form.instance.wallet.color|default:'#A9A9AE' }}">
+              <svg class="icon"><use href="#icon-{{ form.instance.wallet.icon|default:'payments' }}"></use></svg>
+            </div>
+            <div class="w-card-meta">
+              <span class="w-card-name" id="sub-wallet-name">{{ form.instance.wallet.name|default:"None (No account)" }}</span>
+              <span class="w-card-bal" id="sub-wallet-bal">{% if form.instance.wallet %}Rp{{ form.instance.wallet.current_balance|floatformat:0|intcomma }}{% else %}No account balance sync{% endif %}</span>
+            </div>
+          </div>
+          <div class="w-card-right">
+            <span class="w-card-action-hint">Change</span>
+            <svg class="icon w-card-chevron"><use href="#icon-expand_more"></use></svg>
+          </div>
+        </button>
+        <input type="hidden" name="wallet" id="id_wallet" value="{{ form.instance.wallet.id|default:'' }}">
       </div>
       <div>
-        <label for="{{ form.category.id_for_label }}">{{ form.category.label }} (Optional)</label>
-        {{ form.category }}
+        <label for="id_category" style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Category (Optional)</label>
+        <button type="button" class="wallet-select-card" id="sub-cat-trigger" aria-label="Select Category">
+          <div class="w-card-left">
+            <div class="w-card-icon" id="sub-cat-icon" style="background:{{ form.instance.category.color|default:'#A9A9AE' }}20;color:{{ form.instance.category.color|default:'#A9A9AE' }}">
+              <svg class="icon"><use href="#icon-{{ form.instance.category.icon|default:'label' }}"></use></svg>
+            </div>
+            <div class="w-card-meta">
+              <span class="w-card-name" id="sub-cat-name">{{ form.instance.category.name|default:"None (No category)" }}</span>
+              <span class="w-card-bal" id="sub-cat-hint">{% if form.instance.category %}Expense{% else %}Optional{% endif %}</span>
+            </div>
+          </div>
+          <div class="w-card-right">
+            <span class="w-card-action-hint">Change</span>
+            <svg class="icon w-card-chevron"><use href="#icon-expand_more"></use></svg>
+          </div>
+        </button>
+        <input type="hidden" name="category" id="id_category" value="{{ form.instance.category.id|default:'' }}">
       </div>
     </div>
 
@@ -68,8 +118,17 @@
         <small class="muted" style="display:block;font-size:11px;margin-top:2px">e.g. 2 if paid before tracking in app</small>
       </div>
       <div>
-        <label for="{{ form.end_date.id_for_label }}">End Date (Optional)</label>
-        {{ form.end_date }}
+        <label for="id_end_date" style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">End Date (Optional)</label>
+        <div class="custom-date-trigger-wrap">
+          <button type="button" class="custom-date-trigger-btn" id="sub-end-date-btn" aria-label="Select End Date">
+            <svg class="icon"><use href="#icon-calendar_today"></use></svg>
+            <span class="custom-date-text {% if not form.end_date.value %}is-placeholder{% endif %}" id="sub-end-date-text">
+              {% if form.end_date.value %}{{ form.end_date.value|date:"M j, Y" }}{% else %}Select date (Optional){% endif %}
+            </span>
+            <span class="custom-date-clear-btn" id="sub-end-date-clear" {% if not form.end_date.value %}style="display:none"{% endif %} title="Clear date" aria-label="Clear date">✕</span>
+          </button>
+          <input type="hidden" name="end_date" id="id_end_date" value="{{ form.end_date.value|date:'Y-m-d'|default:form.end_date.value|default:'' }}">
+        </div>
       </div>
     </div>
 
@@ -100,30 +159,157 @@
 </div>
 
 <script>
-  (function() {
-    function initCycleToggle() {
-      var cycleSelect = document.getElementById('id_cycle');
-      var monthGroup = document.getElementById('due-month-group');
-      var dayLabel = document.getElementById('due-day-label');
-      if (!cycleSelect) return;
+(function() {
+  function initSubscriptionFormControls() {
+    // 1. Cycle Selector
+    const cycleSelector = document.getElementById('sub-cycle-selector');
+    const cycleInput = document.getElementById('id_cycle');
+    const monthGroup = document.getElementById('due-month-group');
+    const dayLabel = document.getElementById('due-day-label');
 
-      function update() {
-        var val = cycleSelect.value;
-        if (monthGroup) {
-          monthGroup.style.display = val === 'yearly' ? 'block' : 'none';
-        }
-        if (dayLabel) {
-          if (val === 'weekly') dayLabel.textContent = 'Day of Week (1=Mon..7=Sun)';
-          else dayLabel.textContent = 'Due Day (1-31)';
-        }
+    function updateCycleUI() {
+      if (!cycleInput) return;
+      const val = cycleInput.value;
+      if (monthGroup) {
+        monthGroup.style.display = val === 'yearly' ? 'block' : 'none';
       }
-      cycleSelect.removeEventListener('change', update);
-      cycleSelect.addEventListener('change', update);
-      update();
+      if (dayLabel) {
+        if (val === 'weekly') dayLabel.textContent = 'Day of Week (1=Mon..7=Sun)';
+        else dayLabel.textContent = 'Due Day (1-31)';
+      }
     }
-    initCycleToggle();
-    document.addEventListener('turbo:render', initCycleToggle);
-    document.addEventListener('turbo:load', initCycleToggle);
-  })();
+
+    if (cycleSelector && cycleInput) {
+      cycleSelector.addEventListener('click', (e) => {
+        const btn = e.target.closest('.segmented-pill-btn');
+        if (!btn) return;
+        cycleSelector.querySelectorAll('.segmented-pill-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cycleInput.value = btn.dataset.value;
+        updateCycleUI();
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+      });
+      updateCycleUI();
+    }
+
+    // 2. Month Grid
+    const monthGrid = document.getElementById('sub-month-grid');
+    const monthInput = document.getElementById('id_due_month');
+    if (monthGrid && monthInput) {
+      monthGrid.addEventListener('click', (e) => {
+        const btn = e.target.closest('.month-chip-btn');
+        if (!btn) return;
+        monthGrid.querySelectorAll('.month-chip-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        monthInput.value = btn.dataset.month;
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+      });
+    }
+
+    // 3. Wallet Picker Trigger
+    const walletTrigger = document.getElementById('sub-wallet-trigger');
+    const walletInput = document.getElementById('id_wallet');
+    const walletName = document.getElementById('sub-wallet-name');
+    const walletBal = document.getElementById('sub-wallet-bal');
+    const walletIcon = document.getElementById('sub-wallet-icon');
+
+    if (walletTrigger && walletInput) {
+      walletTrigger.addEventListener('click', () => {
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        if (window.openAccountPicker) {
+          window.openAccountPicker({
+            selectedId: walletInput.value,
+            allowNone: true,
+            title: 'Select Subscription Account',
+            onSelect: (w) => {
+              walletInput.value = w.id || '';
+              if (walletName) walletName.textContent = w.isNone ? 'None (No account)' : w.name;
+              if (walletBal) walletBal.textContent = w.isNone ? 'No account balance sync' : (w.formatted_balance || '');
+              if (walletIcon) {
+                walletIcon.innerHTML = `<svg class="icon"><use href="#icon-${w.icon || 'payments'}"></use></svg>`;
+                walletIcon.style.background = (w.color || '#A9A9AE') + '20';
+                walletIcon.style.color = w.color || '#A9A9AE';
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // 4. Category Picker Trigger
+    const catTrigger = document.getElementById('sub-cat-trigger');
+    const catInput = document.getElementById('id_category');
+    const catName = document.getElementById('sub-cat-name');
+    const catHint = document.getElementById('sub-cat-hint');
+    const catIcon = document.getElementById('sub-cat-icon');
+
+    if (catTrigger && catInput) {
+      catTrigger.addEventListener('click', () => {
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        if (window.openCategoryPicker) {
+          window.openCategoryPicker({
+            selectedId: catInput.value,
+            allowNone: true,
+            kind: 'expense',
+            title: 'Select Category',
+            onSelect: (c) => {
+              catInput.value = c.id || '';
+              if (catName) catName.textContent = c.isNone ? 'None (No category)' : c.name;
+              if (catHint) catHint.textContent = c.isNone ? 'Optional' : (c.kind ? (c.kind.charAt(0).toUpperCase() + c.kind.slice(1)) : 'Expense');
+              if (catIcon) {
+                catIcon.innerHTML = `<svg class="icon"><use href="#icon-${c.icon || 'label'}"></use></svg>`;
+                catIcon.style.background = (c.color || '#A9A9AE') + '20';
+                catIcon.style.color = c.color || '#A9A9AE';
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // 5. End Date Picker Trigger
+    const endDateBtn = document.getElementById('sub-end-date-btn');
+    const endDateInput = document.getElementById('id_end_date');
+    const endDateText = document.getElementById('sub-end-date-text');
+    const endDateClear = document.getElementById('sub-end-date-clear');
+
+    if (endDateBtn && endDateInput) {
+      endDateBtn.addEventListener('click', (e) => {
+        if (e.target.closest('#sub-end-date-clear')) return;
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        if (window.openCustomDatePicker) {
+          window.openCustomDatePicker({
+            initialDate: endDateInput.value || '',
+            title: 'End Date',
+            dateOnly: true,
+            onSelect: (isoDate, displayDate) => {
+              endDateInput.value = isoDate;
+              if (endDateText) {
+                endDateText.textContent = displayDate;
+                endDateText.classList.remove('is-placeholder');
+              }
+              if (endDateClear) endDateClear.style.display = 'inline-flex';
+            }
+          });
+        }
+      });
+
+      endDateClear?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        endDateInput.value = '';
+        if (endDateText) {
+          endDateText.textContent = 'Select date (Optional)';
+          endDateText.classList.add('is-placeholder');
+        }
+        endDateClear.style.display = 'none';
+      });
+    }
+  }
+
+  initSubscriptionFormControls();
+  document.addEventListener('turbo:render', initSubscriptionFormControls);
+  document.addEventListener('turbo:load', initSubscriptionFormControls);
+})();
 </script>
 {% endblock %}

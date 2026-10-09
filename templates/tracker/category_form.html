@@ -1,5 +1,8 @@
 {% extends "base.html" %}
+{% load humanize %}
 {% block page_name %}category_form{% endblock %}
+{% block title %} {{ title }} // Wang{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <h2>{{ title }}</h2>
@@ -10,7 +13,20 @@
     {% include "tracker/_icon_color_picker.html" %}
     <div class="form-row" style="margin-top:16px">
       <div><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}</div>
-      <div><label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>{{ form.kind }}</div>
+      <div>
+        <label style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Category Kind</label>
+        <div class="segmented-pill-bar two-up" id="category-kind-selector">
+          <button type="button" class="segmented-pill-btn {% if form.kind.value == 'expense' or not form.kind.value %}active is-expense{% endif %}" data-value="expense">
+            <svg class="icon" style="color:var(--red)"><use href="#icon-trending_down"></use></svg>
+            <span>Expense</span>
+          </button>
+          <button type="button" class="segmented-pill-btn {% if form.kind.value == 'income' %}active is-income{% endif %}" data-value="income">
+            <svg class="icon" style="color:var(--green)"><use href="#icon-trending_up"></use></svg>
+            <span>Income</span>
+          </button>
+        </div>
+        <input type="hidden" name="kind" id="id_kind" value="{{ form.kind.value|default:'expense' }}">
+      </div>
     </div>
     {% if form.errors %}<div class="msg" style="margin-top:12px">{{ form.errors }}</div>{% endif %}
     <div class="sheet-actions">
@@ -29,4 +45,29 @@
     </div>
   </form>
 </div>
+
+<script>
+(function() {
+  function initCategoryKindSelector() {
+    const selector = document.getElementById('category-kind-selector');
+    const input = document.getElementById('id_kind');
+    if (!selector || !input) return;
+    selector.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented-pill-btn');
+      if (!btn) return;
+      selector.querySelectorAll('.segmented-pill-btn').forEach(b => {
+        b.classList.remove('active', 'is-expense', 'is-income');
+      });
+      btn.classList.add('active');
+      if (btn.dataset.value === 'expense') btn.classList.add('is-expense');
+      if (btn.dataset.value === 'income') btn.classList.add('is-income');
+      input.value = btn.dataset.value;
+      if (window.wangPlaySound) window.wangPlaySound('tap');
+    });
+  }
+  initCategoryKindSelector();
+  document.addEventListener('turbo:render', initCategoryKindSelector);
+  document.addEventListener('turbo:load', initCategoryKindSelector);
+})();
+</script>
 {% endblock %}

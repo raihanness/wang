@@ -880,6 +880,10 @@
     const toInput = document.getElementById('filter-date-to');
     if (fromInput) fromInput.value = activeDateFrom;
     if (toInput) toInput.value = activeDateTo;
+    if (typeof updateFilterDateDisplay === 'function') {
+      updateFilterDateDisplay('from');
+      updateFilterDateDisplay('to');
+    }
 
     sheet.classList.add('open');
     overlay.classList.add('show');
@@ -944,6 +948,87 @@
     const receiptGroup = document.getElementById('filter-receipt-group');
     if (receiptGroup) receiptGroup.addEventListener('click', handleChipClick);
 
+    // Custom Date Display Helper
+    window.updateFilterDateDisplay = function(field) {
+      const input = document.getElementById(`filter-date-${field}`);
+      const textEl = document.getElementById(`filter-date-${field}-text`);
+      const clearBtn = document.getElementById(`filter-date-${field}-clear`);
+      if (!input || !textEl) return;
+      const val = (input.value || '').trim();
+      if (val) {
+        const parts = val.split('-');
+        if (parts.length === 3) {
+          const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const mIdx = parseInt(parts[1], 10) - 1;
+          const mName = mNames[mIdx] || parts[1];
+          textEl.textContent = `${mName} ${parseInt(parts[2], 10)}, ${parts[0]}`;
+        } else {
+          textEl.textContent = val;
+        }
+        textEl.classList.remove('is-placeholder');
+        if (clearBtn) clearBtn.style.display = 'inline-flex';
+      } else {
+        textEl.textContent = 'Select date';
+        textEl.classList.add('is-placeholder');
+        if (clearBtn) clearBtn.style.display = 'none';
+      }
+    };
+
+    const fromBtn = document.getElementById('filter-date-from-btn');
+    const toBtn = document.getElementById('filter-date-to-btn');
+    const fromClear = document.getElementById('filter-date-from-clear');
+    const toClear = document.getElementById('filter-date-to-clear');
+
+    fromBtn?.addEventListener('click', (e) => {
+      if (e.target.closest('#filter-date-from-clear')) return;
+      playSound('tap');
+      if (window.openCustomDatePicker) {
+        window.openCustomDatePicker({
+          initialDate: document.getElementById('filter-date-from')?.value || '',
+          title: 'From Date',
+          dateOnly: true,
+          onSelect: (isoDate) => {
+            const input = document.getElementById('filter-date-from');
+            if (input) input.value = isoDate;
+            window.updateFilterDateDisplay('from');
+          }
+        });
+      }
+    });
+
+    toBtn?.addEventListener('click', (e) => {
+      if (e.target.closest('#filter-date-to-clear')) return;
+      playSound('tap');
+      if (window.openCustomDatePicker) {
+        window.openCustomDatePicker({
+          initialDate: document.getElementById('filter-date-to')?.value || '',
+          title: 'To Date',
+          dateOnly: true,
+          onSelect: (isoDate) => {
+            const input = document.getElementById('filter-date-to');
+            if (input) input.value = isoDate;
+            window.updateFilterDateDisplay('to');
+          }
+        });
+      }
+    });
+
+    fromClear?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playSound('tap');
+      const input = document.getElementById('filter-date-from');
+      if (input) input.value = '';
+      window.updateFilterDateDisplay('from');
+    });
+
+    toClear?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playSound('tap');
+      const input = document.getElementById('filter-date-to');
+      if (input) input.value = '';
+      window.updateFilterDateDisplay('to');
+    });
+
     // Date range presets
     sheet.querySelectorAll('.filter-preset-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -980,6 +1065,8 @@
           fromInput.value = '';
           toInput.value = '';
         }
+        window.updateFilterDateDisplay('from');
+        window.updateFilterDateDisplay('to');
       });
     });
 
@@ -996,6 +1083,8 @@
         const toInput = document.getElementById('filter-date-to');
         if (fromInput) fromInput.value = '';
         if (toInput) toInput.value = '';
+        window.updateFilterDateDisplay('from');
+        window.updateFilterDateDisplay('to');
       });
     }
 
@@ -1068,6 +1157,63 @@
     bindReceiptSlipSheet();
   }
 
+  function updateSubPayWalletUI(id) {
+    const hiddenInput = document.getElementById('sub-pay-wallet');
+    const nameEl = document.getElementById('sub-pay-wallet-name');
+    const balEl = document.getElementById('sub-pay-wallet-bal');
+    const iconEl = document.getElementById('sub-pay-wallet-icon');
+    if (hiddenInput && id) hiddenInput.value = id;
+    const targetId = id || (hiddenInput ? hiddenInput.value : '');
+
+    const pickerItem = document.querySelector(`.picker-item[data-wallet="${targetId}"]`);
+    if (pickerItem) {
+      if (hiddenInput) hiddenInput.value = targetId;
+      if (nameEl) nameEl.textContent = pickerItem.querySelector('.picker-name')?.textContent || 'Wallet';
+      if (balEl) balEl.textContent = pickerItem.querySelector('.picker-bal')?.textContent || '';
+      if (iconEl) {
+        const col = pickerItem.dataset.color || '#FFB5A7';
+        const ic = pickerItem.dataset.icon || 'account_balance_wallet';
+        iconEl.style.background = col + '20';
+        iconEl.style.color = col;
+        iconEl.innerHTML = `<svg class="icon"><use href="${window.getIconHref ? window.getIconHref(ic) : ('#icon-' + ic)}"></use></svg>`;
+      }
+    }
+  }
+  window.updateSubPayWalletUI = updateSubPayWalletUI;
+
+  function updateDebtPayWalletUI(id) {
+    const hiddenInput = document.getElementById('debt-pay-wallet');
+    const nameEl = document.getElementById('debt-pay-wallet-name');
+    const balEl = document.getElementById('debt-pay-wallet-bal');
+    const iconEl = document.getElementById('debt-pay-wallet-icon');
+    if (hiddenInput) hiddenInput.value = id || '';
+
+    if (!id) {
+      if (nameEl) nameEl.textContent = 'None (pure ledger)';
+      if (balEl) balEl.textContent = 'No account balance sync';
+      if (iconEl) {
+        iconEl.style.background = 'var(--surface-muted)';
+        iconEl.style.color = 'var(--muted)';
+        iconEl.innerHTML = '<svg class="icon"><use href="#icon-payments"></use></svg>';
+      }
+      return;
+    }
+
+    const pickerItem = document.querySelector(`.picker-item[data-wallet="${id}"]`);
+    if (pickerItem) {
+      if (nameEl) nameEl.textContent = pickerItem.querySelector('.picker-name')?.textContent || 'Wallet';
+      if (balEl) balEl.textContent = pickerItem.querySelector('.picker-bal')?.textContent || '';
+      if (iconEl) {
+        const col = pickerItem.dataset.color || '#FFB5A7';
+        const ic = pickerItem.dataset.icon || 'payments';
+        iconEl.style.background = col + '20';
+        iconEl.style.color = col;
+        iconEl.innerHTML = `<svg class="icon"><use href="${window.getIconHref ? window.getIconHref(ic) : ('#icon-' + ic)}"></use></svg>`;
+      }
+    }
+  }
+  window.updateDebtPayWalletUI = updateDebtPayWalletUI;
+
   function openDebtPaySheet(debtId, person, remaining, kind) {
     const sheet = document.getElementById('debt-pay-sheet');
     const overlay = document.getElementById('debt-pay-overlay');
@@ -1096,6 +1242,7 @@
         ? 'Selecting an account deposits funds into it (+Income).'
         : 'Selecting an account deducts funds from it (-Expense).';
     }
+    updateDebtPayWalletUI('');
     sheet.classList.add('open');
     overlay.classList.add('show');
     if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
@@ -1243,8 +1390,10 @@
       amountInput.value = initialAmount > 0 ? initialAmount : '';
       setTimeout(() => amountInput.focus(), 120);
     }
-    if (walletSelect && walletId) {
-      walletSelect.value = String(walletId);
+    if (walletId) {
+      updateSubPayWalletUI(walletId);
+    } else {
+      updateSubPayWalletUI('');
     }
     if (noteInput) {
       if (remNum > 0 && remNum < cleanNum) {
@@ -4202,6 +4351,44 @@
       playSound('delete');
     }
 
+    // Sub Pay Sheet Account Selector Card Trigger
+    const subWTrig = e.target.closest('#sub-pay-wallet-trigger');
+    if (subWTrig) {
+      e.preventDefault();
+      playSound('tap');
+      const curId = document.getElementById('sub-pay-wallet')?.value;
+      if (window.openAccountPicker) {
+        window.openAccountPicker({
+          selectedId: curId,
+          title: 'Deduct From Account',
+          allowNone: false,
+          onSelect: (w) => {
+            if (w && w.id) updateSubPayWalletUI(w.id);
+          }
+        });
+      }
+      return;
+    }
+
+    // Debt Pay Sheet Account Selector Card Trigger
+    const debtWTrig = e.target.closest('#debt-pay-wallet-trigger');
+    if (debtWTrig) {
+      e.preventDefault();
+      playSound('tap');
+      const curId = document.getElementById('debt-pay-wallet')?.value;
+      if (window.openAccountPicker) {
+        window.openAccountPicker({
+          selectedId: curId,
+          title: 'Select Funded Account',
+          allowNone: true,
+          onSelect: (w) => {
+            updateDebtPayWalletUI(w ? w.id : '');
+          }
+        });
+      }
+      return;
+    }
+
     // Optimistic highlight on bottom nav click
     const bnItem = e.target.closest('.bottomnav .bn-item');
     if (bnItem) {
@@ -4483,10 +4670,23 @@
     syncAndroidSettingsUI();
     syncWidgetDataToNative();
     applyNavbarStyle();
-    if (window.wangRefreshWallets) window.wangRefreshWallets();
   });
   document.addEventListener('turbo:frame-load', () => {
     syncReceiptSlipData();
+  });
+
+  // Tag all Turbo Drive requests so the backend can return ultra-compact payload
+  document.addEventListener('turbo:before-fetch-request', (e) => {
+    try {
+      const headers = e.detail && e.detail.fetchOptions && e.detail.fetchOptions.headers;
+      if (headers) {
+        if (typeof headers.set === 'function') {
+          headers.set('X-Turbo-Request', '1');
+        } else {
+          headers['X-Turbo-Request'] = '1';
+        }
+      }
+    } catch (err) { }
   });
 
   // Enter animation after every Turbo content swap (works across Blink, Gecko, and iOS WebKit)

@@ -3518,7 +3518,291 @@ details.archived-wallets-group[open]:not(.is-closing) .archived-wallets-body {
   border-radius: 999px;
 }
 
-/* ── Account picker sheet ────────────────── */
+/* ── Account, Category & Date Picker Sheets (Elevated over base sheets) ── */
+#picker-overlay,
+#date-overlay,
+#cat-picker-overlay {
+  z-index: 80;
+}
+
+#picker-sheet,
+#date-sheet,
+#cat-picker-sheet {
+  z-index: 85;
+}
+
+/* ── Segmented Pill Bars ── */
+.segmented-pill-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-chip);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.segmented-pill-bar::-webkit-scrollbar {
+  display: none;
+}
+.segmented-pill-bar.two-up {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+.segmented-pill-bar.three-up {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.segmented-pill-bar.five-up {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 440px) {
+  .segmented-pill-bar.five-up {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
+.segmented-pill-btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+  user-select: none;
+}
+.segmented-pill-btn:hover {
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.03);
+}
+[data-theme="dark"] .segmented-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.segmented-pill-btn.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.segmented-pill-btn.active.is-expense {
+  color: var(--red);
+  background: rgba(255, 138, 101, 0.14);
+}
+.segmented-pill-btn.active.is-income {
+  color: var(--green);
+  background: rgba(0, 176, 116, 0.14);
+}
+.segmented-pill-btn.active.is-borrowed {
+  color: var(--coral, #FF8A65);
+  background: rgba(255, 138, 101, 0.14);
+}
+.segmented-pill-btn.active.is-lent {
+  color: var(--green, #00B074);
+  background: rgba(0, 176, 116, 0.14);
+}
+.segmented-pill-btn .icon {
+  font-size: 16px;
+}
+
+/* ── Custom Date Trigger Button ── */
+.custom-date-trigger-wrap {
+  position: relative;
+  width: 100%;
+}
+.custom-date-trigger-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-chip);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  text-align: left;
+}
+.custom-date-trigger-btn:hover {
+  background: var(--surface-muted);
+  border-color: rgba(255, 138, 101, 0.4);
+}
+.custom-date-trigger-btn:active {
+  transform: scale(0.99);
+}
+.custom-date-trigger-btn .icon {
+  font-size: 18px;
+  color: var(--peach);
+  flex-shrink: 0;
+}
+.custom-date-trigger-btn .custom-date-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.custom-date-trigger-btn .custom-date-text.is-placeholder {
+  color: var(--muted);
+  font-weight: 500;
+}
+.custom-date-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.custom-date-clear-btn:hover {
+  color: var(--red);
+  background: rgba(255, 80, 80, 0.12);
+}
+
+/* ── Month Chip Grid (for yearly subscription due month) ── */
+.month-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+@media (max-width: 440px) {
+  .month-chip-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.month-chip-btn {
+  padding: 6px 4px;
+  background: var(--surface-chip);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.month-chip-btn:hover {
+  color: var(--ink);
+  border-color: rgba(255, 138, 101, 0.3);
+}
+.month-chip-btn.active {
+  background: var(--peach);
+  color: #fff;
+  border-color: var(--peach);
+}
+
+
+/* ── Custom Wallet Select Card Trigger ── */
+.wallet-select-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface-chip);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ink);
+  transition: all .16s ease;
+  text-align: left;
+}
+
+.wallet-select-card:hover {
+  background: var(--surface-muted);
+  border-color: rgba(255, 138, 101, 0.4);
+}
+
+.wallet-select-card:active {
+  transform: scale(0.985);
+}
+
+.wallet-select-card .w-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wallet-select-card .w-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: transform .15s ease;
+}
+
+.wallet-select-card .w-card-icon svg {
+  font-size: 20px;
+}
+
+.wallet-select-card .w-card-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wallet-select-card .w-card-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wallet-select-card .w-card-bal {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.wallet-select-card .w-card-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.wallet-select-card .w-card-action-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--peach);
+}
+
+.wallet-select-card .w-card-chevron {
+  font-size: 18px;
+  color: var(--muted);
+}
+
 .picker {
   background: var(--card);
   border-radius: 24px 24px 0 0
@@ -3712,22 +3996,185 @@ details.archived-wallets-group[open]:not(.is-closing) .archived-wallets-body {
   text-transform: uppercase
 }
 
-.time-spinners {
+/* ── Custom Time Picker Suite ── */
+.custom-time-picker {
   display: flex;
   align-items: center;
-  gap: 6px
+  gap: 8px;
 }
 
-.time-spinners select {
-  width: 74px;
+.time-stepper-box {
+  display: flex;
+  align-items: center;
+  background: var(--surface-chip);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 2px 4px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color .15s ease, background var(--transition);
+}
+
+.time-stepper-box:focus-within,
+.time-stepper-box.active {
+  border-color: var(--peach);
+}
+
+.time-arrow-btn {
+  width: 26px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  transition: all .12s ease;
+  padding: 0;
+}
+
+.time-arrow-btn svg {
+  font-size: 17px;
+}
+
+.time-arrow-btn:hover {
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.time-arrow-btn:active {
+  transform: scale(0.88);
+  background: rgba(255, 138, 101, 0.15);
+  color: var(--peach);
+}
+
+.time-digit-display {
+  width: 34px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
   text-align: center;
-  padding: 10px 6px
+  cursor: pointer;
+  border-radius: 7px;
+  transition: all .15s ease;
+  padding: 0;
+}
+
+.time-digit-display:hover {
+  background: rgba(255, 138, 101, 0.12);
+  color: var(--peach);
+}
+
+.time-digit-display.active {
+  background: var(--peach);
+  color: #FFFFFF;
 }
 
 .time-colon {
   font-weight: 800;
   font-size: 18px;
-  color: var(--ink)
+  color: var(--ink);
+  padding: 0 1px;
+}
+
+.time-now-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--surface-chip);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s ease;
+}
+
+.time-now-btn:hover {
+  border-color: var(--peach);
+  color: var(--peach);
+}
+
+.time-now-btn:active {
+  transform: scale(0.92);
+  background: var(--peach);
+  color: #FFFFFF;
+}
+
+/* Quick Jump Horizontal Pill Strip (Toggled when tapping hour or minute display) */
+.time-quick-tray {
+  margin-top: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: var(--surface-chip);
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  animation: rise .2s ease both;
+}
+
+.time-quick-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--muted);
+}
+
+.time-quick-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.time-quick-chip {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all .12s ease;
+}
+
+.time-quick-chip:hover {
+  border-color: var(--peach);
+  color: var(--peach);
+}
+
+.time-quick-chip.active {
+  background: var(--peach);
+  border-color: var(--peach);
+  color: #FFFFFF;
+}
+
+.time-spinners {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-spinners select {
+  width: 74px;
+  text-align: center;
+  padding: 10px 6px;
 }
 
 /* ── Filters / forms / misc ──────────────── */

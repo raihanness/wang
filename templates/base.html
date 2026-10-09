@@ -35,7 +35,7 @@
   <title>{% block title %}Wang{% endblock %}</title>
   <!-- Self-Hosted Fonts (GDPR Compliant) -->
   <link rel="preload" href="{% static 'fonts/plus-jakarta-sans-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=15">
+  <link rel="stylesheet" href="{% static 'css/wang.css' %}?v=18">
   <link rel="prefetch" href="{% static 'img/icons.svg' %}">
   <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
   <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
@@ -47,10 +47,14 @@
   <meta name="turbo-cache-control" content="no-preview">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.4/dist/turbo.es2017-umd.js"></script>
-  <script src="{% static 'js/app.js' %}?v=15"></script>
+  <script src="{% static 'js/app.js' %}?v=18"></script>
 </head>
 <body data-page="{% block page_name %}{% endblock %}">
-  {% include "tracker/_svg_symbols.html" %}
+  <div id="wang-svg-sprite-holder" data-turbo-permanent style="display:contents">
+    {% if not is_turbo_request %}
+      {% include "tracker/_svg_symbols.html" %}
+    {% endif %}
+  </div>
   <div class="phone">
     <div class="appbar">
       <div class="appbar-brand">
@@ -135,22 +139,24 @@
     </nav>
 
     <div class="sheet-root" id="sheet-root-container" data-turbo-permanent>
-      {% include "tracker/_add_sheet.html" %}
-      {% include "tracker/_detail_sheet.html" %}
-      {% include "tracker/_budget_sheet.html" %}
-      {% include "tracker/_confirm_sheet.html" %}
-      {% include "tracker/_filter_sheet.html" %}
-      {% include "tracker/_debt_pay_sheet.html" %}
-      {% include "tracker/_debt_history_sheet.html" %}
-      {% include "tracker/_sub_pay_sheet.html" %}
-      {% include "tracker/_sub_history_sheet.html" %}
-      {% include "tracker/_cat_tx_sheet.html" %}
-      {% include "tracker/_goal_sheet.html" %}
-      {% include "tracker/_receipt_slip_sheet.html" %}
+      {% if not is_turbo_request %}
+        {% include "tracker/_add_sheet.html" %}
+        {% include "tracker/_detail_sheet.html" %}
+        {% include "tracker/_budget_sheet.html" %}
+        {% include "tracker/_confirm_sheet.html" %}
+        {% include "tracker/_filter_sheet.html" %}
+        {% include "tracker/_debt_pay_sheet.html" %}
+        {% include "tracker/_debt_history_sheet.html" %}
+        {% include "tracker/_sub_pay_sheet.html" %}
+        {% include "tracker/_sub_history_sheet.html" %}
+        {% include "tracker/_cat_tx_sheet.html" %}
+        {% include "tracker/_goal_sheet.html" %}
+        {% include "tracker/_receipt_slip_sheet.html" %}
+      {% endif %}
     </div>
 
     <!-- Receipt Lightbox Modal -->
-    <div id="receipt-lightbox" class="lightbox-overlay" hidden>
+    <div id="receipt-lightbox" class="lightbox-overlay" data-turbo-permanent hidden>
       <div class="lightbox-content">
         <button type="button" class="lightbox-close" id="lightbox-close" aria-label="Close photo">
           <svg class="icon"><use href="#icon-close"></use></svg>

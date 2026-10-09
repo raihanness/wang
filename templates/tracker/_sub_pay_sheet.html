@@ -31,12 +31,23 @@
     </div>
 
     <div class="form-field" style="margin-top:12px">
-      <label for="sub-pay-wallet">Deduct From Account</label>
-      <select name="wallet" id="sub-pay-wallet" class="input">
-        {% for w in wallets %}
-          <option value="{{ w.id }}">{{ w.name }} (Rp{{ w.current_balance|floatformat:0|intcomma }})</option>
-        {% endfor %}
-      </select>
+      <label id="sub-pay-wallet-label">Deduct From Account</label>
+      <input type="hidden" name="wallet" id="sub-pay-wallet" value="{% if wallets %}{{ wallets.0.id }}{% endif %}">
+      <button type="button" class="wallet-select-card" id="sub-pay-wallet-trigger" aria-label="Select Account">
+        <div class="w-card-left">
+          <span class="w-card-icon" id="sub-pay-wallet-icon" style="background:{% if wallets %}{{ wallets.0.color }}{% else %}#FFB5A7{% endif %}20;color:{% if wallets %}{{ wallets.0.color }}{% else %}#FFB5A7{% endif %}">
+            <svg class="icon"><use href="#icon-{% if wallets %}{{ wallets.0.icon }}{% else %}account_balance_wallet{% endif %}"></use></svg>
+          </span>
+          <div class="w-card-meta">
+            <span class="w-card-name" id="sub-pay-wallet-name">{% if wallets %}{{ wallets.0.name }}{% else %}Select Account{% endif %}</span>
+            <span class="w-card-bal muted" id="sub-pay-wallet-bal">{% if wallets %}Rp{{ wallets.0.current_balance|floatformat:0|intcomma }}{% endif %}</span>
+          </div>
+        </div>
+        <div class="w-card-right">
+          <span class="w-card-action-hint">Change</span>
+          <svg class="icon w-card-chevron"><use href="#icon-chevron_right"></use></svg>
+        </div>
+      </button>
       <small class="muted" style="display:block;margin-top:4px;font-size:11px">
         Selecting an account automatically records an Expense transaction and updates its balance.
       </small>

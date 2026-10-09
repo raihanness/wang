@@ -192,10 +192,16 @@
 <div class="sheet picker" id="picker-sheet" role="dialog" aria-label="Select account" style="height: 600px;">
   <div class="sheet-head">
     <button type="button" class="sheet-head-btn" id="picker-close"><svg class="icon"><use href="#icon-close"></use></svg></button>
-    <div class="picker-title">Select account</div>
+    <div class="picker-title" id="picker-sheet-title">Select account</div>
     <a class="sheet-head-btn" href="{% url 'wallet_create' %}" aria-label="Add wallet"><svg class="icon"><use href="#icon-add"></use></svg></a>
   </div>
   <div class="picker-list">
+    <button type="button" class="picker-item" id="picker-item-none" style="display:none" data-wallet="" data-icon="payments" data-color="#A9A9AE">
+      <span class="picker-icon" style="background:var(--surface-muted);color:var(--muted)"><svg class="icon"><use href="#icon-payments"></use></svg></span>
+      <span class="picker-name">None (pure ledger)</span>
+      <span class="picker-bal">No account balance sync</span>
+      <svg class="icon picker-check"><use href="#icon-check"></use></svg>
+    </button>
     {% for w in wallets %}
       <button type="button" class="picker-item {% if forloop.first %}selected{% endif %}" data-wallet="{{ w.id }}" data-icon="{{ w.icon }}" data-color="{{ w.color }}">
         <span class="picker-icon" style="background:{{ w.color }}20;color:{{ w.color }}"><svg class="icon"><use href="#icon-{{ w.icon }}"></use></svg></span>
@@ -209,10 +215,43 @@
   </div>
 </div>
 
+<div class="sheet-overlay" id="cat-picker-overlay"></div>
+<div class="sheet picker" id="cat-picker-sheet" role="dialog" aria-label="Select category" style="height: 600px;">
+  <div class="sheet-head">
+    <button type="button" class="sheet-head-btn" id="cat-picker-close"><svg class="icon"><use href="#icon-close"></use></svg></button>
+    <div class="picker-title" id="cat-picker-sheet-title">Select category</div>
+    <a class="sheet-head-btn" href="{% url 'category_create' %}" aria-label="Add category"><svg class="icon"><use href="#icon-add"></use></svg></a>
+  </div>
+  <div class="picker-list" id="cat-picker-list">
+    <button type="button" class="picker-item" id="cat-picker-item-none" style="display:none" data-cat="" data-icon="label" data-color="#A9A9AE">
+      <span class="picker-icon" style="background:var(--surface-muted);color:var(--muted)"><svg class="icon"><use href="#icon-label_off"></use></svg></span>
+      <span class="picker-name">None (No category)</span>
+      <span class="picker-bal">Optional</span>
+      <svg class="icon picker-check"><use href="#icon-check"></use></svg>
+    </button>
+    {% for c in expense_cats %}
+      <button type="button" class="picker-item cat-picker-item" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-kind="{{ c.kind }}">
+        <span class="picker-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><svg class="icon"><use href="#icon-{{ c.icon }}"></use></svg></span>
+        <span class="picker-name">{{ c.name }}</span>
+        <span class="picker-bal">Expense</span>
+        <svg class="icon picker-check"><use href="#icon-check"></use></svg>
+      </button>
+    {% endfor %}
+    {% for c in income_cats %}
+      <button type="button" class="picker-item cat-picker-item" data-cat="{{ c.id }}" data-icon="{{ c.icon }}" data-color="{{ c.color }}" data-kind="{{ c.kind }}">
+        <span class="picker-icon" style="background:{{ c.color }}20;color:{{ c.color }}"><svg class="icon"><use href="#icon-{{ c.icon }}"></use></svg></span>
+        <span class="picker-name">{{ c.name }}</span>
+        <span class="picker-bal">Income</span>
+        <svg class="icon picker-check"><use href="#icon-check"></use></svg>
+      </button>
+    {% endfor %}
+  </div>
+</div>
+
 <div class="sheet-overlay" id="date-overlay"></div>
 <div class="sheet picker date-picker" id="date-sheet" role="dialog" aria-label="Pick date and time">
   <div class="sheet-head">
-    <div class="picker-title">Date &amp; time</div>
+    <div class="picker-title" id="date-sheet-title">Date &amp; time</div>
   </div>
 
   <div class="date-picker-head">
@@ -232,11 +271,42 @@
 
   <div class="time-row">
     <label>Time</label>
-    <div class="time-spinners">
-      <select id="time-h" class="input"></select>
+    <div class="custom-time-picker">
+      <div class="time-stepper-box" id="time-box-h">
+        <button type="button" class="time-arrow-btn" id="time-h-down" aria-label="Hour down">
+          <svg class="icon"><use href="#icon-chevron_left"></use></svg>
+        </button>
+        <button type="button" class="time-digit-display" id="time-display-h" title="Tap to pick hour">12</button>
+        <button type="button" class="time-arrow-btn" id="time-h-up" aria-label="Hour up">
+          <svg class="icon"><use href="#icon-chevron_right"></use></svg>
+        </button>
+      </div>
       <span class="time-colon">:</span>
-      <select id="time-m" class="input"></select>
+      <div class="time-stepper-box" id="time-box-m">
+        <button type="button" class="time-arrow-btn" id="time-m-down" aria-label="Minute down">
+          <svg class="icon"><use href="#icon-chevron_left"></use></svg>
+        </button>
+        <button type="button" class="time-digit-display" id="time-display-m" title="Tap to pick minute">00</button>
+        <button type="button" class="time-arrow-btn" id="time-m-up" aria-label="Minute up">
+          <svg class="icon"><use href="#icon-chevron_right"></use></svg>
+        </button>
+      </div>
+      <button type="button" class="time-now-btn" id="time-btn-now" title="Set to current time">
+        <svg class="icon" style="font-size:14px"><use href="#icon-schedule"></use></svg>
+        <span>Now</span>
+      </button>
     </div>
+    <!-- Hidden inputs for compatibility -->
+    <input type="hidden" id="time-h" value="12">
+    <input type="hidden" id="time-m" value="00">
+  </div>
+
+  <div class="time-quick-tray" id="time-quick-tray" style="display:none">
+    <div class="time-quick-header">
+      <span id="time-quick-title">Select Hour</span>
+      <button type="button" class="btn-link-subtle" id="time-quick-close" style="font-size:11px">Close ✕</button>
+    </div>
+    <div class="time-quick-chips" id="time-quick-chips"></div>
   </div>
 
   <div class="sheet-actions">
@@ -593,17 +663,41 @@
     selectCategory(c);
   }));
 
-  /* wallet picker (mode: 'chip' | 'from' | 'to') */
+  /* wallet picker (mode: 'chip' | 'from' | 'to' | 'external') */
   let pickerMode = 'chip';
-  function openPicker(mode){
+  let externalPickerCallback = null;
+  const pickerSheetTitle = document.getElementById('picker-sheet-title');
+  const pickerItemNone = document.getElementById('picker-item-none');
+
+  function openPicker(mode, options){
+    if (typeof fetchRealtimeWallets === 'function') {
+      fetchRealtimeWallets();
+    }
     pickerMode = mode;
     let activeId = null;
     if (pickerMode === 'chip') activeId = (walletHidden && walletHidden.value) || walletId;
     else if (pickerMode === 'from') activeId = fromName && fromName.dataset.id;
     else if (pickerMode === 'to') activeId = toName && toName.dataset.id;
-    if (activeId && pickerList) {
+    else if (pickerMode === 'external') {
+      activeId = options && options.selectedId;
+      externalPickerCallback = (options && options.onSelect) || null;
+      if (pickerSheetTitle) {
+        pickerSheetTitle.textContent = (options && options.title) || 'Select account';
+      }
+      if (pickerItemNone) {
+        pickerItemNone.style.display = (options && options.allowNone) ? 'flex' : 'none';
+      }
+    }
+
+    if (pickerMode !== 'external') {
+      if (pickerItemNone) pickerItemNone.style.display = 'none';
+      if (pickerSheetTitle) pickerSheetTitle.textContent = 'Select account';
+    }
+
+    if (pickerList) {
       pickerList.querySelectorAll('.picker-item').forEach(i => {
-        i.classList.toggle('selected', String(i.dataset.wallet) === String(activeId));
+        const itemWId = i.dataset.wallet || '';
+        i.classList.toggle('selected', String(itemWId) === String(activeId || ''));
       });
     }
 
@@ -614,9 +708,17 @@
     }
     fetchRealtimeWallets();
   }
+
+  function openAccountPicker(options) {
+    openPicker('external', options || {});
+  }
+  window.openAccountPicker = openAccountPicker;
+
   function closePicker(){
     pickerSheet.classList.remove('open');
     pickerOverlay.classList.remove('show');
+    if (pickerItemNone) pickerItemNone.style.display = 'none';
+    if (pickerSheetTitle) pickerSheetTitle.textContent = 'Select account';
   }
   walletChip?.addEventListener('click', () => openPicker('chip'));
   document.getElementById('picker-close')?.addEventListener('click', closePicker);
@@ -626,7 +728,19 @@
     const item = e.target.closest('.picker-item');
     if (!item) return;
     const id = item.dataset.wallet;
-    if (pickerMode === 'chip'){
+    if (pickerMode === 'external'){
+      if (typeof externalPickerCallback === 'function'){
+        const isNone = item.id === 'picker-item-none' || !id;
+        externalPickerCallback({
+          id: isNone ? '' : id,
+          name: item.querySelector('.picker-name')?.textContent || '',
+          icon: item.dataset.icon || 'payments',
+          color: item.dataset.color || '#A9A9AE',
+          formatted_balance: item.querySelector('.picker-bal')?.textContent || '',
+          isNone: isNone
+        });
+      }
+    } else if (pickerMode === 'chip'){
       setWalletChip(item);
     } else {
       setTransferBlock(pickerMode, item);
@@ -634,6 +748,73 @@
     checkTransfer();
     closePicker();
     hideSheetError();
+  });
+
+  /* ── Category Picker Modal Suite ── */
+  let externalCategoryCallback = null;
+  const catPickerOverlay = document.getElementById('cat-picker-overlay');
+  const catPickerSheet = document.getElementById('cat-picker-sheet');
+  const catPickerList = document.getElementById('cat-picker-list');
+  const catPickerSheetTitle = document.getElementById('cat-picker-sheet-title');
+  const catPickerItemNone = document.getElementById('cat-picker-item-none');
+
+  function openCategoryPicker(options) {
+    options = options || {};
+    externalCategoryCallback = options.onSelect || null;
+    const activeId = options.selectedId;
+    const kindFilter = options.kind || null;
+
+    if (catPickerSheetTitle) {
+      catPickerSheetTitle.textContent = options.title || 'Select category';
+    }
+    if (catPickerItemNone) {
+      catPickerItemNone.style.display = options.allowNone ? 'flex' : 'none';
+      catPickerItemNone.classList.toggle('selected', !activeId);
+    }
+
+    if (catPickerList) {
+      catPickerList.querySelectorAll('.picker-item:not(#cat-picker-item-none)').forEach(item => {
+        const itemCatId = item.dataset.cat;
+        const itemKind = item.dataset.kind;
+        const matchesKind = !kindFilter || itemKind === kindFilter;
+        item.style.display = matchesKind ? 'flex' : 'none';
+        item.classList.toggle('selected', String(itemCatId) === String(activeId || ''));
+      });
+    }
+
+    catPickerSheet?.classList.add('open');
+    catPickerOverlay?.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+  }
+  window.openCategoryPicker = openCategoryPicker;
+
+  function closeCategoryPicker() {
+    catPickerSheet?.classList.remove('open');
+    catPickerOverlay?.classList.remove('show');
+    externalCategoryCallback = null;
+  }
+
+  document.getElementById('cat-picker-close')?.addEventListener('click', closeCategoryPicker);
+  catPickerOverlay?.addEventListener('click', closeCategoryPicker);
+
+  catPickerList?.addEventListener('click', (e) => {
+    const item = e.target.closest('.picker-item');
+    if (!item) return;
+    const id = item.dataset.cat;
+    const isNone = item.id === 'cat-picker-item-none' || !id;
+    if (typeof externalCategoryCallback === 'function') {
+      externalCategoryCallback({
+        id: isNone ? '' : id,
+        name: item.querySelector('.picker-name')?.textContent || '',
+        icon: item.dataset.icon || 'label',
+        color: item.dataset.color || '#A9A9AE',
+        kind: item.dataset.kind || '',
+        isNone: isNone
+      });
+    }
+    closeCategoryPicker();
   });
 
   /* transfer from/to */
@@ -924,8 +1105,41 @@
     syncDateUI();
   });
 
+  let customDatePickerCallback = null;
+  let customDateOnlyMode = false;
+  const dateSheetTitle = document.getElementById('date-sheet-title');
+  const timeRowEl = document.querySelector('.time-row');
+
   function openDatePicker(){
-    if (dateHidden.value){
+    openCustomDatePicker();
+  }
+
+  function openCustomDatePicker(options){
+    options = options || {};
+    customDatePickerCallback = options.onSelect || null;
+    customDateOnlyMode = !!options.dateOnly;
+
+    if (dateSheetTitle) {
+      dateSheetTitle.textContent = options.title || (customDateOnlyMode ? 'Select date' : 'Date & time');
+    }
+    if (timeRowEl) {
+      timeRowEl.style.display = customDateOnlyMode ? 'none' : 'flex';
+    }
+
+    if (options.initialDate){
+      if (typeof options.initialDate === 'string'){
+        const [dPart, tPart] = options.initialDate.split('T');
+        if (dPart){
+          const [y, mo, day] = dPart.split('-').map(Number);
+          const [h, mi] = (tPart || '12:00').split(':').map(Number);
+          if (!isNaN(y) && !isNaN(mo) && !isNaN(day)){
+            selDate = new Date(y, mo - 1, day, isNaN(h) ? 12 : h, isNaN(mi) ? 0 : mi);
+          }
+        }
+      } else if (options.initialDate instanceof Date) {
+        selDate = new Date(options.initialDate.getTime());
+      }
+    } else if (!customDatePickerCallback && dateHidden && dateHidden.value) {
       const [dPart, tPart] = dateHidden.value.split('T');
       if (dPart){
         const [y, mo, day] = dPart.split('-').map(Number);
@@ -934,15 +1148,31 @@
           selDate = new Date(y, mo - 1, day, isNaN(h) ? 12 : h, isNaN(mi) ? 0 : mi);
         }
       }
+    } else {
+      selDate = getToday();
     }
+
     viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
-    timeH.value = pad2(selDate.getHours());
-    const nearest5 = Math.round(selDate.getMinutes() / 5) * 5 % 60;
-    timeM.value = pad2(nearest5);
-    dateSheet.classList.add('open'); dateOverlay.classList.add('show'); if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) { window.AndroidBridge.setScrollableActive(true); }
+    if (!customDateOnlyMode) syncTimeDisplay();
+    closeQuickTray();
+    dateSheet.classList.add('open');
+    dateOverlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
     renderCalendar();
   }
-  function closeDatePicker(){ dateSheet.classList.remove('open'); dateOverlay.classList.remove('show'); }
+  window.openCustomDatePicker = openCustomDatePicker;
+
+  function closeDatePicker(){
+    dateSheet.classList.remove('open');
+    dateOverlay.classList.remove('show');
+    closeQuickTray();
+    if (dateSheetTitle) dateSheetTitle.textContent = 'Date & time';
+    if (timeRowEl) timeRowEl.style.display = 'flex';
+    customDatePickerCallback = null;
+    customDateOnlyMode = false;
+  }
   calendarBtn?.addEventListener('click', openDatePicker);
   document.getElementById('date-close')?.addEventListener('click', closeDatePicker);
   dateOverlay?.addEventListener('click', closeDatePicker);
@@ -975,17 +1205,136 @@
   document.getElementById('date-prev')?.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1); renderCalendar(); });
   document.getElementById('date-next')?.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1); renderCalendar(); });
 
-  /* time spinners (only when empty so Turbo re-runs don't duplicate) */
-  if (timeH && timeH.options.length === 0){
-    for (let h=0; h<24; h++) timeH.add(new Option(pad2(h), pad2(h)));
+  /* custom time picker controls */
+  const timeDisplayH = document.getElementById('time-display-h');
+  const timeDisplayM = document.getElementById('time-display-m');
+  const timeHDown = document.getElementById('time-h-down');
+  const timeHUp = document.getElementById('time-h-up');
+  const timeMDown = document.getElementById('time-m-down');
+  const timeMUp = document.getElementById('time-m-up');
+  const timeBtnNow = document.getElementById('time-btn-now');
+  const timeQuickTray = document.getElementById('time-quick-tray');
+  const timeQuickTitle = document.getElementById('time-quick-title');
+  const timeQuickChips = document.getElementById('time-quick-chips');
+  const timeQuickClose = document.getElementById('time-quick-close');
+
+  let activeQuickMode = null; // 'h' | 'm' | null
+
+  function syncTimeDisplay() {
+    const curH = selDate.getHours();
+    const curM = selDate.getMinutes();
+    const strH = pad2(curH);
+    const strM = pad2(curM);
+    if (timeDisplayH) timeDisplayH.textContent = strH;
+    if (timeDisplayM) timeDisplayM.textContent = strM;
+    if (timeH) timeH.value = strH;
+    if (timeM) timeM.value = strM;
+    if (dateSelected) dateSelected.textContent = fmtSelected();
+    if (activeQuickMode) renderQuickChips();
   }
-  if (timeM && timeM.options.length === 0){
-    for (let m=0; m<60; m+=5) timeM.add(new Option(pad2(m), pad2(m)));
+
+  function adjustHour(delta) {
+    let h = (selDate.getHours() + delta + 24) % 24;
+    selDate.setHours(h);
+    syncTimeDisplay();
+    if (window.wangPlaySound) window.wangPlaySound('tap');
   }
-  timeH?.addEventListener('change', () => { selDate.setHours(+timeH.value); dateSelected.textContent = fmtSelected(); });
-  timeM?.addEventListener('change', () => { selDate.setMinutes(+timeM.value); dateSelected.textContent = fmtSelected(); });
+
+  function adjustMinute(delta) {
+    let m = Math.round(selDate.getMinutes() / 5) * 5 + delta;
+    if (m >= 60) {
+      m = 0;
+      selDate.setHours((selDate.getHours() + 1) % 24);
+    } else if (m < 0) {
+      m = 55;
+      selDate.setHours((selDate.getHours() - 1 + 24) % 24);
+    }
+    selDate.setMinutes(m);
+    syncTimeDisplay();
+    if (window.wangPlaySound) window.wangPlaySound('tap');
+  }
+
+  timeHDown?.addEventListener('click', () => adjustHour(-1));
+  timeHUp?.addEventListener('click', () => adjustHour(1));
+  timeMDown?.addEventListener('click', () => adjustMinute(-5));
+  timeMUp?.addEventListener('click', () => adjustMinute(5));
+
+  timeBtnNow?.addEventListener('click', () => {
+    const now = new Date();
+    selDate.setHours(now.getHours(), now.getMinutes());
+    syncTimeDisplay();
+    closeQuickTray();
+    if (window.wangPlaySound) window.wangPlaySound('tap');
+  });
+
+  function renderQuickChips() {
+    if (!timeQuickTray || !timeQuickChips || !activeQuickMode) return;
+    timeQuickTray.style.display = 'block';
+    if (timeQuickTitle) {
+      timeQuickTitle.textContent = activeQuickMode === 'h' ? 'Quick Jump: Hour (00 – 23)' : 'Quick Jump: Minute (00 – 55)';
+    }
+    if (timeDisplayH) timeDisplayH.classList.toggle('active', activeQuickMode === 'h');
+    if (timeDisplayM) timeDisplayM.classList.toggle('active', activeQuickMode === 'm');
+
+    timeQuickChips.innerHTML = '';
+    if (activeQuickMode === 'h') {
+      const curH = selDate.getHours();
+      for (let h = 0; h < 24; h++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `time-quick-chip ${h === curH ? 'active' : ''}`;
+        btn.textContent = pad2(h);
+        btn.addEventListener('click', () => {
+          selDate.setHours(h);
+          syncTimeDisplay();
+          closeQuickTray();
+          if (window.wangPlaySound) window.wangPlaySound('tap');
+        });
+        timeQuickChips.appendChild(btn);
+      }
+    } else {
+      const curM = selDate.getMinutes();
+      for (let m = 0; m < 60; m += 5) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `time-quick-chip ${Math.abs(m - curM) < 3 ? 'active' : ''}`;
+        btn.textContent = pad2(m);
+        btn.addEventListener('click', () => {
+          selDate.setMinutes(m);
+          syncTimeDisplay();
+          closeQuickTray();
+          if (window.wangPlaySound) window.wangPlaySound('tap');
+        });
+        timeQuickChips.appendChild(btn);
+      }
+    }
+  }
+
+  function closeQuickTray() {
+    activeQuickMode = null;
+    if (timeQuickTray) timeQuickTray.style.display = 'none';
+    if (timeDisplayH) timeDisplayH.classList.remove('active');
+    if (timeDisplayM) timeDisplayM.classList.remove('active');
+  }
+
+  timeDisplayH?.addEventListener('click', () => {
+    activeQuickMode = activeQuickMode === 'h' ? null : 'h';
+    if (activeQuickMode) renderQuickChips();
+    else closeQuickTray();
+  });
+
+  timeDisplayM?.addEventListener('click', () => {
+    activeQuickMode = activeQuickMode === 'm' ? null : 'm';
+    if (activeQuickMode) renderQuickChips();
+    else closeQuickTray();
+  });
+
+  timeQuickClose?.addEventListener('click', closeQuickTray);
 
   function fmtSelected(){
+    if (customDateOnlyMode) {
+      return DAYS[selDate.getDay()] + ', ' + pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()] + ' ' + selDate.getFullYear();
+    }
     return DAYS[selDate.getDay()] + ', ' + pad2(selDate.getDate()) + ' ' + MONTHS[selDate.getMonth()] + ' ' + selDate.getFullYear() + ' · ' + pad2(selDate.getHours()) + ':' + pad2(selDate.getMinutes());
   }
 
@@ -997,8 +1346,7 @@
     selDate = getToday();
     selDate.setHours(h, m);
     viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
-    timeH.value = pad2(selDate.getHours());
-    timeM.value = pad2(Math.round(selDate.getMinutes() / 5) * 5 % 60);
+    if (!customDateOnlyMode) syncTimeDisplay();
     renderCalendar();
   });
   document.getElementById('date-yesterday-btn')?.addEventListener('click', () => {
@@ -1007,12 +1355,22 @@
     selDate = getYesterday();
     selDate.setHours(h, m);
     viewDate = new Date(selDate.getFullYear(), selDate.getMonth(), 1);
-    timeH.value = pad2(selDate.getHours());
-    timeM.value = pad2(Math.round(selDate.getMinutes() / 5) * 5 % 60);
+    if (!customDateOnlyMode) syncTimeDisplay();
     renderCalendar();
   });
 
   function commitDate(){
+    if (typeof customDatePickerCallback === 'function') {
+      const isoDate = customDateOnlyMode
+        ? `${selDate.getFullYear()}-${pad2(selDate.getMonth()+1)}-${pad2(selDate.getDate())}`
+        : formatLocalISO(selDate);
+      const displayDate = `${MONTHS[selDate.getMonth()].slice(0,3)} ${selDate.getDate()}, ${selDate.getFullYear()}`;
+      const cb = customDatePickerCallback;
+      customDatePickerCallback = null;
+      cb(isoDate, displayDate);
+      closeDatePicker();
+      return;
+    }
     dateHidden.value = formatLocalISO(selDate);
     syncDateUI();
     closeDatePicker();

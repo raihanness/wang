@@ -20,13 +20,23 @@
     </div>
 
     <div class="form-field" style="margin-top:12px">
-      <label for="debt-pay-wallet" id="debt-pay-wallet-label">Funded Account (Optional)</label>
-      <select name="wallet" id="debt-pay-wallet" class="input">
-        <option value="">None (pure ledger)</option>
-        {% for w in wallets %}
-          <option value="{{ w.id }}">{{ w.name }} (Rp{{ w.current_balance|floatformat:0|intcomma }})</option>
-        {% endfor %}
-      </select>
+      <label id="debt-pay-wallet-label">Funded Account (Optional)</label>
+      <input type="hidden" name="wallet" id="debt-pay-wallet" value="">
+      <button type="button" class="wallet-select-card" id="debt-pay-wallet-trigger" aria-label="Select Account">
+        <div class="w-card-left">
+          <span class="w-card-icon" id="debt-pay-wallet-icon" style="background:var(--surface-muted);color:var(--muted)">
+            <svg class="icon"><use href="#icon-payments"></use></svg>
+          </span>
+          <div class="w-card-meta">
+            <span class="w-card-name" id="debt-pay-wallet-name">None (pure ledger)</span>
+            <span class="w-card-bal muted" id="debt-pay-wallet-bal">No account balance sync</span>
+          </div>
+        </div>
+        <div class="w-card-right">
+          <span class="w-card-action-hint">Change</span>
+          <svg class="icon w-card-chevron"><use href="#icon-chevron_right"></use></svg>
+        </div>
+      </button>
       <small class="muted" id="debt-pay-wallet-hint" style="display:block;margin-top:4px;font-size:11px">
         Selecting an account automatically updates its balance with an Income / Expense transaction.
       </small>

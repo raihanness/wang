@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% load humanize %}
 {% block page_name %}debt_form{% endblock %}
-{% block title %}{{ title }} — Wang{% endblock %}
+{% block title %}{{ title }} // Wang{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -12,8 +13,18 @@
     {% csrf_token %}
     <div class="form-row">
       <div>
-        <label for="{{ form.kind.id_for_label }}">Debt Type</label>
-        {{ form.kind }}
+        <label style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Debt Type</label>
+        <div class="segmented-pill-bar two-up" id="debt-kind-selector">
+          <button type="button" class="segmented-pill-btn {% if form.kind.value == 'borrowed' or not form.kind.value %}active is-borrowed{% endif %}" data-value="borrowed">
+            <svg class="icon" style="color:var(--coral,#FF8A65)"><use href="#icon-arrow_upward"></use></svg>
+            <span>I Owe</span>
+          </button>
+          <button type="button" class="segmented-pill-btn {% if form.kind.value == 'lent' %}active is-lent{% endif %}" data-value="lent">
+            <svg class="icon" style="color:var(--green,#00B074)"><use href="#icon-arrow_downward"></use></svg>
+            <span>Owed to Me</span>
+          </button>
+        </div>
+        <input type="hidden" name="kind" id="id_kind" value="{{ form.kind.value|default:'borrowed' }}">
       </div>
       <div>
         <label for="{{ form.person_name.id_for_label }}">Person's Name</label>
@@ -27,15 +38,36 @@
 
     <div class="form-row" style="margin-top:14px">
       <div>
-        <label for="{{ form.due_date.id_for_label }}">Due Date (Optional)</label>
-        {{ form.due_date }}
+        <label for="id_due_date" style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">Due Date (Optional)</label>
+        <div class="custom-date-trigger-wrap">
+          <button type="button" class="custom-date-trigger-btn" id="debt-due-date-btn" aria-label="Select Due Date">
+            <svg class="icon"><use href="#icon-calendar_today"></use></svg>
+            <span class="custom-date-text {% if not form.due_date.value %}is-placeholder{% endif %}" id="debt-due-date-text">
+              {% if form.due_date.value %}{{ form.due_date.value|date:"M j, Y" }}{% else %}Select due date (Optional){% endif %}
+            </span>
+            <span class="custom-date-clear-btn" id="debt-due-date-clear" {% if not form.due_date.value %}style="display:none"{% endif %} title="Clear date" aria-label="Clear date">✕</span>
+          </button>
+          <input type="hidden" name="due_date" id="id_due_date" value="{{ form.due_date.value|date:'Y-m-d'|default:form.due_date.value|default:'' }}">
+        </div>
       </div>
       <div>
-        <label for="{{ form.wallet.id_for_label }}" id="debt-form-wallet-label">Funded Account (Optional)</label>
-        {{ form.wallet }}
-        <!-- <small class="muted" id="debt-form-wallet-hint" style="display:block;margin-top:3px;font-size:11px">
-          Selecting an account will sync your balance. Leave blank for pure ledger.
-        </small> -->
+        <label for="id_wallet" id="debt-form-wallet-label" style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">{% if form.kind.value == 'lent' %}Lending Account (Optional){% else %}Receiving Account (Optional){% endif %}</label>
+        <button type="button" class="wallet-select-card" id="debt-wallet-trigger" aria-label="Select Funded Account">
+          <div class="w-card-left">
+            <div class="w-card-icon" id="debt-wallet-icon" style="background:{{ form.instance.wallet.color|default:'#A9A9AE' }}20;color:{{ form.instance.wallet.color|default:'#A9A9AE' }}">
+              <svg class="icon"><use href="#icon-{{ form.instance.wallet.icon|default:'payments' }}"></use></svg>
+            </div>
+            <div class="w-card-meta">
+              <span class="w-card-name" id="debt-wallet-name">{{ form.instance.wallet.name|default:"None (pure ledger)" }}</span>
+              <span class="w-card-bal" id="debt-wallet-bal">{% if form.instance.wallet %}Rp{{ form.instance.wallet.current_balance|floatformat:0|intcomma }}{% else %}No account balance sync{% endif %}</span>
+            </div>
+          </div>
+          <div class="w-card-right">
+            <span class="w-card-action-hint">Change</span>
+            <svg class="icon w-card-chevron"><use href="#icon-expand_more"></use></svg>
+          </div>
+        </button>
+        <input type="hidden" name="wallet" id="id_wallet" value="{{ form.instance.wallet.id|default:'' }}">
       </div>
     </div>
 
@@ -67,23 +99,109 @@
 
 <script>
 (function(){
-  const kindSelect = document.getElementById('{{ form.kind.id_for_label }}');
-  const walletHint = document.getElementById('debt-form-wallet-hint');
-  const walletLabel = document.getElementById('debt-form-wallet-label');
-  function updateHint() {
-    if (!kindSelect || !walletHint) return;
-    const isLent = kindSelect.value === 'lent';
-    if (walletLabel) {
-      walletLabel.textContent = isLent ? 'Lending Account (Optional)' : 'Receiving Account (Optional)';
+  function initDebtFormControls() {
+    const kindSelector = document.getElementById('debt-kind-selector');
+    const kindInput = document.getElementById('id_kind');
+    const walletLabel = document.getElementById('debt-form-wallet-label');
+
+    function updateDebtKindUI() {
+      if (!kindInput) return;
+      const isLent = kindInput.value === 'lent';
+      if (walletLabel) {
+        walletLabel.textContent = isLent ? 'Lending Account (Optional)' : 'Receiving Account (Optional)';
+      }
     }
-    walletHint.textContent = isLent
-      ? 'Selecting an account deducts money (-Expense) as cash/funds lent.'
-      : 'Selecting an account deposits money (+Income) as borrowed funds received.';
+
+    if (kindSelector && kindInput) {
+      kindSelector.addEventListener('click', (e) => {
+        const btn = e.target.closest('.segmented-pill-btn');
+        if (!btn) return;
+        kindSelector.querySelectorAll('.segmented-pill-btn').forEach(b => {
+          b.classList.remove('active', 'is-borrowed', 'is-lent');
+        });
+        btn.classList.add('active');
+        if (btn.dataset.value === 'borrowed') btn.classList.add('is-borrowed');
+        if (btn.dataset.value === 'lent') btn.classList.add('is-lent');
+        kindInput.value = btn.dataset.value;
+        updateDebtKindUI();
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+      });
+      updateDebtKindUI();
+    }
+
+    // Wallet Picker Trigger
+    const walletTrigger = document.getElementById('debt-wallet-trigger');
+    const walletInput = document.getElementById('id_wallet');
+    const walletName = document.getElementById('debt-wallet-name');
+    const walletBal = document.getElementById('debt-wallet-bal');
+    const walletIcon = document.getElementById('debt-wallet-icon');
+
+    if (walletTrigger && walletInput) {
+      walletTrigger.addEventListener('click', () => {
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        if (window.openAccountPicker) {
+          window.openAccountPicker({
+            selectedId: walletInput.value,
+            allowNone: true,
+            title: 'Select Funded Account',
+            onSelect: (w) => {
+              walletInput.value = w.id || '';
+              if (walletName) walletName.textContent = w.isNone ? 'None (pure ledger)' : w.name;
+              if (walletBal) walletBal.textContent = w.isNone ? 'No account balance sync' : (w.formatted_balance || '');
+              if (walletIcon) {
+                walletIcon.innerHTML = `<svg class="icon"><use href="#icon-${w.icon || 'payments'}"></use></svg>`;
+                walletIcon.style.background = (w.color || '#A9A9AE') + '20';
+                walletIcon.style.color = w.color || '#A9A9AE';
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // Due Date Trigger
+    const dueDateBtn = document.getElementById('debt-due-date-btn');
+    const dueDateInput = document.getElementById('id_due_date');
+    const dueDateText = document.getElementById('debt-due-date-text');
+    const dueDateClear = document.getElementById('debt-due-date-clear');
+
+    if (dueDateBtn && dueDateInput) {
+      dueDateBtn.addEventListener('click', (e) => {
+        if (e.target.closest('#debt-due-date-clear')) return;
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        if (window.openCustomDatePicker) {
+          window.openCustomDatePicker({
+            initialDate: dueDateInput.value || '',
+            title: 'Due Date',
+            dateOnly: true,
+            onSelect: (isoDate, displayDate) => {
+              dueDateInput.value = isoDate;
+              if (dueDateText) {
+                dueDateText.textContent = displayDate;
+                dueDateText.classList.remove('is-placeholder');
+              }
+              if (dueDateClear) dueDateClear.style.display = 'inline-flex';
+            }
+          });
+        }
+      });
+
+      dueDateClear?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.wangPlaySound) window.wangPlaySound('tap');
+        dueDateInput.value = '';
+        if (dueDateText) {
+          dueDateText.textContent = 'Select due date (Optional)';
+          dueDateText.classList.add('is-placeholder');
+        }
+        dueDateClear.style.display = 'none';
+      });
+    }
   }
-  if (kindSelect) {
-    kindSelect.addEventListener('change', updateHint);
-    updateHint();
-  }
+
+  initDebtFormControls();
+  document.addEventListener('turbo:render', initDebtFormControls);
+  document.addEventListener('turbo:load', initDebtFormControls);
 })();
 </script>
 {% endblock %}

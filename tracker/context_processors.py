@@ -5,8 +5,12 @@ from .models import UserProfile
 def wang_context(request):
     """
     Wang global context processor for template rendering.
-    Provides Cloudflare Turnstile keys and admin badge notifications.
+    Provides Cloudflare Turnstile keys, admin badge notifications, and Turbo request detection.
     """
+    is_turbo = bool(
+        getattr(request, "headers", {}).get("X-Turbo-Request") == "1"
+        or getattr(request, "headers", {}).get("Turbo-Frame") is not None
+    )
     ctx = {
         "TURNSTILE_SITE_KEY": getattr(
             settings,
@@ -15,6 +19,7 @@ def wang_context(request):
         ),
         "TURNSTILE_ENABLED": getattr(settings, "CLOUDFLARE_TURNSTILE_ENABLED", True),
         "pending_approvals_count": 0,
+        "is_turbo_request": is_turbo,
     }
 
     if hasattr(request, "user") and request.user.is_authenticated:
