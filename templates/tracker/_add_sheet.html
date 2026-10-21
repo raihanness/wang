@@ -361,8 +361,19 @@
     }
   }
 
+  function isMobileKeyboardDevice() {
+    // Only collapse keypad on touch-enabled mobile devices (phones/tablets with on-screen virtual keyboard)
+    const isTouch = window.matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 0);
+    const isMobileViewport = window.innerWidth <= 600 || window.innerHeight <= 500;
+    return isTouch && isMobileViewport;
+  }
+
   function setKeypadHidden(hidden) {
     if (!addSheetModal) return;
+    // On desktop PC with physical keyboard, keep numeric keypad visible at all times
+    if (hidden && !isMobileKeyboardDevice()) {
+      return;
+    }
     if (hidden) {
       addSheetModal.classList.add('is-typing-note');
       updateVisualViewport();
@@ -397,6 +408,7 @@
   const saveBtn = document.getElementById('sheet-save-big');
 
   let selectedCat = null;
+  let isManualCategoryChoice = false;
   let walletId = (walletHidden && walletHidden.value) || (pickerList && pickerList.querySelector('.picker-item') ? pickerList.querySelector('.picker-item').dataset.wallet : null);
 
   function getPreferredWalletId() {
@@ -644,6 +656,7 @@
     walletChip.hidden = k === 'transfer';
     selectedCat = null;
     catHidden.value = '';
+    isManualCategoryChoice = false;
     document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('selected'));
     const amountLabel = document.getElementById('sheet-amount-label');
     if (amountLabel) amountLabel.textContent = k === 'transfer' ? 'Transfer' : 'Amount';
@@ -660,6 +673,7 @@
 
   /* categories */
   document.querySelectorAll('.cat-cell').forEach(c => c.addEventListener('click', () => {
+    isManualCategoryChoice = true;
     selectCategory(c);
   }));
 
@@ -1445,6 +1459,7 @@
       suggestionsStrip.style.display = 'none';
     }
     // 3. Reset category (default to first category in grid)
+    isManualCategoryChoice = false;
     setDefaultCategory('expense');
 
     // 4. Reset date
@@ -1842,6 +1857,7 @@
     syncDateUI();
 
     // 5. Category (expense / income)
+    isManualCategoryChoice = true;
     if (k !== 'transfer'){
       let cell = data.cat ? document.querySelector(`.cat-cell[data-cat="${data.cat}"]`) : null;
       if (cell){
@@ -2440,6 +2456,9 @@
   ];
 
   function autoDetectCategoryFromNote(text) {
+    // 0. Explicit intent guard: if user manually selected a category or in edit mode, NEVER override
+    if (isManualCategoryChoice) return;
+    if (form && form.dataset.mode === 'edit') return;
     if (!text || typeof text !== 'string') return;
     const q = text.trim().toLowerCase();
     if (q.length < 2) return;
@@ -2447,14 +2466,28 @@
     const currentKind = kindInput ? kindInput.value : 'expense';
     if (currentKind === 'transfer') return;
 
-    // 1. Check user's category notes history
+    // Boundary check: strictly scope candidate cells to the currently active grid
+    const activeGrid = (currentKind === 'income') ? gridIncome : gridExpense;
+    if (!activeGrid) return;
+    const activeCells = Array.from(activeGrid.querySelectorAll('.cat-cell'));
+    if (activeCells.length === 0) return;
+
+    // 1. Check user's category notes history strictly within the active grid
     const catMap = getCategoryNotesMap();
-    for (const [catId, notes] of Object.entries(catMap)) {
+    for (const cell of activeCells) {
+      const catId = cell.dataset.cat;
+      if (!catId) continue;
+      const notes = catMap[catId];
+      if (!notes || !Array.isArray(notes)) continue;
+
       for (const n of notes) {
-        const nLower = (n || '').toLowerCase();
-        if (nLower === q || q.includes(nLower) || (nLower.length >= 3 && nLower.includes(q))) {
-          const cell = document.querySelector(`.cat-cell[data-cat="${catId}"]`);
-          if (cell && cell !== selectedCat) {
+        if (!n) continue;
+        const nLower = n.trim().toLowerCase();
+        if (!nLower) continue;
+        const isExact = (nLower === q);
+        const isSub = (nLower.length >= 3 && q.length >= 3) && (q.includes(nLower) || nLower.includes(q));
+        if (isExact || isSub) {
+          if (cell !== selectedCat) {
             selectCategory(cell);
             cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             return;
@@ -2463,16 +2496,17 @@
       }
     }
 
-    // 2. Check keyword heuristics
-    const allCells = Array.from(document.querySelectorAll('.cat-cell'));
+    // 2. Check keyword heuristics (strictly within active grid)
     for (const rule of KEYWORD_CAT_RULES) {
-      const matchWord = rule.keywords.some(kw => q.includes(kw));
+      if (rule.targetKind && rule.targetKind !== currentKind) continue;
+
+      const matchWord = rule.keywords.some(kw => {
+        if (kw.length <= 2) return q === kw;
+        return q.includes(kw);
+      });
+
       if (matchWord) {
-        if (rule.targetKind && rule.targetKind !== currentKind) {
-          const targetTab = document.querySelector(`.sheet-tab[data-kind="${rule.targetKind}"]`);
-          if (targetTab) targetTab.click();
-        }
-        const matchedCell = allCells.find(cell => {
+        const matchedCell = activeCells.find(cell => {
           const catName = (cell.dataset.name || '').toLowerCase();
           const catIcon = (cell.dataset.icon || '').toLowerCase();
           return rule.nameMatch.some(nm => catName.includes(nm)) || rule.iconMatch.some(ic => catIcon.includes(ic));
@@ -2550,6 +2584,9 @@
       if (window.wangPlaySound) window.wangPlaySound('tap');
       // Keep chips visible and highlight the clicked chip as selected
       updateNoteSuggestions();
+      if (!isManualCategoryChoice) {
+        autoDetectCategoryFromNote(noteText);
+      }
       if (typeof saveSheetDraft === 'function') saveSheetDraft();
       // Close mobile virtual keyboard and return to keypad
       noteInput.blur();
@@ -2586,6 +2623,14 @@
     if (kind !== 'transfer'){
       if (!selectedCat){
         showSheetError('Please choose a category');
+        if (window.wangUnlockForm) window.wangUnlockForm(form);
+        e.preventDefault();
+        return;
+      }
+      const activeGrid = (kind === 'income') ? gridIncome : gridExpense;
+      if (activeGrid && !activeGrid.contains(selectedCat)) {
+        setDefaultCategory(kind);
+        showSheetError('Category mismatch resolved. Please verify and tap Save');
         if (window.wangUnlockForm) window.wangUnlockForm(form);
         e.preventDefault();
         return;

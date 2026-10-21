@@ -3484,41 +3484,43 @@ details.archived-wallets-group[open]:not(.is-closing) .archived-wallets-body {
   margin: 14px 0 14px;
 }
 
-/* ── Dynamic Keypad Hide when Typing Note ─────────────────── */
-.sheet.is-typing-note {
-  min-height: auto !important;
-  height: auto !important;
-  max-height: 88vh;
-  transition: none !important;
-}
+/* ── Dynamic Keypad Hide when Typing Note (Mobile touch devices only) ─── */
+@media (max-width: 600px) and (pointer: coarse) {
+  .sheet.is-typing-note {
+    min-height: auto !important;
+    height: auto !important;
+    max-height: 88vh;
+    transition: none !important;
+  }
 
-.sheet.is-typing-note .sheet-bottom {
-  padding-bottom: 8px;
-}
+  .sheet.is-typing-note .sheet-bottom {
+    padding-bottom: 8px;
+  }
 
-.sheet.is-typing-note .sheet-scroll {
-  max-height: 88px;
-  flex: 0 1 auto;
-}
+  .sheet.is-typing-note .sheet-scroll {
+    max-height: 88px;
+    flex: 0 1 auto;
+  }
 
-.sheet.is-typing-note .sheet-scroll-spacer {
-  height: 4px;
-}
+  .sheet.is-typing-note .sheet-scroll-spacer {
+    height: 4px;
+  }
 
-.sheet.is-typing-note #keypad {
-  display: none !important;
-}
+  .sheet.is-typing-note #keypad {
+    display: none !important;
+  }
 
-.sheet.is-typing-note .sheet-actions {
-  margin: 6px 0 8px;
-}
+  .sheet.is-typing-note .sheet-actions {
+    margin: 6px 0 8px;
+  }
 
-.sheet.is-typing-note .sheet-input-section {
-  margin: 6px 0 6px;
-}
+  .sheet.is-typing-note .sheet-input-section {
+    margin: 6px 0 6px;
+  }
 
-.sheet:not(.is-typing-note) .keypad {
-  animation: keypadPop .18s cubic-bezier(.32, .72, .35, 1) both;
+  .sheet:not(.is-typing-note) .keypad {
+    animation: keypadPop .18s cubic-bezier(.32, .72, .35, 1) both;
+  }
 }
 
 @keyframes keypadPop {
