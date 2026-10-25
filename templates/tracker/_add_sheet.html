@@ -2,8 +2,9 @@
 <div class="sheet-overlay" id="sheet-overlay"></div>
 <div class="sheet" id="add-sheet" role="dialog" aria-label="Add transaction">
   <div class="sheet-head">
+    <!-- <div class="sheet-drag-handle" aria-hidden="true"></div> -->
     <div class="sheet-title-row" id="sheet-title-row" hidden>
-      <span class="sheet-title-badge">Editing Transaction</span>
+      <span class="sheet-title-badge">Edit</span>
     </div>
     <div class="sheet-tabs">
       <button type="button" class="sheet-tab active" data-kind="expense">Expenses</button>
@@ -979,13 +980,88 @@
     }
   }
 
-  /* keypad listener */
+  /* keypad listener with mobile long-press gestures (⌫ to All-Clear, 0 to 000) */
   const keypad = document.getElementById('keypad');
+  const clearBtn = keypad?.querySelector('.key-clear');
+  const zeroBtn = Array.from(keypad?.querySelectorAll('.key') || []).find(b => b.textContent.trim() === '0');
+
+  let clearTimer = null;
+  let didLongClear = false;
+  let zeroTimer = null;
+  let didLongZero = false;
+
+  function clearAllAmount() {
+    rawExpr = '0';
+    updateKeypadDisplay();
+    hideSheetError();
+    if (window.wangPlaySound) window.wangPlaySound('delete');
+    const amountBox = document.querySelector('.amount-edit-box');
+    if (amountBox) {
+      amountBox.classList.remove('pop-anim');
+      void amountBox.offsetWidth;
+      amountBox.classList.add('pop-anim');
+    }
+  }
+
+  function insertTripleZero() {
+    if (rawExpr === '0') return;
+    const tokens = tokenizeExpr(rawExpr);
+    const lastToken = tokens.length ? tokens[tokens.length - 1] : '';
+    if (isOperator(lastToken) || !lastToken) return;
+    if (lastToken.replace('.','').length > 10) return;
+    rawExpr += '000';
+    updateKeypadDisplay();
+    hideSheetError();
+    if (window.wangPlaySound) window.wangPlaySound('tap');
+    const amountBox = document.querySelector('.amount-edit-box');
+    if (amountBox) {
+      amountBox.classList.remove('pop-anim');
+      void amountBox.offsetWidth;
+      amountBox.classList.add('pop-anim');
+    }
+  }
+
+  // Long-press Backspace (⌫) to Clear All (Rp0)
+  clearBtn?.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    didLongClear = false;
+    clearTimeout(clearTimer);
+    clearTimer = setTimeout(() => {
+      didLongClear = true;
+      clearAllAmount();
+    }, 380);
+  });
+  const cancelClearTimer = () => clearTimeout(clearTimer);
+  clearBtn?.addEventListener('pointerup', cancelClearTimer);
+  clearBtn?.addEventListener('pointercancel', cancelClearTimer);
+  clearBtn?.addEventListener('pointerleave', cancelClearTimer);
+
+  // Long-press '0' to insert '000' (Ribuan)
+  zeroBtn?.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    didLongZero = false;
+    clearTimeout(zeroTimer);
+    zeroTimer = setTimeout(() => {
+      if (rawExpr !== '0') {
+        didLongZero = true;
+        insertTripleZero();
+      }
+    }, 350);
+  });
+  const cancelZeroTimer = () => clearTimeout(zeroTimer);
+  zeroBtn?.addEventListener('pointerup', cancelZeroTimer);
+  zeroBtn?.addEventListener('pointercancel', cancelZeroTimer);
+  zeroBtn?.addEventListener('pointerleave', cancelZeroTimer);
+
   keypad?.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b || b.classList.contains('key-fn')) return;
 
     if (b.classList.contains('key-clear')){
+      if (didLongClear) {
+        didLongClear = false;
+        return;
+      }
       // Backspace: if ends with operator, trim operator
       if (/\s*[\+\-\*\/]\s*$/.test(rawExpr)){
         rawExpr = rawExpr.replace(/\s*[\+\-\*\/]\s*$/, '');
@@ -1018,6 +1094,10 @@
       }
     } else {
       const ch = b.textContent.trim();
+      if (ch === '0' && didLongZero) {
+        didLongZero = false;
+        return;
+      }
       const tokens = tokenizeExpr(rawExpr);
       const lastToken = tokens.length ? tokens[tokens.length - 1] : '';
 
@@ -1041,6 +1121,7 @@
     }
     hideSheetError();
   });
+
 
 
   /* ── date & time picker (custom bottom sheet) ── */
@@ -1674,6 +1755,16 @@
         } else {
           scanBadge.className = 'receipt-scan-badge scan-error';
           if (scanText) scanText.textContent = (data && data.error) ? data.error : 'Could not read receipt';
+          if (data && data.needs_key) {
+            window.retryReceiptScan = () => {
+              if (currentReceiptFile) {
+                scanReceipt(currentReceiptFile);
+              }
+            };
+            if (typeof window.openGeminiKeySheet === 'function') {
+              window.openGeminiKeySheet();
+            }
+          }
           setTimeout(() => {
             if (scanBadge && scanBadge.classList.contains('scan-error')) {
               scanBadge.style.display = 'none';
@@ -2296,7 +2387,7 @@
       const catMap = { ...getCategoryNotesMap() };
       const currentCatNotes = catMap[catId] || [];
       const updatedCatNotes = [trimmed, ...currentCatNotes.filter(n => (n || '').trim().toLowerCase() !== lower)];
-      catMap[catId] = sanitizeAndDedupeNotes(updatedCatNotes).slice(0, 40);
+      catMap[catId] = sanitizeAndDedupeNotes(updatedCatNotes).slice(0, 50);
       categoryNotesMap = catMap;
       saveCategoryNotesToStorage(catMap);
     }
@@ -2345,21 +2436,17 @@
     const catId = selectedCat ? (selectedCat.dataset.cat || '') : (catHidden ? catHidden.value : '');
     const kind = kindInput ? kindInput.value : 'expense';
 
+    // Strictly isolated to the active category (no cross-category fallback).
+    // If no category is selected, or the category has no notes yet, or on transfer: leave pool empty.
     const catMap = getCategoryNotesMap();
-    const catNotes = (catId && catMap[catId]) ? catMap[catId] : [];
-    const allRecent = getRecentNotes();
-
-    // Context pool: category notes first, supplemented with general recent notes if category has few notes
-    const pool = (kind === 'transfer' || !catId)
-      ? allRecent
-      : sanitizeAndDedupeNotes([...catNotes, ...allRecent]);
+    const pool = (kind !== 'transfer' && catId && Array.isArray(catMap[catId])) ? catMap[catId] : [];
 
     const q = noteInput.value.trim().toLowerCase();
 
     let candidates = [];
     if (!q) {
-      // Empty query: show category notes first, then recent notes (up to 15 badges)
-      candidates = pool.slice(0, 15);
+      // Empty query: show category notes (up to 45 chips)
+      candidates = pool.slice(0, 45);
     } else {
       // Filtering when typing: rank exact match > prefix match > substring match
       const seen = new Set();
@@ -2385,7 +2472,7 @@
         }
       }
 
-      candidates = [...exactMatches, ...prefixMatches, ...substringMatches].slice(0, 15);
+      candidates = [...exactMatches, ...prefixMatches, ...substringMatches].slice(0, 45);
     }
 
     if (candidates.length === 0) {
@@ -2556,8 +2643,77 @@
 
   noteInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        noteInput.blur();
+        if (saveBtn && !saveBtn.disabled) {
+          saveBtn.click();
+        }
+        return;
+      }
       e.preventDefault();
       noteInput.blur();
+    }
+  });
+
+  /* ── Physical keyboard typing for numeric keypad & Ctrl+Enter save ── */
+  document.addEventListener('keydown', (e) => {
+    // 1. Only active when add/edit bottom sheet is open
+    if (!addSheetModal || !addSheetModal.classList.contains('open')) return;
+
+    // 2. Ctrl+Enter or Cmd+Enter: save transaction from anywhere in the sheet
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (document.activeElement === noteInput) {
+        noteInput.blur();
+      }
+      if (saveBtn && !saveBtn.disabled) {
+        saveBtn.click();
+      }
+      return;
+    }
+
+    // 3. Do not intercept if a secondary overlay/sheet is open (e.g. picker, date picker, confirm)
+    if (document.querySelector('.sheet.open:not(#add-sheet)')) return;
+
+    // 4. Do not intercept keypad typing when user is typing in notes input or any text field
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl === noteInput || activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+      return;
+    }
+
+    // 5. Ignore if modifier keys are pressed (Ctrl, Meta, Alt)
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const k = e.key;
+    let targetBtn = null;
+
+    if (/^[0-9]$/.test(k)) {
+      targetBtn = Array.from(keypad.querySelectorAll('.key')).find(b => b.textContent.trim() === k);
+    } else if (k === '.' || k === ',') {
+      targetBtn = keypad.querySelector('.key-dot');
+    } else if (k === 'Backspace' || k === 'Delete') {
+      targetBtn = keypad.querySelector('.key-clear');
+    } else if (k === '+') {
+      targetBtn = document.getElementById('key-plus-eq') || keypad.querySelector('.key-op[data-op="+"]');
+    } else if (k === '-' || k === '*' || k === '/') {
+      targetBtn = keypad.querySelector(`.key-op[data-op="${k}"]`);
+    } else if (k === '=') {
+      targetBtn = document.getElementById('key-plus-eq');
+    } else if (k === 'Enter') {
+      const tokens = tokenizeExpr(rawExpr);
+      if (tokens.length >= 3) {
+        e.preventDefault();
+        commitMathEvaluation();
+        return;
+      }
+    }
+
+    if (targetBtn) {
+      e.preventDefault();
+      targetBtn.click();
+      targetBtn.classList.add('is-pressed');
+      setTimeout(() => targetBtn.classList.remove('is-pressed'), 120);
     }
   });
 
@@ -2742,6 +2898,139 @@
     resetSheet();
     if (window.closeSheet) window.closeSheet();
   });
+
+  /* ── Mobile Swipe-Down to Dismiss Sheet ── */
+  (function initSheetSwipeDown() {
+    const sheetHead = document.querySelector('#add-sheet .sheet-head');
+    if (!sheetHead || !addSheetModal) return;
+
+    let startY = 0;
+    let startX = 0;
+    let currentDeltaY = 0;
+    let isTracking = false;
+    let isDragging = false;
+
+    sheetHead.addEventListener('touchstart', (e) => {
+      // Don't drag if tapping tabs or buttons
+      if (e.target.closest('.sheet-tab') || e.target.closest('button') || e.target.closest('input')) return;
+      if (!addSheetModal.classList.contains('open')) return;
+
+      const touch = e.touches[0];
+      startY = touch.clientY;
+      startX = touch.clientX;
+      currentDeltaY = 0;
+      isTracking = true;
+      isDragging = false;
+    }, { passive: true });
+
+    sheetHead.addEventListener('touchmove', (e) => {
+      if (!isTracking) return;
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - startY;
+      const deltaX = touch.clientX - startX;
+
+      if (!isDragging) {
+        // Engage downward drag if pulling down more than horizontal
+        if (deltaY > 6 && deltaY > Math.abs(deltaX) * 1.1) {
+          isDragging = true;
+        } else if (Math.abs(deltaX) > 10 || deltaY < -6) {
+          isTracking = false;
+          return;
+        }
+      }
+
+      if (isDragging && deltaY > 0) {
+        currentDeltaY = deltaY;
+        addSheetModal.style.transform = `translateY(${deltaY}px)`;
+        addSheetModal.style.transition = 'none';
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
+
+    const finishSwipe = () => {
+      if (!isTracking && !isDragging) return;
+      isTracking = false;
+
+      if (isDragging) {
+        isDragging = false;
+        if (currentDeltaY > 75) {
+          addSheetModal.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
+          addSheetModal.style.transform = 'translateY(100%)';
+          setTimeout(() => {
+            clearSheetDraft();
+            resetSheet();
+            if (window.closeSheet) window.closeSheet();
+            addSheetModal.style.transform = '';
+            addSheetModal.style.transition = '';
+          }, 200);
+          if (window.wangPlaySound) window.wangPlaySound('tap');
+        } else {
+          addSheetModal.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1)';
+          addSheetModal.style.transform = '';
+          setTimeout(() => {
+            addSheetModal.style.transition = '';
+          }, 200);
+        }
+      }
+    };
+
+    sheetHead.addEventListener('touchend', finishSwipe, { passive: true });
+    sheetHead.addEventListener('touchcancel', finishSwipe, { passive: true });
+
+    // Also support mouse drag on the drag handle
+    const dragHandle = sheetHead.querySelector('.sheet-drag-handle');
+    if (dragHandle) {
+      let mouseStartY = 0;
+      let isMouseDragging = false;
+      let mouseDeltaY = 0;
+
+      dragHandle.addEventListener('pointerdown', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        mouseStartY = e.clientY;
+        mouseDeltaY = 0;
+        isMouseDragging = true;
+        try { dragHandle.setPointerCapture(e.pointerId); } catch(err) {}
+        addSheetModal.style.transition = 'none';
+      });
+
+      dragHandle.addEventListener('pointermove', (e) => {
+        if (!isMouseDragging) return;
+        const delta = e.clientY - mouseStartY;
+        if (delta > 0) {
+          mouseDeltaY = delta;
+          addSheetModal.style.transform = `translateY(${delta}px)`;
+        }
+      });
+
+      const endMouse = (e) => {
+        if (!isMouseDragging) return;
+        isMouseDragging = false;
+        try { dragHandle.releasePointerCapture(e.pointerId); } catch(err) {}
+        if (mouseDeltaY > 75) {
+          addSheetModal.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
+          addSheetModal.style.transform = 'translateY(100%)';
+          setTimeout(() => {
+            clearSheetDraft();
+            resetSheet();
+            if (window.closeSheet) window.closeSheet();
+            addSheetModal.style.transform = '';
+            addSheetModal.style.transition = '';
+          }, 200);
+          if (window.wangPlaySound) window.wangPlaySound('tap');
+        } else {
+          addSheetModal.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1)';
+          addSheetModal.style.transform = '';
+          setTimeout(() => {
+            addSheetModal.style.transition = '';
+          }, 200);
+        }
+      };
+
+      dragHandle.addEventListener('pointerup', endMouse);
+      dragHandle.addEventListener('pointercancel', endMouse);
+    }
+  })();
+
 
   // Initialize default sheet state (default to "Food" category, today's date, and primary wallet)
   resetSheet();

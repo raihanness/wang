@@ -805,6 +805,7 @@ class UserProfile(models.Model):
     avatar = models.ImageField(upload_to="avatars/%Y/", null=True, blank=True)
     bio = models.CharField(max_length=120, blank=True)
     currency_symbol = models.CharField(max_length=10, default="Rp")
+    gemini_api_key = models.CharField(max_length=120, blank=True, default="", help_text="Personal Google Gemini API Key for receipt scanning")
     is_approved = models.BooleanField(default=True, help_text="Designates whether this user has been approved by an administrator.")
     approval_status = models.CharField(
         max_length=20,
@@ -831,6 +832,19 @@ class UserProfile(models.Model):
     def get_initials(self):
         name = self.get_display_name()
         return name[0].upper() if name else "W"
+
+    @property
+    def has_gemini_key(self):
+        return bool(self.gemini_api_key and self.gemini_api_key.strip())
+
+    @property
+    def masked_gemini_key(self):
+        k = (self.gemini_api_key or "").strip()
+        if not k:
+            return ""
+        if len(k) <= 8:
+            return "••••••••"
+        return k[:4] + "••••••••" + k[-4:]
 
     def approve(self, admin_user=None):
         self.is_approved = True

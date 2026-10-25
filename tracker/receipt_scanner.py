@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import logging
 import mimetypes
@@ -6,6 +7,7 @@ import re
 import urllib.error
 import urllib.request
 from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger("tracker")
 
@@ -20,6 +22,71 @@ CANDIDATE_MODELS = [
     "gemini-flash-lite-latest",
     "gemini-flash-latest",
 ]
+
+
+def sanitize_receipt_date(raw_date_str, today=None):
+    """
+    Validates and fixes common receipt date parsing anomalies from LLMs.
+    Specifically resolves ambiguities where day and 2-digit year are swapped
+    (e.g. 24/10/26 parsed as 2024-10-26 instead of 2026-10-24).
+    """
+    if not raw_date_str or not isinstance(raw_date_str, str):
+        return None
+    raw_date_str = raw_date_str.strip()
+    if not raw_date_str:
+        return None
+
+    if today is None:
+        try:
+            today = timezone.localdate()
+        except Exception:
+            today = datetime.date.today()
+
+    time_part = ""
+    for sep in ("T", " "):
+        if sep in raw_date_str:
+            parts = raw_date_str.split(sep, 1)
+            raw_date_str = parts[0].strip()
+            time_part = "T" + parts[1].strip()
+            break
+
+    m_iso = re.match(r"^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$", raw_date_str)
+    m_dmy = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$", raw_date_str)
+
+    orig_dt = None
+    if m_iso:
+        y, m, d = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
+        try:
+            orig_dt = datetime.date(y, m, d)
+        except ValueError:
+            pass
+    elif m_dmy:
+        d, m, y_raw = int(m_dmy.group(1)), int(m_dmy.group(2)), int(m_dmy.group(3))
+        y = 2000 + y_raw if y_raw < 100 else y_raw
+        try:
+            orig_dt = datetime.date(y, m, d)
+        except ValueError:
+            pass
+
+    if not orig_dt:
+        return raw_date_str
+
+    y, m, d = orig_dt.year, orig_dt.month, orig_dt.day
+
+    # Check if day and 2-digit year were swapped (e.g. 2024-10-26 instead of 2026-10-24)
+    if y != today.year and 1 <= d <= 31:
+        alt_year = 2000 + d
+        alt_day = y % 100
+        try:
+            alt_dt = datetime.date(alt_year, m, alt_day)
+            # If swapped date is significantly closer to today or within recent past, prefer swapped
+            if abs((alt_dt - today).days) < abs((orig_dt - today).days):
+                return alt_dt.strftime("%Y-%m-%d") + time_part
+        except ValueError:
+            pass
+
+    return orig_dt.strftime("%Y-%m-%d") + time_part
+
 
 
 def scan_receipt_with_gemini(
@@ -61,7 +128,8 @@ def scan_receipt_with_gemini(
     if not key:
         return {
             "success": False,
-            "error": "Gemini API key is not configured. Please set GEMINI_API_KEY in .env.",
+            "needs_key": True,
+            "error": "Gemini API key is not configured. Silakan atur API Key Gemini kamu di Profil atau modal setup.",
         }
 
     raw_model = model or getattr(settings, "GEMINI_MODEL", "gemini-3.6-flash")
@@ -147,8 +215,16 @@ def scan_receipt_with_gemini(
     else:
         wallet_clause = "Return null."
 
+    try:
+        now = timezone.localtime()
+    except Exception:
+        now = datetime.datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    current_year = now.year
+
     prompt_text = (
         "You are an expert shopping receipt parser for a personal finance app. "
+        f"Today's reference date is {today_str} (Year {current_year}).\n"
         "Analyze this receipt/invoice photo carefully and extract the following information:\n"
         "1. total_amount: The final grand total / amount paid. Return as an integer number only (in IDR / local currency without commas or currency symbols). Look for 'TOTAL', 'GRAND TOTAL', 'TOTAL BAYAR', 'JUMLAH', 'NETTO', 'TUNAI', 'BAYAR', or the largest paid sum.\n"
         "2. merchant: The store, restaurant, supermarket, or business name (e.g. 'Indomaret', 'Starbucks', 'Alfamart', 'Alfamidi', 'Circle K', 'Superindo').\n"
@@ -158,9 +234,13 @@ def scan_receipt_with_gemini(
         "6. payment_method: The payment method mentioned on the receipt (e.g. 'Tunai', 'Cash', 'BCA', 'Mandiri', 'BRI', 'QRIS', 'GoPay', 'ShopeePay', 'Debit', 'Credit Card'). If not found, return null.\n"
         f"7. suggested_wallet: {wallet_clause}\n"
         "8. discount_amount: Total discount, promotional savings, or voucher amount on the receipt if any (look for 'HEMAT', 'DISKON', 'PROMO', 'POTONGAN', 'SAVINGS'). Return as an integer number (in IDR), or 0 if none.\n"
-        "9. date: The date of the transaction in YYYY-MM-DD format (or YYYY-MM-DDTHH:MM if time is clear). If not found, return null.\n\n"
+        f"9. date: The date of the transaction in YYYY-MM-DD format (or YYYY-MM-DDTHH:MM if time is clear). If not found, return null. "
+        f"CRITICAL INDONESIAN DATE CONVENTION: Indonesian receipts (Circle K, Alfamidi, Indomaret, etc.) use DD/MM/YYYY or DD/MM/YY (Day first, Month second, Year last). "
+        f"For example, '24/10/26' means 24th October 2026 ({today_str}), NOT year 2024! Never interpret DD/MM/YY as YY/MM/DD. "
+        f"The transaction date should be near today ({today_str}), not years in the past or future.\n\n"
         "Respond ONLY with a valid JSON object with keys: total_amount, merchant, items, note, suggested_category, payment_method, suggested_wallet, discount_amount, date."
     )
+
 
     request_payload = {
         "contents": [
@@ -250,7 +330,7 @@ def scan_receipt_with_gemini(
                 except Exception:
                     discount_amount = 0
 
-            date = (parsed.get("date") or "").strip() or None
+            date = sanitize_receipt_date(parsed.get("date"), today=now.date() if hasattr(now, "date") else None)
 
             # Fallback note if empty
             if not note:
@@ -277,6 +357,12 @@ def scan_receipt_with_gemini(
         except urllib.error.HTTPError as err:
             err_msg = err.read().decode("utf-8", errors="ignore")
             logger.warning(f"Gemini API HTTPError {err.code} on model {candidate_model}: {err_msg}")
+            if err.code in (400, 403) and any(x in err_msg for x in ("API_KEY_INVALID", "API key not valid", "keyExpired", "PERMISSION_DENIED", "CONSUMER_INVALID")):
+                return {
+                    "success": False,
+                    "needs_key": True,
+                    "error": "Gemini API key tidak valid atau tidak memiliki akses. Periksa kembali API Key kamu di Profil.",
+                }
             if err.code == 429:
                 last_error = "Daily AI scan quota reached (20/20 RPD). Resets at midnight PST."
                 # Try next model candidate in case it has active quota

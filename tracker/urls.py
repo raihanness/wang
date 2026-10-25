@@ -7,6 +7,7 @@ urlpatterns = [
     path("api/wallets/", views.wallet_balances_api, name="api_wallets"),
     path("api/receipt-slip/", views.receipt_slip_api, name="api_receipt_slip"),
     path("api/scan-receipt/", views.api_scan_receipt, name="api_scan_receipt"),
+    path("api/gemini-key/save/", views.api_save_gemini_key, name="api_save_gemini_key"),
     path("api/templates/create/", views.api_template_create, name="api_template_create"),
     path("api/templates/<int:pk>/delete/", views.api_template_delete, name="api_template_delete"),
     path("wallets/", views.wallet_list, name="wallet_list"),

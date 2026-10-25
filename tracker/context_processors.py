@@ -20,6 +20,7 @@ def wang_context(request):
         "TURNSTILE_ENABLED": getattr(settings, "CLOUDFLARE_TURNSTILE_ENABLED", True),
         "pending_approvals_count": 0,
         "is_turbo_request": is_turbo,
+        "APP_VERSION": getattr(settings, "APP_VERSION", "2.1.0"),
     }
 
     if hasattr(request, "user") and request.user.is_authenticated:

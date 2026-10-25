@@ -236,7 +236,7 @@ def _sheet_context(user):
         .exclude(note="")
         .exclude(note__isnull=True)
         .order_by("-id")
-        .values("category_id", "note")[:300]
+        .values("category_id", "note")[:500]
     )
     cat_freq_qs = list(
         Transaction.objects.filter(user=user, category__isnull=False)
@@ -245,7 +245,7 @@ def _sheet_context(user):
         .values("category_id", "note")
         .annotate(note_count=Count("id"), last_id=Max("id"))
         .order_by("-note_count", "-last_id")
-        .values("category_id", "note")[:200]
+        .values("category_id", "note")[:300]
     )
     cat_seen = defaultdict(set)
     category_notes = defaultdict(list)
@@ -255,7 +255,7 @@ def _sheet_context(user):
         lower = cleaned.lower()
         if cleaned and lower not in cat_seen[cat_id]:
             cat_seen[cat_id].add(lower)
-            if len(category_notes[cat_id]) < 35:
+            if len(category_notes[cat_id]) < 50:
                 category_notes[cat_id].append(cleaned)
 
     wallets = _get_wallets_with_balances(user, archived=False)
@@ -2176,10 +2176,23 @@ def api_scan_receipt(request):
     wallets = list(Wallet.objects.filter(user=request.user, archived=False))
     wallet_options = [{"name": w.name, "type": w.type} for w in wallets]
 
+    # Strictly require user's personal Gemini API key (Pure BYOK)
+    user_key = ""
+    if hasattr(request.user, "profile") and request.user.profile.gemini_api_key:
+        user_key = request.user.profile.gemini_api_key.strip()
+
+    if not user_key:
+        return JsonResponse({
+            "success": False,
+            "needs_key": True,
+            "error": "Gemini API key is not configured. Please set your Gemini API key in Profile or setup modal.",
+        }, status=200)
+
     result = scan_receipt_with_gemini(
         image_file_or_bytes=image_file,
         category_names=category_names,
         wallet_options=wallet_options,
+        api_key=user_key,
     )
 
     if not result.get("success"):
@@ -2265,6 +2278,33 @@ def api_scan_receipt(request):
         "date": result.get("date"),
     }
     return JsonResponse(response_data)
+
+
+@require_POST
+@login_required
+def api_save_gemini_key(request):
+    """
+    Saves or clears user's personal Google Gemini API key.
+    Accepts JSON payload {"api_key": "..."} or POST form.
+    """
+    profile = _get_or_create_profile(request.user)
+    data = {}
+    if request.body:
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            data = request.POST
+    else:
+        data = request.POST
+
+    key = (data.get("api_key") or "").strip()
+    profile.gemini_api_key = key
+    profile.save(update_fields=["gemini_api_key", "updated_at"])
+    return JsonResponse({
+        "success": True,
+        "has_key": bool(key),
+        "masked_key": profile.masked_gemini_key,
+    })
 
 
 def _get_safe_redirect(request, default="dashboard"):

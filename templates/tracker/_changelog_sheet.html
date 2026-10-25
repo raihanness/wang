@@ -1,0 +1,90 @@
+{% load static %}
+<div class="sheet-overlay" id="changelog-overlay"></div>
+<div class="sheet changelog-sheet" id="changelog-sheet" role="dialog" aria-modal="true" aria-label="What's New in Wang" data-version="{{ APP_VERSION|default:'2.1.0' }}">
+  <div class="sheet-drag-handle" aria-hidden="true"></div>
+
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="changelog-close" aria-label="Close changelog">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div class="sheet-head-title" style="font-weight:800;display:flex;align-items:center;gap:6px">
+      <span>What's New</span>
+      <span class="changelog-version-badge">v{{ APP_VERSION|default:'2.1.0' }}</span>
+    </div>
+    <div style="width:36px"></div>
+  </div>
+
+  <div class="changelog-sheet-body">
+
+    <!-- Spotlight: Gemini AI Hero Banner -->
+    <div class="changelog-banner">
+      <div class="changelog-tag-row" style="justify-content:space-between;margin-bottom:0">
+        <span class="changelog-tag">New Feature</span>
+      </div>
+
+      <!-- Visual Mockup: Camera Input Field & AI Scanning State (Matches Add Transaction) -->
+      <div class="changelog-mock-stage">
+        <!-- Row 1: Note Input Bar with Active Camera Button (No account choice) -->
+        <div class="note-wrap" style="width:100%;box-sizing:border-box">
+          <svg class="icon note-icon"><use href="#icon-edit_note"></use></svg>
+          <span style="flex:1;font-size:13px;color:var(--muted);opacity:.75">Add note...</span>
+          <div class="photo-attach-btn has-photo" title="Photo attached">
+            <svg class="icon"><use href="#icon-photo_camera"></use></svg>
+          </div>
+        </div>
+
+        <!-- Row 2: Photo Preview Chip + Active AI Scanning Badge -->
+        <div class="photo-preview-wrap" style="margin-top:2px;gap:8px">
+          <div class="photo-preview-chip">
+            <img src="{% static 'img/Google_Gemini_icon_2025.svg.webp' %}" alt="Receipt preview" style="background:var(--surface);padding:2px;box-sizing:border-box">
+            <span style="font-size:11px;">Photo attached</span>
+            <span class="photo-remove-btn" aria-hidden="true">
+              <svg class="icon" style="font-size:14px"><use href="#icon-close"></use></svg>
+            </span>
+          </div>
+
+          <div class="receipt-scan-badge is-scanning">
+            <svg class="icon scan-sparkle-icon"><use href="#icon-auto_awesome"></use></svg>
+            <span style="font-size:11px;">Reading receipt...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="changelog-banner-content">
+        <div class="changelog-banner-title">Personal AI Receipt Scanner</div>
+        <div class="changelog-banner-desc">
+          Scan receipt photos directly with Google Gemini AI. Extract total, date, merchant, and items automatically using your own API key.
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <button type="button" class="gemini-link-chip" id="changelog-setup-key-btn" style="border:none;cursor:pointer;margin-top:8px">
+            <span>Setup Gemini API Key</span>
+            <svg class="icon" style="font-size:14px"><use href="#icon-arrow_forward"></use></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 2: Smarter Auto-Categorization (Simple & Compact) -->
+    <div class="changelog-item-card changelog-compact-card">
+      <div class="changelog-item-icon-wrap" style="width:38px;height:38px">
+        <svg class="icon" style="font-size:24px"><use href="#icon-grid_view"></use></svg>
+      </div>
+      <div class="changelog-item-info">
+        <div class="changelog-tag-row">
+          <span class="changelog-tag">Updated</span>
+        </div>
+        <div class="changelog-item-title">Smarter Auto-Categorization</div>
+        <div class="changelog-item-desc">
+          Enhanced note-to-category matching in Add Transaction. Wang now better recognizes your transaction habits and matches the right category in real time.
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Button -->
+    <div class="sheet-actions" style="margin-top:16px">
+      <button type="button" class="btn btn-primary" id="changelog-dismiss-btn" style="width:100%;font-weight:800;padding:12px">
+        Continue
+      </button>
+    </div>
+  </div>
+</div>

@@ -166,11 +166,12 @@ class DebtPaymentForm(forms.ModelForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ["display_name", "avatar", "bio", "currency_symbol"]
+        fields = ["display_name", "avatar", "bio", "currency_symbol", "gemini_api_key"]
         widgets = {
             "display_name": forms.TextInput(attrs={"placeholder": "e.g. Raihan", "class": "input"}),
             "bio": forms.TextInput(attrs={"placeholder": "e.g. Saving for vacation", "class": "input"}),
             "currency_symbol": forms.TextInput(attrs={"placeholder": "e.g. Rp", "class": "input"}),
+            "gemini_api_key": forms.TextInput(attrs={"placeholder": "AIzaSy...", "class": "input", "id": "id_gemini_api_key", "autocomplete": "off", "spellcheck": "false"}),
             "avatar": forms.FileInput(attrs={"accept": "image/*", "class": "profile-avatar-file-input", "id": "id_avatar"}),
         }
 
@@ -180,6 +181,7 @@ class ProfileForm(forms.ModelForm):
         self.fields["bio"].required = False
         self.fields["avatar"].required = False
         self.fields["currency_symbol"].required = False
+        self.fields["gemini_api_key"].required = False
 
 
 class WangSignUpForm(forms.Form):

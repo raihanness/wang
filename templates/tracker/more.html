@@ -283,6 +283,21 @@
       </div>
     </a>
 
+    <!-- What's New / Changelog -->
+    <div class="more-row" id="changelog-trigger" style="cursor:pointer">
+      <div class="more-icon-box" style="background:rgba(255, 179, 124, 0.2);color:var(--peach)">
+        <svg class="icon"><use href="#icon-auto_awesome"></use></svg>
+      </div>
+      <div class="more-info">
+        <strong>What's New</strong>
+        <small class="muted">See latest updates &amp; features</small>
+      </div>
+      <div class="more-badge-wrap">
+        <span class="badge" style="background:rgba(255, 179, 124, 0.2);color:var(--peach);font-weight:800">v{{ APP_VERSION|default:'2.1.0' }}</span>
+        <svg class="icon more-arrow"><use href="#icon-chevron_right"></use></svg>
+      </div>
+    </div>
+
     <!-- Log Out -->
     <form method="post" action="{% url 'logout' %}" style="margin:0;display:block" data-turbo="false">
       {% csrf_token %}

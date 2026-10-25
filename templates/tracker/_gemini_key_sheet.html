@@ -1,0 +1,84 @@
+{% load static %}
+<div class="sheet-overlay" id="gemini-key-overlay"></div>
+<div class="sheet gemini-key-sheet" id="gemini-key-sheet" role="dialog" aria-modal="true" aria-label="Setup Gemini AI">
+  <div class="sheet-drag-handle" aria-hidden="true"></div>
+  
+  <div class="sheet-head">
+    <button type="button" class="btn btn-sm sheet-close-btn" id="gemini-key-close" aria-label="Close">
+      <svg class="icon"><use href="#icon-close"></use></svg>
+    </button>
+    <div style="width:36px"></div>
+  </div>
+
+  <div class="gemini-sheet-body">
+    <!-- Hero Header -->
+    <div class="gemini-hero-card">
+      <div class="gemini-hero-icon-wrap">
+        <img src="{% static 'img/Google_Gemini_icon_2025.svg.webp' %}" alt="Google Gemini Logo" class="gemini-hero-logo-img">
+      </div>
+      <div class="gemini-hero-info">
+        <div class="gemini-hero-title">Setup Gemini AI</div>
+        <div class="gemini-hero-desc">Extract spending total, date, store, and category directly from your receipt photo.</div>
+      </div>
+    </div>
+
+    <!-- 3-Step Guide -->
+    <div class="gemini-steps-card">
+      <div class="gemini-step-item">
+        <div class="gemini-step-num">1</div>
+        <div class="gemini-step-content">
+          <div class="gemini-step-title">Open Google AI Studio</div>
+          <div class="gemini-step-sub">Login with your Google Account. It only takes 1 minute.</div>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="gemini-link-chip">
+            <span>aistudio.google.com/app/apikey</span>
+            <svg class="icon" style="font-size:14px"><use href="#icon-arrow_forward"></use></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="gemini-step-item">
+        <div class="gemini-step-num">2</div>
+        <div class="gemini-step-content">
+          <div class="gemini-step-title">Create New API Key</div>
+          <div class="gemini-step-sub">Click the <strong>&ldquo;Create API key&rdquo;</strong> button, then copy the key.</div>
+        </div>
+      </div>
+
+      <div class="gemini-step-item">
+        <div class="gemini-step-num">3</div>
+        <div class="gemini-step-content">
+          <div class="gemini-step-title">Paste &amp; Save Here</div>
+          <div class="gemini-step-sub">The key will start with <code style="background:var(--surface-muted);padding:2px 5px;border-radius:4px;font-size:11px">AQ...</code></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Key Input Section -->
+    <div class="gemini-input-section">
+      <label for="gemini-sheet-key-input" class="gemini-input-label">Gemini API Key</label>
+      <div class="gemini-input-wrap">
+        <input type="password" id="gemini-sheet-key-input" class="input gemini-key-input" placeholder="Paste your API key here" autocomplete="off" spellcheck="false">
+        <div class="gemini-input-actions">
+          <button type="button" class="gemini-input-icon-btn" id="gemini-paste-key-btn" title="Paste from Clipboard" aria-label="Paste from clipboard">
+            <svg class="icon"><use href="#icon-content_paste"></use></svg>
+          </button>
+          <button type="button" class="gemini-input-icon-btn" id="gemini-toggle-vis-btn" title="Show/Hide API Key" aria-label="Toggle password visibility">
+            <svg class="icon" id="gemini-vis-icon"><use href="#icon-visibility"></use></svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="gemini-key-status" id="gemini-key-status" style="display:none"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="sheet-actions" style="margin-top:14px;gap:8px">
+      <button type="button" class="btn btn-primary" id="gemini-save-key-btn" style="flex:1">
+        Save API Key
+      </button>
+      <button type="button" class="btn btn-ghost" id="gemini-remove-key-btn" style="color:var(--red);display:none">
+        Remove
+      </button>
+    </div>
+  </div>
+</div>

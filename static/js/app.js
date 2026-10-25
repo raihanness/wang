@@ -414,7 +414,7 @@
 
   function syncSheetStateWithAndroid() {
     if (!window.AndroidBridge || !window.AndroidBridge.setScrollableActive) return;
-    const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .confirm-sheet.open, .picker.open, .date-sheet.open, .month-popover.open, #lightbox.active, .cat-tx-sheet.open, .goal-sheet.open, .receipt-slip-sheet.open');
+    const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .confirm-sheet.open, .picker.open, .date-sheet.open, .month-popover.open, #lightbox.active, .cat-tx-sheet.open, .goal-sheet.open, .receipt-slip-sheet.open, .gemini-key-sheet.open, .changelog-sheet.open');
     window.AndroidBridge.setScrollableActive(!!anyOpen);
   }
   window.syncSheetStateWithAndroid = syncSheetStateWithAndroid;
@@ -718,6 +718,106 @@
   }
   window.openBudgetSheet = openBudgetSheet;
   window.closeBudgetSheet = closeBudgetSheet;
+
+  // ── Gemini Key Setup Bottom Sheet ─────────────────────────
+  function openGeminiKeySheet(initialKey = '') {
+    const sheet = document.getElementById('gemini-key-sheet');
+    const overlay = document.getElementById('gemini-key-overlay');
+    if (!sheet || !overlay) return;
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+    document.body.style.overflow = 'hidden';
+    const input = document.getElementById('gemini-sheet-key-input');
+    const statusEl = document.getElementById('gemini-key-status');
+    const removeBtn = document.getElementById('gemini-remove-key-btn');
+    if (statusEl) {
+      statusEl.style.display = 'none';
+      statusEl.textContent = '';
+      statusEl.className = 'gemini-key-status';
+    }
+    const profileKeyInput = document.getElementById('id_gemini_api_key');
+    const currentVal = initialKey || (profileKeyInput ? profileKeyInput.value : '') || (sheet.dataset.currentKey || '');
+    if (input) {
+      input.value = currentVal;
+      setTimeout(() => input.focus(), 250);
+    }
+    if (removeBtn) {
+      removeBtn.style.display = currentVal ? 'inline-flex' : 'none';
+    }
+  }
+
+  function closeGeminiKeySheet() {
+    const sheet = document.getElementById('gemini-key-sheet');
+    const overlay = document.getElementById('gemini-key-overlay');
+    if (!sheet || !overlay) return;
+    sheet.classList.remove('open');
+    overlay.classList.remove('show');
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open, .cat-tx-sheet.open, .goal-sheet.open, .receipt-slip-sheet.open')) {
+      document.body.style.overflow = '';
+    }
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+  window.openGeminiKeySheet = openGeminiKeySheet;
+  window.closeGeminiKeySheet = closeGeminiKeySheet;
+
+  // ── Changelog / What's New Bottom Sheet ────────────────────
+  function openChangelogSheet() {
+    const sheet = document.getElementById('changelog-sheet');
+    const overlay = document.getElementById('changelog-overlay');
+    if (!sheet || !overlay) return;
+    sheet.classList.add('open');
+    overlay.classList.add('show');
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(true);
+    }
+    document.body.style.overflow = 'hidden';
+    playSound('sheet_open');
+  }
+
+  function closeChangelogSheet() {
+    const sheet = document.getElementById('changelog-sheet');
+    const overlay = document.getElementById('changelog-overlay');
+    if (!sheet || !overlay) return;
+    sheet.classList.remove('open');
+    overlay.classList.remove('show');
+    const currentVer = sheet.dataset.version || '2.1.0';
+    try {
+      localStorage.setItem('wang-seen-changelog-ver', currentVer);
+    } catch (e) {}
+    if (!document.querySelector('.sheet.open, .detail-sheet.open, .budget-sheet.open, .filter-sheet.open, .debt-pay-sheet.open, .debt-history-sheet.open, .sub-pay-sheet.open, .sub-history-sheet.open, .cat-tx-sheet.open, .goal-sheet.open, .receipt-slip-sheet.open, .gemini-key-sheet.open')) {
+      document.body.style.overflow = '';
+    }
+    if (window.AndroidBridge && window.AndroidBridge.setScrollableActive) {
+      window.AndroidBridge.setScrollableActive(false);
+    }
+  }
+
+  function checkChangelogPrompt() {
+    const sheet = document.getElementById('changelog-sheet');
+    if (!sheet) return;
+    const currentVer = sheet.dataset.version || '2.1.0';
+    try {
+      const seenVer = localStorage.getItem('wang-seen-changelog-ver');
+      if (seenVer !== currentVer) {
+        const anyOpen = document.querySelector('.sheet.open, .detail-sheet.open, .gemini-key-sheet.open');
+        if (!anyOpen) {
+          setTimeout(() => {
+            const stillOpen = document.querySelector('.sheet.open, .detail-sheet.open, .gemini-key-sheet.open');
+            if (!stillOpen) openChangelogSheet();
+          }, 450);
+        }
+      }
+    } catch (e) {}
+  }
+
+  window.openChangelogSheet = openChangelogSheet;
+  window.closeChangelogSheet = closeChangelogSheet;
+  window.checkChangelogPrompt = checkChangelogPrompt;
 
   // ── Confirmation Bottom Sheet ─────────────────────────────
   function openConfirmSheet({
@@ -2429,6 +2529,7 @@
     closeCatTxSheet();
     closeGoalSheet();
     closeReceiptSlipSheet();
+    closeChangelogSheet();
     if (window.wangResetSheet) window.wangResetSheet();
     syncSheetStateWithAndroid();
   }
@@ -4044,6 +4145,198 @@
       return;
     }
 
+    // Gemini Key sheet dismiss
+    if (e.target.closest('#gemini-key-close') || e.target.id === 'gemini-key-overlay') {
+      e.preventDefault();
+      closeGeminiKeySheet();
+      return;
+    }
+
+    // Changelog sheet trigger in More page
+    if (e.target.closest('#changelog-trigger')) {
+      e.preventDefault();
+      playSound('click');
+      openChangelogSheet();
+      return;
+    }
+
+    // Changelog sheet dismiss
+    if (e.target.closest('#changelog-close') || e.target.closest('#changelog-dismiss-btn') || e.target.id === 'changelog-overlay') {
+      e.preventDefault();
+      playSound('tap');
+      closeChangelogSheet();
+      return;
+    }
+
+    // Setup key trigger inside changelog sheet
+    if (e.target.closest('#changelog-setup-key-btn')) {
+      e.preventDefault();
+      playSound('click');
+      closeChangelogSheet();
+      setTimeout(() => openGeminiKeySheet(), 200);
+      return;
+    }
+
+    // Gemini Key toggle password visibility
+    if (e.target.closest('#gemini-toggle-vis-btn')) {
+      e.preventDefault();
+      const input = document.getElementById('gemini-sheet-key-input');
+      const icon = document.getElementById('gemini-vis-icon');
+      if (input) {
+        const isPass = input.type === 'password';
+        input.type = isPass ? 'text' : 'password';
+        if (icon) {
+          icon.innerHTML = `<use href="#icon-${isPass ? 'visibility_off' : 'visibility'}"></use>`;
+        }
+      }
+      return;
+    }
+
+    // Gemini Key paste from clipboard
+    if (e.target.closest('#gemini-paste-key-btn')) {
+      e.preventDefault();
+      const input = document.getElementById('gemini-sheet-key-input');
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(text => {
+          if (input && text) {
+            input.value = text.trim();
+            playSound('tap');
+          }
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    // Gemini Key save button
+    if (e.target.closest('#gemini-save-key-btn')) {
+      e.preventDefault();
+      const input = document.getElementById('gemini-sheet-key-input');
+      const saveBtn = document.getElementById('gemini-save-key-btn');
+      const statusEl = document.getElementById('gemini-key-status');
+      const removeBtn = document.getElementById('gemini-remove-key-btn');
+      const keyVal = input ? input.value.trim() : '';
+
+      if (!keyVal) {
+        if (statusEl) {
+          statusEl.style.display = 'flex';
+          statusEl.className = 'gemini-key-status error';
+          statusEl.textContent = 'Masukkan API key kamu terlebih dahulu.';
+        }
+        return;
+      }
+
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Menyimpan...';
+      }
+
+      let csrf = '';
+      const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (csrfInput) {
+        csrf = csrfInput.value;
+      } else {
+        const m = document.cookie.match(/csrftoken=([^;]+)/);
+        if (m) csrf = m[1];
+      }
+
+      fetch('/api/gemini-key/save/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf,
+        },
+        body: JSON.stringify({ api_key: keyVal }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Simpan API Key';
+        }
+        if (data && data.success) {
+          playSound('success');
+          const sheet = document.getElementById('gemini-key-sheet');
+          if (sheet) sheet.dataset.currentKey = keyVal;
+          const profileInput = document.getElementById('id_gemini_api_key');
+          if (profileInput) profileInput.value = keyVal;
+          if (removeBtn) removeBtn.style.display = 'inline-flex';
+          if (statusEl) {
+            statusEl.style.display = 'flex';
+            statusEl.className = 'gemini-key-status success';
+            statusEl.textContent = '✓ API Key berhasil disimpan!';
+          }
+          setTimeout(() => {
+            closeGeminiKeySheet();
+            if (window.retryReceiptScan) {
+              window.retryReceiptScan();
+            }
+          }, 900);
+        } else {
+          if (statusEl) {
+            statusEl.style.display = 'flex';
+            statusEl.className = 'gemini-key-status error';
+            statusEl.textContent = (data && data.error) ? data.error : 'Gagal menyimpan API Key.';
+          }
+        }
+      })
+      .catch(() => {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Simpan API Key';
+        }
+        if (statusEl) {
+          statusEl.style.display = 'flex';
+          statusEl.className = 'gemini-key-status error';
+          statusEl.textContent = 'Koneksi gagal saat menyimpan key.';
+        }
+      });
+      return;
+    }
+
+    // Gemini Key remove button
+    if (e.target.closest('#gemini-remove-key-btn')) {
+      e.preventDefault();
+      const input = document.getElementById('gemini-sheet-key-input');
+      const statusEl = document.getElementById('gemini-key-status');
+      const removeBtn = document.getElementById('gemini-remove-key-btn');
+
+      let csrf = '';
+      const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (csrfInput) {
+        csrf = csrfInput.value;
+      } else {
+        const m = document.cookie.match(/csrftoken=([^;]+)/);
+        if (m) csrf = m[1];
+      }
+
+      fetch('/api/gemini-key/save/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf,
+        },
+        body: JSON.stringify({ api_key: '' }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        playSound('delete');
+        if (input) input.value = '';
+        const sheet = document.getElementById('gemini-key-sheet');
+        if (sheet) sheet.dataset.currentKey = '';
+        const profileInput = document.getElementById('id_gemini_api_key');
+        if (profileInput) profileInput.value = '';
+        if (removeBtn) removeBtn.style.display = 'none';
+        if (statusEl) {
+          statusEl.style.display = 'flex';
+          statusEl.className = 'gemini-key-status';
+          statusEl.textContent = 'API Key telah dihapus.';
+        }
+        setTimeout(() => closeGeminiKeySheet(), 700);
+      })
+      .catch(() => {});
+      return;
+    }
+
     // Budget preset chip tap
     const presetChip = e.target.closest('.budget-preset-chip');
     if (presetChip) {
@@ -4694,6 +4987,8 @@
       closeGoalSheet();
       closeFilterSheet();
       closeReceiptSlipSheet();
+      closeGeminiKeySheet();
+      closeChangelogSheet();
     }
   });
 
@@ -4715,6 +5010,7 @@
     syncWidgetDataToNative();
     applyNavbarStyle();
     handleUrlShortcuts();
+    checkChangelogPrompt();
   });
   document.addEventListener('turbo:render', () => {
     syncAppbar();
@@ -5044,5 +5340,6 @@
   syncWidgetDataToNative();
   applyNavbarStyle();
   handleUrlShortcuts();
+  checkChangelogPrompt();
 })();
 

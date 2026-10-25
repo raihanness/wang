@@ -2472,6 +2472,8 @@ class ReceiptScannerTests(TestCase):
             type=Wallet.WalletType.EWALLET,
             icon="account_balance_wallet",
         )
+        self.user.profile.gemini_api_key = "AIzaSyTestKey123"
+        self.user.profile.save()
 
     def test_scan_receipt_no_api_key(self):
         from tracker.receipt_scanner import scan_receipt_with_gemini
@@ -2529,6 +2531,36 @@ class ReceiptScannerTests(TestCase):
             self.assertEqual(result["suggested_wallet"], "Dompet Tunai")
             self.assertEqual(result["discount_amount"], 5000)
             self.assertEqual(result["date"], "2026-09-17")
+
+    def test_sanitize_receipt_date_swapped_day_year(self):
+        import datetime
+        from tracker.receipt_scanner import sanitize_receipt_date
+
+        ref_today = datetime.date(2026, 10, 24)
+
+        # Ambiguous Indonesian date (24/10/26) misparsed by LLM as Year 2024, Day 26
+        self.assertEqual(
+            sanitize_receipt_date("2024-10-26", today=ref_today),
+            "2026-10-24"
+        )
+        self.assertEqual(
+            sanitize_receipt_date("2024-10-26T15:45", today=ref_today),
+            "2026-10-24T15:45"
+        )
+        # Indonesian DD/MM/YY slash format
+        self.assertEqual(
+            sanitize_receipt_date("24/10/26", today=ref_today),
+            "2026-10-24"
+        )
+        # Normal correct date in current year should remain untouched
+        self.assertEqual(
+            sanitize_receipt_date("2026-10-24", today=ref_today),
+            "2026-10-24"
+        )
+        self.assertEqual(
+            sanitize_receipt_date("2026-05-15", today=ref_today),
+            "2026-05-15"
+        )
 
     def test_api_scan_receipt_endpoint_no_image(self):
         url = reverse("api_scan_receipt")
@@ -2654,6 +2686,87 @@ class ReceiptScannerTests(TestCase):
             self.assertEqual(data["category_id"], None)
             self.assertEqual(data["wallet_id"], None)
             self.assertEqual(data["discount_amount"], 0)
+
+    def test_user_profile_gemini_key_properties(self):
+        profile = self.user.profile
+        profile.gemini_api_key = ""
+        profile.save()
+        self.assertFalse(profile.has_gemini_key)
+        self.assertEqual(profile.masked_gemini_key, "")
+
+        profile.gemini_api_key = "AIzaSyTestApiKeyForReceiptScanning12345"
+        profile.save()
+        self.assertTrue(profile.has_gemini_key)
+        masked = profile.masked_gemini_key
+        self.assertTrue(masked.startswith("AIza"))
+        self.assertTrue(masked.endswith("2345"))
+        self.assertIn("••••••••", masked)
+
+    def test_api_scan_receipt_missing_user_key(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.user.profile.gemini_api_key = ""
+        self.user.profile.save()
+
+        uploaded = SimpleUploadedFile("receipt.jpg", b"fake-receipt-content", content_type="image/jpeg")
+        url = reverse("api_scan_receipt")
+        res = self.client.post(url, {"image": uploaded})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertFalse(data["success"])
+        self.assertTrue(data["needs_key"])
+
+    def test_api_save_gemini_key_endpoint(self):
+        import json
+        url = reverse("api_save_gemini_key")
+
+        # Save key via JSON
+        res = self.client.post(
+            url,
+            data=json.dumps({"api_key": "AIzaSyCustomKey987654321"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["has_key"])
+
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.gemini_api_key, "AIzaSyCustomKey987654321")
+
+        # Clear key
+        res = self.client.post(
+            url,
+            data=json.dumps({"api_key": ""}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["success"])
+        self.assertFalse(data["has_key"])
+
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.gemini_api_key, "")
+
+    def test_api_scan_receipt_uses_user_gemini_key(self):
+        from unittest.mock import patch
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.user.profile.gemini_api_key = "AIzaSyUserSpecificKey999"
+        self.user.profile.save()
+
+        uploaded = SimpleUploadedFile("receipt.jpg", b"fake-receipt-content", content_type="image/jpeg")
+        url = reverse("api_scan_receipt")
+
+        with patch("tracker.views.scan_receipt_with_gemini") as mock_scan:
+            mock_scan.return_value = {"success": True, "total_amount": 10000, "note": "Test"}
+            res = self.client.post(url, {"image": uploaded})
+            self.assertEqual(res.status_code, 200)
+
+            # Ensure scan_receipt_with_gemini was called with user's specific API key
+            self.assertTrue(mock_scan.called)
+            kwargs = mock_scan.call_args.kwargs
+            self.assertEqual(kwargs.get("api_key"), "AIzaSyUserSpecificKey999")
+
 
 
 class DebtPaymentTests(TestCase):

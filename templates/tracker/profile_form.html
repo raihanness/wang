@@ -65,6 +65,23 @@
         {{ form.currency_symbol }}
         <small class="muted" style="font-size:10.5px;margin-top:2px;display:block">Preferred currency prefix (e.g. Rp, $, IDR)</small>
       </div>
+
+      <div class="form-field" >
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label for="{{ form.gemini_api_key.id_for_label }}" style="font-weight:700;font-size:12px;color:var(--ink);display:flex;align-items:center;gap:5px;margin:0">
+            <span>Google Gemini API Key</span>
+          </label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-open-gemini-guide" style="border:none;font-size:11px;color:var(--peach);padding:2px 0;font-weight:700;height:auto">
+            How to get it?
+          </button>
+        </div>
+        <div class="profile-key-input-wrap" style="position:relative;display:flex;align-items:center">
+          <input type="password" name="gemini_api_key" value="{{ profile.gemini_api_key|default:'' }}" id="id_gemini_api_key" class="input" placeholder="AQ..." autocomplete="off" spellcheck="false" style="padding-right:40px;font-family:monospace;font-size:12px">
+          <button type="button" id="profile-key-toggle-vis" title="Toggle visibility" style="position:absolute;right:8px;background:none;border:none;cursor:pointer;color:var(--muted);display:flex;align-items:center;padding:4px">
+            <svg class="icon" id="profile-key-vis-icon" style="font-size:16px"><use href="#icon-visibility"></use></svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     {% if form.errors %}
@@ -160,9 +177,41 @@
     });
   }
 
-  initAvatarPicker();
-  document.addEventListener('turbo:load', initAvatarPicker);
-  document.addEventListener('turbo:render', initAvatarPicker);
+  function initGeminiKeyProfile() {
+    const guideBtn = document.getElementById('btn-open-gemini-guide');
+    if (guideBtn && !guideBtn.dataset.bound) {
+      guideBtn.dataset.bound = '1';
+      guideBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof window.openGeminiKeySheet === 'function') {
+          window.openGeminiKeySheet();
+        }
+      });
+    }
+
+    const toggleVisBtn = document.getElementById('profile-key-toggle-vis');
+    const keyInput = document.getElementById('id_gemini_api_key');
+    const visIcon = document.getElementById('profile-key-vis-icon');
+    if (toggleVisBtn && keyInput && !toggleVisBtn.dataset.bound) {
+      toggleVisBtn.dataset.bound = '1';
+      toggleVisBtn.addEventListener('click', () => {
+        const isPass = keyInput.type === 'password';
+        keyInput.type = isPass ? 'text' : 'password';
+        if (visIcon) {
+          visIcon.innerHTML = `<use href="#icon-${isPass ? 'visibility_off' : 'visibility'}"></use>`;
+        }
+      });
+    }
+  }
+
+  function initProfilePage() {
+    initAvatarPicker();
+    initGeminiKeyProfile();
+  }
+
+  initProfilePage();
+  document.addEventListener('turbo:load', initProfilePage);
+  document.addEventListener('turbo:render', initProfilePage);
 })();
 </script>
 {% endblock %}
