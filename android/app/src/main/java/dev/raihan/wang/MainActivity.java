@@ -11,6 +11,10 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -66,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
     public static final String PREFS_NAME = "wang_prefs";
     public static final String KEY_BIOMETRIC_ENABLED = "biometric_enabled";
     public static final String KEY_HAPTICS_ENABLED = "haptics_enabled";
+    public static final String KEY_OFFLINE_QUEUE = "offline_tx_queue_json";
+
+    private ConnectivityManager.NetworkCallback mNetworkCallback;
 
     private WebView mWebView;
     private SwipeRefreshLayout mSwipeRefresh;
@@ -288,6 +295,124 @@ public class MainActivity extends AppCompatActivity {
                     .putString("navbar_style", "floating".equals(style) ? "floating" : "docked")
                     .apply();
         }
+
+        // ── Native Offline Outbox Queue Backup & Offline Widget Sync ──
+        @JavascriptInterface
+        public void saveOfflineQueueJson(String json) {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString(KEY_OFFLINE_QUEUE, json != null ? json : "[]")
+                    .apply();
+        }
+
+        @JavascriptInterface
+        public String getOfflineQueueJson() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getString(KEY_OFFLINE_QUEUE, "[]");
+        }
+
+        @JavascriptInterface
+        public void applyOfflineWidgetDelta(long deltaBalance, long deltaSpent, long deltaIncome) {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            long curBal = parseIdrLong(prefs.getString("widget_balance", "Rp0"));
+            long curSpent = parseIdrLong(prefs.getString("widget_today_spent", "Rp0"));
+            long curInc = parseIdrLong(prefs.getString("widget_today_income", "Rp0"));
+
+            long nextBal = curBal + deltaBalance;
+            long nextSpent = Math.max(0L, curSpent + deltaSpent);
+            long nextInc = Math.max(0L, curInc + deltaIncome);
+
+            prefs.edit()
+                    .putString("widget_balance", formatIdrLong(nextBal))
+                    .putString("widget_today_spent", formatIdrLong(nextSpent))
+                    .putString("widget_today_income", formatIdrLong(nextInc))
+                    .putLong("widget_last_updated", System.currentTimeMillis())
+                    .apply();
+
+            WangBalanceWidgetProvider.updateAllWidgets(MainActivity.this);
+            WangSquareWidgetProvider.updateAllWidgets(MainActivity.this);
+        }
+    }
+
+    private long parseIdrLong(String str) {
+        if (str == null || str.isEmpty()) return 0L;
+        boolean isNeg = str.trim().startsWith("-");
+        String digits = str.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) return 0L;
+        try {
+            long val = Long.parseLong(digits);
+            return isNeg ? -val : val;
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    private String formatIdrLong(long val) {
+        long abs = Math.abs(val);
+        String formatted = String.format(Locale.US, "%,d", abs);
+        return (val < 0 ? "-Rp" : "Rp") + formatted;
+    }
+
+    private boolean isNetworkConnected() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network network = cm.getActiveNetwork();
+                if (network == null) return false;
+                NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+                return caps != null && (
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                );
+            } else {
+                NetworkInfo info = cm.getActiveNetworkInfo();
+                return info != null && info.isConnected();
+            }
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private void syncWebViewOfflineCacheMode() {
+        if (mWebView == null) return;
+        boolean online = isNetworkConnected();
+        mWebView.getSettings().setCacheMode(
+                online ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK
+        );
+    }
+
+    private void setupNetworkConnectivityMonitor() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return;
+            mNetworkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(@NonNull Network network) {
+                    runOnUiThread(() -> {
+                        if (mWebView != null) {
+                            mWebView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
+                            mWebView.evaluateJavascript(
+                                    "window.dispatchEvent(new Event('online')); if (window.wangSyncOfflineQueue) { window.wangSyncOfflineQueue(false); }",
+                                    null
+                            );
+                        }
+                    });
+                }
+
+                @Override
+                public void onLost(@NonNull Network network) {
+                    runOnUiThread(() -> {
+                        if (mWebView != null && !isNetworkConnected()) {
+                            mWebView.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                            mWebView.evaluateJavascript("window.dispatchEvent(new Event('offline'));", null);
+                        }
+                    });
+                }
+            };
+            cm.registerDefaultNetworkCallback(mNetworkCallback);
+        } catch (Exception ignored) {}
     }
 
     private void updateSystemBarIcons(boolean isDark) {
@@ -386,7 +511,18 @@ public class MainActivity extends AppCompatActivity {
                 getColor(R.color.primary),
                 getColor(R.color.accent)
         );
-        mSwipeRefresh.setOnRefreshListener(() -> mWebView.reload());
+        mSwipeRefresh.setOnRefreshListener(() -> {
+            syncWebViewOfflineCacheMode();
+            if (!isNetworkConnected()) {
+                mSwipeRefresh.setRefreshing(false);
+                Toast.makeText(MainActivity.this, "Offline mode — viewing cached data", Toast.LENGTH_SHORT).show();
+                if (mWebView != null) {
+                    mWebView.evaluateJavascript("if (window.wangRenderOfflineOutbox) window.wangRenderOfflineOutbox();", null);
+                }
+                return;
+            }
+            mWebView.reload();
+        });
 
         // Fix scroll-to-refresh conflict
         mSwipeRefresh.setOnChildScrollUpCallback((parent, child) -> {
@@ -403,8 +539,9 @@ public class MainActivity extends AppCompatActivity {
         // File chooser for receipts
         setupFileChooserLauncher();
 
-        // Setup WebView
+        // Setup WebView & Network Connectivity Monitor
         setupWebView();
+        setupNetworkConnectivityMonitor();
 
         // Setup smart back navigation (handles sheets before history/exit)
         setupBackNavigation();
@@ -677,10 +814,20 @@ public class MainActivity extends AppCompatActivity {
         String base = getString(R.string.app_web_url);
         if (!base.endsWith("/")) base += "/";
 
-        if ("new_expense".equals(action)) {
-            mWebView.loadUrl(base + "?action=new_expense");
-        } else if ("new_income".equals(action)) {
-            mWebView.loadUrl(base + "?action=new_income");
+        syncWebViewOfflineCacheMode();
+
+        if ("new_expense".equals(action) || "new_income".equals(action)) {
+            String kind = "new_income".equals(action) ? "income" : "expense";
+            String curUrl = mWebView.getUrl();
+            if (curUrl != null && curUrl.startsWith(base)) {
+                // Directly open the bottom sheet via JS without a network roundtrip!
+                mWebView.evaluateJavascript(
+                        "if (window.wangOpenQuickAction) { window.wangOpenQuickAction('" + kind + "'); } else if (window.openSheet) { window.openSheet(); }",
+                        null
+                );
+            } else {
+                mWebView.loadUrl(base + "?action=" + action);
+            }
         } else if ("graphs".equals(action)) {
             mWebView.loadUrl(base + "graphs/");
         } else if ("wallets".equals(action)) {
@@ -730,8 +877,8 @@ public class MainActivity extends AppCompatActivity {
         // Hardware acceleration and gesture-free audio
         webSettings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Cache & responsive viewport
-        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Cache & responsive viewport (auto-switches to cache when offline / no cellular data)
+        webSettings.setCacheMode(isNetworkConnected() ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setSupportZoom(false);
@@ -1230,15 +1377,30 @@ public class MainActivity extends AppCompatActivity {
             lockAppWithBiometrics();
         }
 
-        // Sync widget balance privacy state to web view
+        // Sync widget balance privacy state & offline cache/sync state to web view
+        syncWebViewOfflineCacheMode();
         boolean isHidden = prefs.getBoolean("widget_balance_hidden", false);
         if (mWebView != null) {
-            mWebView.evaluateJavascript("if (window.wangSetBalanceHidden) window.wangSetBalanceHidden(" + isHidden + ");", null);
+            mWebView.evaluateJavascript(
+                    "if (window.wangSetBalanceHidden) window.wangSetBalanceHidden(" + isHidden + ");" +
+                    "if (window.wangRenderOfflineOutbox) window.wangRenderOfflineOutbox();" +
+                    (isNetworkConnected() ? "if (window.wangSyncOfflineQueue) window.wangSyncOfflineQueue(false);" : ""),
+                    null
+            );
         }
     }
 
     @Override
     protected void onDestroy() {
+        if (mNetworkCallback != null) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    cm.unregisterNetworkCallback(mNetworkCallback);
+                }
+            } catch (Exception ignored) {}
+            mNetworkCallback = null;
+        }
         if (mWebView != null) {
             mWebView.destroy();
         }

@@ -1,11 +1,12 @@
 // Wang — Service Worker (sw.js)
 // Specialized PWA caching for instant mobile startup & offline resilience
 
-const STATIC_CACHE = 'wang-static-v10';
+const STATIC_CACHE = 'wang-static-v11';
 const FONT_CACHE = 'wang-fonts-v2';
-const PAGE_CACHE = 'wang-pages-v1';
+const PAGE_CACHE = 'wang-pages-v2';
 
 const CORE_ASSETS = [
+  '/',
   '/offline/',
   '/static/css/wang.css',
   '/static/js/app.js',
@@ -58,6 +59,13 @@ self.addEventListener('activate', (event) => {
     }).then(() => self.clients.claim())
   );
 });
+
+// Helper: Normalize navigation URL for fallback cache lookup (strips widget/shortcut action params)
+function getCleanRootOrPathRequest(urlObj) {
+  const cleanUrl = new URL(urlObj.href);
+  cleanUrl.searchParams.delete('action');
+  return cleanUrl.toString();
+}
 
 // Fetch: Apply optimal caching strategy per request type
 self.addEventListener('fetch', (event) => {
@@ -123,12 +131,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. HTML Navigation / Page requests — Network-First with Page Cache & Offline Fallback
-  const isHtml =
-    request.mode === 'navigate' ||
-    (request.headers.get('accept') && request.headers.get('accept').includes('text/html'));
-
-  if (isHtml) {
+  // 3. API JSON GET requests (e.g., /api/wallets/) — Network-First with Cache Fallback
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
@@ -141,18 +145,88 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(async () => {
-          // Network failed (offline / spotty connection)
-          // 1st: Try cached version of this exact page
+          const cachedApi = await caches.match(request);
+          if (cachedApi) return cachedApi;
+          return new Response(JSON.stringify({ offline: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        })
+    );
+    return;
+  }
+
+  // 4. HTML Navigation / Page requests — Network-First with Full-Shell Page Cache & Offline Fallback
+  const isHtml =
+    request.mode === 'navigate' ||
+    (request.headers.get('accept') && request.headers.get('accept').includes('text/html'));
+  const isTurboPartial = request.headers.get('X-Turbo-Request') === '1';
+
+  if (isHtml) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(PAGE_CACHE).then((cache) => {
+              if (!isTurboPartial) {
+                // Full document navigation (contains full #svg-symbols-container and #sheet-root-container)
+                cache.put(request, clone.clone());
+                const cleanKey = getCleanRootOrPathRequest(url);
+                if (cleanKey !== request.url) {
+                  cache.put(cleanKey, clone);
+                }
+              } else {
+                // Store Turbo partial under a distinct cache key so it never overwrites the full cold-start HTML shell
+                const turboKey = request.url + (request.url.includes('?') ? '&' : '?') + '__turbo_partial=1';
+                cache.put(turboKey, clone);
+              }
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          // Network failed (offline / no cellular internet)
+          // 1st: If Turbo partial request, check partial cache or full page cache
+          if (isTurboPartial) {
+            const turboKey = request.url + (request.url.includes('?') ? '&' : '?') + '__turbo_partial=1';
+            const cachedPartial = await caches.match(turboKey);
+            if (cachedPartial) return cachedPartial;
+          }
+
+          // 2nd: Try exact cached page
           const cachedPage = await caches.match(request);
           if (cachedPage) {
             return cachedPage;
           }
-          // 2nd: Fallback to cute offline page
+
+          // 3rd: Try normalized path without ?action=new_expense / ?action=new_income query params
+          const cleanKey = getCleanRootOrPathRequest(url);
+          const cachedClean = await caches.match(cleanKey);
+          if (cachedClean) {
+            return cachedClean;
+          }
+
+          // 4th: Try pathname without query string (e.g. / or /wallets/)
+          const pathnameOnly = url.origin + url.pathname;
+          const cachedPathname = await caches.match(pathnameOnly);
+          if (cachedPathname) {
+            return cachedPathname;
+          }
+
+          // 5th: Fallback to cached root dashboard '/' (which has the full app shell & add-transaction bottom sheet!)
+          const cachedRoot = await caches.match(url.origin + '/');
+          if (cachedRoot) {
+            return cachedRoot;
+          }
+
+          // 6th: Fallback to cute offline page
           const offlinePage = await caches.match('/offline/');
           if (offlinePage) {
             return offlinePage;
           }
-          // 3rd: Basic fallback HTML if offline page was somehow evicted
+
+          // 7th: Basic fallback HTML
           return new Response(
             `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wang — Offline</title><style>body{font-family:sans-serif;text-align:center;padding:40px;background:#FFF7F3;color:#2D2926;}</style></head><body><h2>You are currently offline</h2><p>Please check your connection and tap retry.</p><button onclick="location.reload()" style="padding:10px 20px;border-radius:12px;background:#FF9E80;color:#fff;border:none;cursor:pointer;font-weight:bold;">Retry</button></body></html>`,
             { headers: { 'Content-Type': 'text/html' } }
@@ -162,7 +236,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Default: Try network, fallback to cache
+  // 5. Default: Try network, fallback to cache
   event.respondWith(
     fetch(request).catch(() => caches.match(request))
   );

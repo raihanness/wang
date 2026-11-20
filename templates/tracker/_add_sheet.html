@@ -2749,11 +2749,78 @@
     }
   });
 
+  function buildCurrentSheetOfflinePayload() {
+    const kind = kindInput.value || 'expense';
+    const amt = parseFloat(amountHidden.value) || 0;
+    const note = noteHidden.value || (noteInput ? noteInput.value.trim() : '');
+    const dateVal = dateHidden.value || formatLocalISO(new Date());
+    const pImg = document.getElementById('photo-preview-img');
+    const pChip = document.getElementById('photo-preview-chip');
+    let imageBase64 = '';
+    if (pImg && pChip && pChip.style.display !== 'none' && pImg.src && pImg.src.startsWith('data:image/')) {
+      imageBase64 = pImg.src;
+    }
+    if (kind !== 'transfer') {
+      const wItem = pickerList ? pickerList.querySelector(`.picker-item[data-wallet="${walletId}"]`) : null;
+      const wIcon = wItem ? (wItem.dataset.icon || 'account_balance_wallet') : 'account_balance_wallet';
+      const wColor = wItem ? (wItem.dataset.color || '#FFB5A7') : '#FFB5A7';
+      const wName = walletChipName ? walletChipName.textContent.trim() : 'Account';
+      return {
+        client_uid: 'off_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        kind: kind,
+        amount: amt,
+        note: note,
+        date: dateVal,
+        category: selectedCat ? selectedCat.dataset.cat : (catHidden ? catHidden.value : ''),
+        cat_name: selectedCat ? (selectedCat.dataset.name || 'Category') : 'Category',
+        cat_icon: selectedCat ? (selectedCat.dataset.icon || 'label') : 'label',
+        cat_color: selectedCat ? (selectedCat.dataset.color || '#FFB5A7') : '#FFB5A7',
+        wallet: walletId,
+        wallet_name: wName,
+        wallet_icon: wIcon,
+        wallet_color: wColor,
+        from_wallet: '',
+        from_name: '',
+        to_wallet: '',
+        to_name: '',
+        image_base64: imageBase64,
+        created_at_ms: Date.now()
+      };
+    } else {
+      const fromId = fromName.dataset.id || '';
+      const toId = toName.dataset.id || '';
+      return {
+        client_uid: 'off_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        kind: 'transfer',
+        amount: amt,
+        note: note,
+        date: dateVal,
+        category: '',
+        cat_name: 'Transfer',
+        cat_icon: 'swap_horiz',
+        cat_color: '#A8D8EA',
+        wallet: '',
+        wallet_name: '',
+        wallet_icon: 'swap_horiz',
+        wallet_color: '#A8D8EA',
+        from_wallet: fromId,
+        from_name: fromName ? fromName.textContent.trim() : 'From',
+        to_wallet: toId,
+        to_name: toName ? toName.textContent.trim() : 'To',
+        image_base64: imageBase64,
+        created_at_ms: Date.now()
+      };
+    }
+  }
+  window.wangBuildCurrentSheetOfflinePayload = buildCurrentSheetOfflinePayload;
+
   /* submit */
   form.addEventListener('submit', function(e){
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      showSheetError("You're offline — please reconnect to save");
-      if (window.showToast) window.showToast("You're offline — reconnect to save changes", 'warning', 3500);
+    const isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    const isEditMode = (form.dataset.mode === 'edit');
+    if (isOffline && isEditMode) {
+      showSheetError("You're offline — editing existing server transactions requires internet");
+      if (window.showToast) window.showToast("Offline — reconnect to edit synced transactions", 'warning', 3500);
       if (window.wangPlaySound) window.wangPlaySound('knock');
       if (window.wangUnlockForm) window.wangUnlockForm(form);
       e.preventDefault();
@@ -2821,6 +2888,27 @@
       fromWalletHidden.value = fromId;
       toWalletHidden.value = toId;
     }
+
+    // If offline in Add mode, queue transaction locally in Outbox and close sheet!
+    if (isOffline && !isEditMode && window.wangEnqueueOfflineTransaction) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const payload = buildCurrentSheetOfflinePayload();
+      window.wangEnqueueOfflineTransaction(payload);
+      clearSheetDraft();
+      hideSheetError();
+      if (window.wangUnlockForm) window.wangUnlockForm(form);
+      if (window.closeSheet) window.closeSheet();
+      return;
+    }
+
+    // Also snapshot payload on form in case network drops mid-flight during online POST
+    if (!isEditMode) {
+      try {
+        form._lastOfflineCandidate = buildCurrentSheetOfflinePayload();
+      } catch (err) {}
+    }
+
     clearSheetDraft();
     hideSheetError();
   });

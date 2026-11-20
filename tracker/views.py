@@ -1173,6 +1173,146 @@ def receipt_slip_api(request):
 
 
 @login_required
+@require_POST
+def api_sync_offline_transactions(request):
+    import base64
+    from django.core.files.base import ContentFile
+    from django.utils.dateparse import parse_datetime
+
+    try:
+        payload = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"status": "error", "message": "Invalid JSON payload."}, status=400)
+
+    items = payload.get("transactions", [])
+    if not isinstance(items, list):
+        return JsonResponse({"status": "error", "message": "transactions must be a list."}, status=400)
+
+    synced_uids = []
+    errors = []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        client_uid = str(item.get("client_uid") or item.get("id") or "").strip()
+        kind = str(item.get("kind") or "expense").strip().lower()
+        if kind not in (Transaction.Kind.EXPENSE, Transaction.Kind.INCOME, Transaction.Kind.TRANSFER):
+            errors.append({"client_uid": client_uid, "error": f"Invalid kind: {kind}"})
+            continue
+
+        try:
+            amount = Decimal(str(item.get("amount") or "0"))
+            if amount < Decimal("0"):
+                raise ValueError("Negative amount")
+        except Exception:
+            errors.append({"client_uid": client_uid, "error": "Invalid amount"})
+            continue
+
+        note = str(item.get("note") or "").strip()[:200]
+
+        raw_date = str(item.get("date") or "").strip()
+        tx_date = None
+        if raw_date:
+            parsed = parse_datetime(raw_date)
+            if not parsed:
+                try:
+                    parsed = datetime.strptime(raw_date[:16], "%Y-%m-%dT%H:%M")
+                except Exception:
+                    parsed = None
+            if parsed:
+                if timezone.is_naive(parsed):
+                    tx_date = timezone.make_aware(parsed, timezone.get_current_timezone())
+                else:
+                    tx_date = parsed
+        if not tx_date:
+            tx_date = timezone.now()
+
+        # Idempotency check: avoid duplicate creation if a retry happens within a 30-second window
+        dup_qs = Transaction.objects.filter(
+            user=request.user,
+            kind=kind,
+            amount=amount,
+            note=note,
+            date__gte=tx_date - timedelta(seconds=30),
+            date__lte=tx_date + timedelta(seconds=30),
+        )
+
+        wallet = None
+        category = None
+        from_wallet = None
+        to_wallet = None
+
+        if kind == Transaction.Kind.TRANSFER:
+            from_id = item.get("from_wallet") or item.get("from_wallet_id")
+            to_id = item.get("to_wallet") or item.get("to_wallet_id")
+            if from_id:
+                from_wallet = Wallet.objects.filter(user=request.user, pk=from_id).first()
+            if to_id:
+                to_wallet = Wallet.objects.filter(user=request.user, pk=to_id).first()
+            if not from_wallet or not to_wallet or from_wallet.pk == to_wallet.pk:
+                errors.append({"client_uid": client_uid, "error": "Invalid transfer accounts."})
+                continue
+            dup_qs = dup_qs.filter(from_wallet=from_wallet, to_wallet=to_wallet)
+        else:
+            wallet_id = item.get("wallet") or item.get("wallet_id")
+            cat_id = item.get("category") or item.get("category_id")
+            if wallet_id:
+                wallet = Wallet.objects.filter(user=request.user, pk=wallet_id).first()
+            if not wallet:
+                wallet = Wallet.objects.filter(user=request.user, archived=False).order_by("order", "id").first()
+            if cat_id:
+                category = Category.objects.filter(user=request.user, pk=cat_id, kind=kind).first()
+            if not category:
+                category = Category.objects.filter(user=request.user, kind=kind).order_by("id").first()
+            if not wallet or not category:
+                errors.append({"client_uid": client_uid, "error": "Missing wallet or category."})
+                continue
+            dup_qs = dup_qs.filter(wallet=wallet, category=category)
+
+        # If already synced recently with identical parameters on a network retry, skip creating duplicate
+        if item.get("is_retry") and dup_qs.exists():
+            synced_uids.append(client_uid)
+            continue
+
+        tx = Transaction(
+            user=request.user,
+            kind=kind,
+            wallet=wallet,
+            category=category,
+            from_wallet=from_wallet,
+            to_wallet=to_wallet,
+            amount=amount,
+            note=note,
+            date=tx_date,
+        )
+
+        image_b64 = item.get("image_base64") or ""
+        if image_b64 and isinstance(image_b64, str) and "base64," in image_b64:
+            try:
+                header, b64_data = image_b64.split("base64,", 1)
+                ext = "jpg"
+                if "png" in header:
+                    ext = "png"
+                elif "webp" in header:
+                    ext = "webp"
+                raw_bytes = base64.b64decode(b64_data)
+                fname = f"offline_receipt_{int(timezone.now().timestamp())}_{len(synced_uids)}.{ext}"
+                tx.image.save(fname, ContentFile(raw_bytes), save=False)
+            except Exception:
+                pass
+
+        tx.save()
+        synced_uids.append(client_uid)
+
+    return JsonResponse({
+        "status": "ok",
+        "synced_uids": synced_uids,
+        "synced_count": len(synced_uids),
+        "errors": errors,
+    })
+
+
+@login_required
 def wallet_balances_api(request):
     wallets = _get_wallets_with_balances(request.user, archived=False)
     data = []

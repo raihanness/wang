@@ -5,6 +5,7 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("graphs/", views.graphs, name="graphs"),
     path("api/wallets/", views.wallet_balances_api, name="api_wallets"),
+    path("api/transactions/sync/", views.api_sync_offline_transactions, name="api_sync_offline_transactions"),
     path("api/receipt-slip/", views.receipt_slip_api, name="api_receipt_slip"),
     path("api/scan-receipt/", views.api_scan_receipt, name="api_scan_receipt"),
     path("api/gemini-key/save/", views.api_save_gemini_key, name="api_save_gemini_key"),

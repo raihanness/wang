@@ -2705,16 +2705,21 @@
   }
   window.wangHandleBackPressed = wangHandleBackPressed;
 
+  function openQuickAddAction(kind) {
+    openSheet();
+    const targetKind = kind === 'income' ? 'income' : (kind === 'transfer' ? 'transfer' : 'expense');
+    const tabBtn = document.querySelector(`.sheet-tab[data-kind="${targetKind}"], .sheet-tab[data-tab="${targetKind}"]`);
+    if (tabBtn) tabBtn.click();
+  }
+  window.wangOpenQuickAction = openQuickAddAction;
+
   function handleUrlShortcuts() {
     try {
       const params = new URLSearchParams(window.location.search);
       const action = params.get('action');
       if (action === 'new_expense' || action === 'new_income') {
         setTimeout(() => {
-          openSheet();
-          const targetTab = action === 'new_expense' ? 'expense' : 'income';
-          const tabBtn = document.querySelector(`.sheet-tab[data-tab="${targetTab}"]`);
-          if (tabBtn) tabBtn.click();
+          openQuickAddAction(action === 'new_expense' ? 'expense' : 'income');
         }, 120);
         params.delete('action');
         const newQuery = params.toString();
@@ -5191,11 +5196,352 @@
     });
   }
 
+  // ── Offline Transaction Outbox Queue Engine (Web + Native Android Bridge Mirror) ──
+  const OFFLINE_QUEUE_KEY = 'wang-offline-tx-queue';
+  let isSyncingOfflineQueue = false;
+
+  function getOfflineQueue() {
+    let localList = [];
+    try {
+      const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) localList = parsed;
+      }
+    } catch (e) { }
+
+    // Recover from Native Android SharedPreferences backup if localStorage was cleared
+    if (localList.length === 0 && window.AndroidBridge && typeof window.AndroidBridge.getOfflineQueueJson === 'function') {
+      try {
+        const nativeRaw = window.AndroidBridge.getOfflineQueueJson();
+        if (nativeRaw) {
+          const parsedNative = JSON.parse(nativeRaw);
+          if (Array.isArray(parsedNative) && parsedNative.length > 0) {
+            localList = parsedNative;
+            localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(localList));
+          }
+        }
+      } catch (e) { }
+    }
+    return localList;
+  }
+
+  function saveOfflineQueue(list) {
+    const safeList = Array.isArray(list) ? list : [];
+    const jsonStr = JSON.stringify(safeList);
+    try {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, jsonStr);
+    } catch (e) { }
+    if (window.AndroidBridge && typeof window.AndroidBridge.saveOfflineQueueJson === 'function') {
+      try {
+        window.AndroidBridge.saveOfflineQueueJson(jsonStr);
+      } catch (e) { }
+    }
+  }
+
+  function formatIdrNumber(num) {
+    const n = Math.round(Math.abs(parseFloat(num) || 0));
+    return n.toLocaleString('en-US');
+  }
+
+  function parseIdrString(str) {
+    if (!str) return 0;
+    const isNeg = String(str).trim().startsWith('-');
+    const digits = String(str).replace(/[^0-9]/g, '');
+    const val = parseInt(digits, 10) || 0;
+    return isNeg ? -val : val;
+  }
+
+  function applyOfflineDeltaToHeroAndWidgets(deltaBalance, deltaTodaySpent, deltaTodayIncome) {
+    const heroCard = document.getElementById('hero-balance-card');
+    const amountEl = document.getElementById('hero-balance-amount');
+
+    if (amountEl && deltaBalance !== 0) {
+      const curSpend = parseIdrString(amountEl.dataset.rawSpendable || amountEl.dataset.rawBalance);
+      const curNet = parseIdrString(amountEl.dataset.rawNetworth || amountEl.dataset.rawBalance);
+      const nextSpend = curSpend + deltaBalance;
+      const nextNet = curNet + deltaBalance;
+      const fmtSpend = (nextSpend < 0 ? '-Rp' : 'Rp') + formatIdrNumber(nextSpend);
+      const fmtNet = (nextNet < 0 ? '-Rp' : 'Rp') + formatIdrNumber(nextNet);
+      amountEl.dataset.rawSpendable = fmtSpend;
+      amountEl.dataset.rawNetworth = fmtNet;
+      if (heroCard) heroCard.dataset.widgetBalance = fmtSpend;
+      syncHeroBalanceUI();
+    }
+
+    if (heroCard) {
+      if (deltaTodaySpent !== 0) {
+        const curSpent = parseIdrString(heroCard.dataset.widgetSpent);
+        const nextSpent = Math.max(0, curSpent + deltaTodaySpent);
+        heroCard.dataset.widgetSpent = 'Rp' + formatIdrNumber(nextSpent);
+      }
+      if (deltaTodayIncome !== 0) {
+        const curInc = parseIdrString(heroCard.dataset.widgetIncome);
+        const nextInc = Math.max(0, curInc + deltaTodayIncome);
+        heroCard.dataset.widgetIncome = 'Rp' + formatIdrNumber(nextInc);
+      }
+      syncWidgetDataToNative();
+    } else if (window.AndroidBridge && typeof window.AndroidBridge.applyOfflineWidgetDelta === 'function') {
+      try {
+        window.AndroidBridge.applyOfflineWidgetDelta(Math.round(deltaBalance), Math.round(deltaTodaySpent), Math.round(deltaTodayIncome));
+      } catch (e) { }
+    }
+  }
+
+  function isTodayDateString(isoDateStr) {
+    if (!isoDateStr) return true;
+    const dPart = String(isoDateStr).split('T')[0];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return dPart === todayStr;
+  }
+
+  function enqueueOfflineTransaction(txPayload) {
+    if (!txPayload) return;
+    const queue = getOfflineQueue();
+    queue.unshift(txPayload);
+    saveOfflineQueue(queue);
+
+    // Optimistic balance & widget adjustment
+    const amt = parseFloat(txPayload.amount) || 0;
+    const isToday = isTodayDateString(txPayload.date);
+    if (txPayload.kind === 'expense') {
+      applyOfflineDeltaToHeroAndWidgets(-amt, isToday ? amt : 0, 0);
+    } else if (txPayload.kind === 'income') {
+      applyOfflineDeltaToHeroAndWidgets(amt, 0, isToday ? amt : 0);
+    }
+
+    renderOfflineOutbox();
+    playSound('success');
+    showToast(`Saved offline (${queue.length} pending) — will sync when online`, 'online', 3600);
+  }
+  window.wangEnqueueOfflineTransaction = enqueueOfflineTransaction;
+
+  function removeOfflineTransaction(clientUid) {
+    if (!clientUid) return;
+    const queue = getOfflineQueue();
+    const target = queue.find(item => item.client_uid === clientUid);
+    const filtered = queue.filter(item => item.client_uid !== clientUid);
+    saveOfflineQueue(filtered);
+
+    if (target) {
+      const amt = parseFloat(target.amount) || 0;
+      const isToday = isTodayDateString(target.date);
+      if (target.kind === 'expense') {
+        applyOfflineDeltaToHeroAndWidgets(amt, isToday ? -amt : 0, 0);
+      } else if (target.kind === 'income') {
+        applyOfflineDeltaToHeroAndWidgets(-amt, 0, isToday ? -amt : 0);
+      }
+    }
+
+    renderOfflineOutbox();
+    playSound('delete');
+    showToast('Queued offline transaction removed', 'info', 2500);
+  }
+  window.wangRemoveOfflineTransaction = removeOfflineTransaction;
+
+  function escapeHtmlSafe(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderOfflineOutbox() {
+    let container = document.getElementById('offline-outbox-container');
+    if (!container) {
+      const frame = document.getElementById('tx-history');
+      if (frame) {
+        container = document.createElement('div');
+        container.id = 'offline-outbox-container';
+        container.className = 'offline-outbox-container';
+        const firstGroup = frame.querySelector('.day-group, .card.muted.center');
+        if (firstGroup) {
+          frame.insertBefore(container, firstGroup);
+        } else {
+          frame.appendChild(container);
+        }
+      }
+    }
+    if (!container) return;
+
+    const queue = getOfflineQueue();
+    if (queue.length === 0) {
+      container.hidden = true;
+      container.innerHTML = '';
+      return;
+    }
+
+    const isOnline = (typeof navigator === 'undefined' || navigator.onLine !== false);
+    const itemsHtml = queue.map(item => {
+      const uid = escapeHtmlSafe(item.client_uid);
+      const kind = item.kind || 'expense';
+      const isTransfer = kind === 'transfer';
+      const isIncome = kind === 'income';
+      const amt = parseFloat(item.amount) || 0;
+      const fmtAmt = 'Rp' + formatIdrNumber(amt);
+      const sign = (amt === 0 || isTransfer) ? '' : (isIncome ? '+' : '-');
+      const amtColor = amt === 0 ? 'var(--ink)' : (isTransfer ? 'var(--ink)' : (isIncome ? 'var(--green)' : 'var(--red)'));
+      const timeStr = (item.date && item.date.includes('T')) ? item.date.split('T')[1].slice(0, 5) : 'Now';
+      const dateStr = (item.date && item.date.includes('T')) ? item.date.split('T')[0] : '';
+      const note = escapeHtmlSafe(item.note || '');
+      const catName = escapeHtmlSafe(item.cat_name || 'Transaction');
+      const catIcon = escapeHtmlSafe(item.cat_icon || (isTransfer ? 'swap_horiz' : 'label'));
+      const catColor = escapeHtmlSafe(item.cat_color || '#FFB5A7');
+      const walletName = escapeHtmlSafe(item.wallet_name || 'Account');
+      const walletIcon = escapeHtmlSafe(item.wallet_icon || 'account_balance_wallet');
+      const fromName = escapeHtmlSafe(item.from_name || 'From');
+      const toName = escapeHtmlSafe(item.to_name || 'To');
+      const hasPhoto = Boolean(item.image_base64);
+
+      const titleText = isTransfer
+        ? (note || `${fromName} → ${toName}`)
+        : (note || catName);
+      const subText = isTransfer
+        ? `${dateStr} · ${timeStr} // Offline Transfer`
+        : `${dateStr} · ${timeStr}${note ? ' // ' + catName : ''} // Waiting to sync`;
+      const rightSubText = isTransfer
+        ? `${fromName} → ${toName}`
+        : `<svg class="icon" style="font-size:12px;margin:0 4px 0 0"><use href="${getIconHref(walletIcon)}"></use></svg>${walletName}`;
+
+      const iconBox = isTransfer
+        ? `<div class="li-icon li-icon-transfer"><svg class="icon"><use href="${getIconHref('swap_horiz')}"></use></svg></div>`
+        : `<div class="li-icon" style="background:${catColor}20;color:${catColor}"><svg class="icon"><use href="${getIconHref(catIcon)}"></use></svg></div>`;
+
+      return `
+        <div class="list-item offline-queued-item" data-offline-uid="${uid}">
+          ${iconBox}
+          <div class="li-main">
+            <div class="li-title">
+              <span>${titleText}</span>
+              <span class="offline-pending-pill" title="Saved on device — waiting for internet">Pending</span>
+              ${hasPhoto ? `<span class="li-receipt-badge" title="Receipt photo queued"><svg class="icon" style="font-size:11px"><use href="#icon-receipt_long"></use></svg></span>` : ''}
+            </div>
+            <div class="li-sub">${subText}</div>
+          </div>
+          <div class="li-right">
+            <div class="li-amt" style="color:${amtColor}">${sign}${fmtAmt}</div>
+            <div class="li-sub">${rightSubText}</div>
+          </div>
+          <button type="button" class="icon-btn offline-delete-btn js-delete-offline-tx"
+                  data-offline-uid="${uid}"
+                  data-offline-title="${titleText}"
+                  data-offline-amount="${sign}${fmtAmt}"
+                  title="Delete queued item"
+                  aria-label="Delete queued transaction">
+            <svg class="icon" style="font-size:16px"><use href="#icon-trash"></use></svg>
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="offline-outbox-card">
+        <div class="offline-outbox-head">
+          <div class="offline-outbox-title">
+            <svg class="icon"><use href="#icon-${isOnline ? 'cloud_done' : 'cloud_off'}"></use></svg>
+            <span>Offline Outbox (${queue.length} pending)</span>
+          </div>
+          <button type="button" class="btn btn-sm offline-sync-now-btn js-sync-offline-now" ${isSyncingOfflineQueue ? 'disabled' : ''}>
+            ${isSyncingOfflineQueue ? 'Syncing...' : 'Sync Now'}
+          </button>
+        </div>
+        <div class="tx-list offline-tx-list">
+          ${itemsHtml}
+        </div>
+      </div>
+    `;
+    container.hidden = false;
+    resolveExternalIcons(container);
+  }
+  window.wangRenderOfflineOutbox = renderOfflineOutbox;
+
+  function getCsrfTokenForSync() {
+    const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (input && input.value) return input.value;
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  async function syncOfflineQueue(manualTrigger = false) {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+    if (isSyncingOfflineQueue) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (manualTrigger) {
+        showToast('Still offline — connect to Wi-Fi or cellular to sync', 'warning', 3000);
+        playSound('knock');
+      }
+      return;
+    }
+
+    isSyncingOfflineQueue = true;
+    renderOfflineOutbox();
+
+    try {
+      // Send in chronological order (oldest first)
+      const chronological = [...queue].reverse();
+      const resp = await fetch('/api/transactions/sync/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfTokenForSync(),
+        },
+        body: JSON.stringify({ transactions: chronological }),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      if (data && data.status === 'ok') {
+        const syncedSet = new Set(data.synced_uids || []);
+        const remaining = getOfflineQueue().filter(item => !syncedSet.has(item.client_uid));
+        saveOfflineQueue(remaining);
+        isSyncingOfflineQueue = false;
+        renderOfflineOutbox();
+
+        const count = data.synced_count || syncedSet.size;
+        if (count > 0) {
+          showToast(`Synced ${count} offline transaction${count > 1 ? 's' : ''}!`, 'success', 3500);
+          playSound('success');
+          // Refresh view via Turbo so server history and wallet balances update cleanly
+          if (window.Turbo && typeof window.Turbo.visit === 'function') {
+            window.Turbo.visit(window.location.href, { action: 'replace' });
+          } else {
+            window.location.reload();
+          }
+        } else if (manualTrigger && data.errors && data.errors.length > 0) {
+          showToast(`Sync issue: ${data.errors[0].error || 'Check queued items'}`, 'error', 4000);
+        }
+        return;
+      }
+    } catch (err) {
+      // Mark items as retry-safe so next attempt knows a network drop occurred
+      const updated = getOfflineQueue().map(item => ({ ...item, is_retry: true }));
+      saveOfflineQueue(updated);
+      if (manualTrigger) {
+        showToast('Could not reach server — will retry automatically when online', 'warning', 3500);
+        playSound('knock');
+      }
+    } finally {
+      isSyncingOfflineQueue = false;
+      renderOfflineOutbox();
+    }
+  }
+  window.wangSyncOfflineQueue = syncOfflineQueue;
+
   let activeOfflineToast = null;
   function showOfflineBannerIfNeeded() {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       if (!document.querySelector('.toast-pill.toast-offline')) {
-        activeOfflineToast = showToast('Offline mode — viewing saved data', 'offline', 0);
+        const qCount = getOfflineQueue().length;
+        const msg = qCount > 0
+          ? `Offline mode — ${qCount} pending in outbox (tap + to add more)`
+          : 'Offline mode — you can still add transactions!';
+        activeOfflineToast = showToast(msg, 'offline', 4000);
       }
     }
   }
@@ -5210,17 +5556,66 @@
         }, 350);
       });
       activeOfflineToast = null;
-      showToast('Back online', 'online', 2500);
+      const qLen = getOfflineQueue().length;
+      if (qLen > 0) {
+        showToast(`Back online — syncing ${qLen} queued transaction${qLen > 1 ? 's' : ''}...`, 'online', 2500);
+        setTimeout(() => syncOfflineQueue(false), 300);
+      } else {
+        showToast('Back online', 'online', 2500);
+      }
     });
     window.addEventListener('offline', () => {
       showOfflineBannerIfNeeded();
+      renderOfflineOutbox();
     });
     document.addEventListener('turbo:render', () => {
       showOfflineBannerIfNeeded();
+      renderOfflineOutbox();
     });
 
-    // Check if the user is ALREADY offline upon opening or reloading the site
-    setTimeout(showOfflineBannerIfNeeded, 300);
+    // Check if the user is ALREADY offline or has pending items upon opening the app
+    setTimeout(() => {
+      showOfflineBannerIfNeeded();
+      renderOfflineOutbox();
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+        syncOfflineQueue(false);
+      }
+    }, 350);
+
+    // Delegated click handlers for Offline Outbox actions (Delete queued item & Sync Now)
+    document.addEventListener('click', (e) => {
+      const delOfflineBtn = e.target.closest('.js-delete-offline-tx');
+      if (delOfflineBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        playSound('click');
+        const uid = delOfflineBtn.dataset.offlineUid;
+        const title = delOfflineBtn.dataset.offlineTitle || 'Queued Transaction';
+        const amt = delOfflineBtn.dataset.offlineAmount || '';
+        openConfirmSheet({
+          title: 'Delete Queued Item?',
+          desc: `Remove “${title}” from your offline outbox? It will not be synced to your account.`,
+          preview: amt ? `${title} · ${amt}` : title,
+          actionUrl: '#',
+          submitText: 'Remove',
+          icon: 'trash',
+          submitIcon: 'trash',
+          btnClass: 'btn-delete',
+          onConfirm: () => {
+            removeOfflineTransaction(uid);
+          }
+        });
+        return;
+      }
+
+      const syncNowBtn = e.target.closest('.js-sync-offline-now');
+      if (syncNowBtn) {
+        e.preventDefault();
+        playSound('tap');
+        syncOfflineQueue(true);
+        return;
+      }
+    });
 
     // ── Global Offline Mutation Guards & Universal Double-POST Prevention ──
     // 1. Capture-phase click interceptor to kill rapid/duplicate taps on submitting buttons & forms
@@ -5245,8 +5640,11 @@
       const form = e.target;
       if (!form || !form.tagName || form.tagName.toLowerCase() !== 'form') return;
 
-      // Offline check
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      // Allow #add-form (in add mode) and #confirm-sheet-form (for local confirm callbacks) when offline
+      const isAddTxOfflineAllowed = (form.id === 'add-form' && form.dataset.mode !== 'edit');
+      const isLocalConfirmForm = (form.id === 'confirm-sheet-form' && (!form.action || form.action.endsWith('#')));
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false && !isAddTxOfflineAllowed && !isLocalConfirmForm) {
         e.preventDefault();
         e.stopImmediatePropagation();
         unlockFormSubmission(form);
@@ -5265,7 +5663,7 @@
         return false;
       }
 
-      // If client validation already prevented default, do not lock
+      // If client validation or offline queue handler already prevented default, do not lock
       if (e.defaultPrevented) {
         return;
       }
@@ -5276,11 +5674,18 @@
 
     document.addEventListener('turbo:submit-start', (e) => {
       const form = e.target;
+      const isAddTxOfflineAllowed = (form && form.id === 'add-form' && form.dataset.mode !== 'edit');
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         e.preventDefault();
         unlockFormSubmission(form);
-        showToast("You're offline — reconnect to save changes", 'warning', 3500);
-        playSound('knock');
+        if (isAddTxOfflineAllowed && form._lastOfflineCandidate) {
+          enqueueOfflineTransaction(form._lastOfflineCandidate);
+          delete form._lastOfflineCandidate;
+          closeSheet();
+        } else {
+          showToast("You're offline — reconnect to save changes", 'warning', 3500);
+          playSound('knock');
+        }
         return;
       }
       lockFormSubmission(form, e.detail?.formSubmission?.submitter);
@@ -5312,10 +5717,20 @@
     });
 
     document.addEventListener('turbo:fetch-request-error', (e) => {
+      const addForm = document.getElementById('add-form');
+      if (addForm && addForm.dataset.submitting === 'true' && addForm.dataset.mode !== 'edit' && addForm._lastOfflineCandidate) {
+        e.preventDefault();
+        const candidate = addForm._lastOfflineCandidate;
+        delete addForm._lastOfflineCandidate;
+        unlockAllForms();
+        enqueueOfflineTransaction(candidate);
+        closeSheet();
+        return;
+      }
       unlockAllForms();
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         e.preventDefault();
-        showToast("Connection lost — action could not be completed", 'warning', 3500);
+        showToast("Offline mode — viewing saved data", 'offline', 3000);
       }
     });
   }

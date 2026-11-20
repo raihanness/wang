@@ -406,6 +406,9 @@
     </div>
   {% endif %}
 
+  <!-- Offline Queued Transactions Container (Populated by JS when offline items are queued) -->
+  <div id="offline-outbox-container" class="offline-outbox-container" hidden></div>
+
   {% for day, items, day_exp, day_inc in history_groups %}
     <details class="day-group" open>
       <summary class="day-head">
