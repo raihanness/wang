@@ -507,7 +507,97 @@
   window.wangUnlockForm = unlockFormSubmission;
   window.wangUnlockAllForms = unlockAllForms;
 
+  const CACHED_SHEET_ROOT_KEY = 'wang-cached-sheet-root-v2';
+  const CACHED_SVG_SPRITE_KEY = 'wang-cached-svg-sprite-v2';
+
+  function executeInlineScriptsIn(container) {
+    if (!container) return;
+    if (document.body) {
+      delete document.body.wangSheetBound;
+      delete document.body.wangDetailBound;
+      delete document.body.wangBudgetBound;
+      delete document.body.wangDebtPayBound;
+      delete document.body.wangDebtHistBound;
+      delete document.body.wangSubPayBound;
+      delete document.body.wangSubHistBound;
+      delete document.body.wangCatTxBound;
+      delete document.body.wangGoalBound;
+      delete document.body.wangGeminiKeyBound;
+      delete document.body.wangChangelogBound;
+    }
+    const scripts = container.querySelectorAll('script');
+    scripts.forEach((oldScript) => {
+      const type = oldScript.getAttribute('type');
+      if (type && type !== 'text/javascript' && type !== 'application/javascript') {
+        return; // skip application/json scripts like sheet-recent-notes
+      }
+      const newScript = document.createElement('script');
+      Array.from(oldScript.attributes).forEach((attr) => {
+        newScript.setAttribute(attr.name, attr.value);
+      });
+      newScript.textContent = oldScript.textContent;
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+  }
+
+  function ensurePermanentShellAndAddSheet() {
+    try {
+      const svgHolder = document.getElementById('wang-svg-sprite-holder');
+      if (svgHolder) {
+        if (svgHolder.querySelector('svg symbol')) {
+          const svgHtml = svgHolder.innerHTML;
+          try {
+            localStorage.setItem(CACHED_SVG_SPRITE_KEY, svgHtml);
+          } catch (e) {}
+          if (window.AndroidBridge && typeof window.AndroidBridge.saveCachedSvgSpriteHtml === 'function') {
+            try { window.AndroidBridge.saveCachedSvgSpriteHtml(svgHtml); } catch (e) {}
+          }
+        } else {
+          let cachedSvg = '';
+          try { cachedSvg = localStorage.getItem(CACHED_SVG_SPRITE_KEY) || ''; } catch (e) {}
+          if (!cachedSvg && window.AndroidBridge && typeof window.AndroidBridge.getCachedSvgSpriteHtml === 'function') {
+            try { cachedSvg = window.AndroidBridge.getCachedSvgSpriteHtml() || ''; } catch (e) {}
+          }
+          if (cachedSvg) {
+            svgHolder.innerHTML = cachedSvg;
+          }
+        }
+      }
+
+      const sheetRoot = document.getElementById('sheet-root-container');
+      if (sheetRoot) {
+        const hasAddSheet = Boolean(sheetRoot.querySelector('#add-sheet'));
+        const hasPopulatedData = Boolean(sheetRoot.querySelector('#grid-expense .cat-cell, #picker-sheet .picker-item[data-wallet]:not(#picker-item-none)'));
+        if (hasAddSheet && hasPopulatedData) {
+          // Save a clean snapshot (with sheets closed) so offline cold-start on any page can self-heal
+          const anyOpen = sheetRoot.querySelector('.open, .show');
+          if (!anyOpen) {
+            const rootHtml = sheetRoot.innerHTML;
+            try {
+              localStorage.setItem(CACHED_SHEET_ROOT_KEY, rootHtml);
+            } catch (e) {}
+            if (window.AndroidBridge && typeof window.AndroidBridge.saveCachedSheetRootHtml === 'function') {
+              try { window.AndroidBridge.saveCachedSheetRootHtml(rootHtml); } catch (e) {}
+            }
+          }
+        } else {
+          let cachedRoot = '';
+          try { cachedRoot = localStorage.getItem(CACHED_SHEET_ROOT_KEY) || ''; } catch (e) {}
+          if (!cachedRoot && window.AndroidBridge && typeof window.AndroidBridge.getCachedSheetRootHtml === 'function') {
+            try { cachedRoot = window.AndroidBridge.getCachedSheetRootHtml() || ''; } catch (e) {}
+          }
+          if (cachedRoot && (!hasAddSheet || !hasPopulatedData)) {
+            sheetRoot.innerHTML = cachedRoot;
+            executeInlineScriptsIn(sheetRoot);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+  window.wangEnsurePermanentShell = ensurePermanentShellAndAddSheet;
+
   function openSheet() {
+    ensurePermanentShellAndAddSheet();
     const sheet = document.getElementById('add-sheet');
     const overlay = document.getElementById('sheet-overlay');
     const form = document.getElementById('add-form');
@@ -1295,6 +1385,7 @@
   }
 
   function bindSheet() {
+    ensurePermanentShellAndAddSheet();
     const fab = document.getElementById('bn-fab');
     const overlay = document.getElementById('sheet-overlay');
     if (fab && !fab.dataset.bound) {
@@ -5735,26 +5826,56 @@
     });
   }
 
+  // Delegated click fallback for Add Transaction FAB & Sheet Overlay
+  // Guarantees the bottom sheet ALWAYS opens even if Turbo CDN failed offline or DOM swapped
+  document.addEventListener('click', (e) => {
+    const fabBtn = e.target.closest('#bn-fab, .js-open-add-sheet');
+    if (fabBtn) {
+      e.preventDefault();
+      playSound('tap');
+      ensurePermanentShellAndAddSheet();
+      if (window.wangResetSheet) window.wangResetSheet();
+      openSheet();
+      return;
+    }
+    if (e.target && e.target.id === 'sheet-overlay') {
+      e.preventDefault();
+      closeSheet();
+      return;
+    }
+  });
+
+  function runFullAppBoot() {
+    ensurePermanentShellAndAddSheet();
+    initToasts();
+    syncAppbar();
+    syncThemeUI();
+    syncSoundUI();
+    syncBottomNav(true);
+    syncHeroBalanceUI();
+    bindSheet();
+    syncReceiptSlipData();
+    initMonthScroll();
+    checkAutoEdit();
+    mountGraphs();
+    initIconPicker();
+    resolveExternalIcons();
+    syncAndroidSettingsUI();
+    syncWidgetDataToNative();
+    applyNavbarStyle();
+    handleUrlShortcuts();
+    checkChangelogPrompt();
+    renderOfflineOutbox();
+  }
+
   initTurboSettings();
   initServiceWorker();
   initConnectivityListeners();
-  initToasts();
-  syncAppbar();
-  syncThemeUI();
-  syncSoundUI();
-  syncBottomNav();
-  syncHeroBalanceUI();
-  bindSheet();
-  syncReceiptSlipData();
-  initMonthScroll();
-  checkAutoEdit();
-  mountGraphs();
-  initIconPicker();
-  resolveExternalIcons();
-  syncAndroidSettingsUI();
-  syncWidgetDataToNative();
-  applyNavbarStyle();
-  handleUrlShortcuts();
-  checkChangelogPrompt();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runFullAppBoot);
+  } else {
+    runFullAppBoot();
+  }
 })();
 

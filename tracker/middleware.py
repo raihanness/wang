@@ -1,12 +1,15 @@
 from django.contrib import messages
 from django.contrib.auth import logout as auth_logout
 from django.shortcuts import redirect
+from django.utils.cache import patch_vary_headers
 
 
 class AccountApprovalMiddleware:
     """
     Ensures that active sessions for deactivated or unapproved accounts are immediately
     terminated mid-session rather than allowing them to persist until cookie expiry.
+    Also sets Vary headers for Turbo requests so browser/WebView HTTP caches never mix
+    partial Turbo frame responses with full HTML page shells.
     """
 
     def __init__(self, get_response):
@@ -50,4 +53,6 @@ class AccountApprovalMiddleware:
             )
             return redirect("login")
 
-        return self.get_response(request)
+        response = self.get_response(request)
+        patch_vary_headers(response, ("Turbo-Frame", "X-Turbo-Request"))
+        return response

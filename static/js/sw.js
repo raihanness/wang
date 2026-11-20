@@ -1,15 +1,16 @@
 // Wang — Service Worker (sw.js)
 // Specialized PWA caching for instant mobile startup & offline resilience
 
-const STATIC_CACHE = 'wang-static-v11';
+const STATIC_CACHE = 'wang-static-v12';
 const FONT_CACHE = 'wang-fonts-v2';
-const PAGE_CACHE = 'wang-pages-v2';
+const PAGE_CACHE = 'wang-pages-v3';
 
 const CORE_ASSETS = [
-  '/',
   '/offline/',
   '/static/css/wang.css',
+  '/static/css/wang.css?v=24',
   '/static/js/app.js',
+  '/static/js/app.js?v=24',
   '/static/manifest.json',
   '/static/img/icons.svg',
   '/static/img/logo-fix.png',
@@ -88,7 +89,7 @@ self.addEventListener('fetch', (event) => {
   if (isFont) {
     event.respondWith(
       caches.open(FONT_CACHE).then(async (cache) => {
-        const cachedResponse = await cache.match(request);
+        const cachedResponse = (await cache.match(request)) || (await caches.match(request, { ignoreSearch: true }));
         if (cachedResponse) {
           return cachedResponse;
         }
@@ -107,7 +108,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Static Assets (CSS, JS, Images, CDNs) — Stale-While-Revalidate
+  // 2. Static Assets (CSS, JS, Images, CDNs) — Stale-While-Revalidate with ignoreSearch fallback
   const isStatic =
     url.pathname.startsWith('/static/') ||
     url.origin === 'https://cdn.jsdelivr.net';
@@ -115,7 +116,9 @@ self.addEventListener('fetch', (event) => {
   if (isStatic) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
-        const cachedResponse = await cache.match(request);
+        const cachedResponse =
+          (await cache.match(request)) ||
+          (await cache.match(request, { ignoreSearch: true }));
         const fetchPromise = fetch(request)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
@@ -160,68 +163,76 @@ self.addEventListener('fetch', (event) => {
   const isHtml =
     request.mode === 'navigate' ||
     (request.headers.get('accept') && request.headers.get('accept').includes('text/html'));
-  const isTurboPartial = request.headers.get('X-Turbo-Request') === '1';
+  const isTurboFrame = Boolean(request.headers.get('Turbo-Frame'));
 
   if (isHtml) {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(PAGE_CACHE).then((cache) => {
-              if (!isTurboPartial) {
-                // Full document navigation (contains full #svg-symbols-container and #sheet-root-container)
-                cache.put(request, clone.clone());
-                const cleanKey = getCleanRootOrPathRequest(url);
-                if (cleanKey !== request.url) {
-                  cache.put(cleanKey, clone);
+            const respUrl = networkResponse.url || '';
+            const isRedirectToLogin = respUrl.includes('/login') && !url.pathname.includes('/login');
+            if (!isRedirectToLogin) {
+              const clone = networkResponse.clone();
+              caches.open(PAGE_CACHE).then((cache) => {
+                if (!isTurboFrame) {
+                  // Full document navigation (contains full #wang-svg-sprite-holder and #sheet-root-container)
+                  cache.put(request, clone.clone());
+                  const cleanKey = getCleanRootOrPathRequest(url);
+                  if (cleanKey !== request.url) {
+                    cache.put(cleanKey, clone);
+                  }
+                } else {
+                  // Store Turbo sub-frame under a distinct cache key so it never overwrites full HTML shells
+                  const frameId = request.headers.get('Turbo-Frame') || 'frame';
+                  const frameKey = request.url + (request.url.includes('?') ? '&' : '?') + '__turbo_frame=' + encodeURIComponent(frameId);
+                  cache.put(frameKey, clone);
                 }
-              } else {
-                // Store Turbo partial under a distinct cache key so it never overwrites the full cold-start HTML shell
-                const turboKey = request.url + (request.url.includes('?') ? '&' : '?') + '__turbo_partial=1';
-                cache.put(turboKey, clone);
-              }
-            });
+              });
+            }
           }
           return networkResponse;
         })
         .catch(async () => {
           // Network failed (offline / no cellular internet)
-          // 1st: If Turbo partial request, check partial cache or full page cache
-          if (isTurboPartial) {
-            const turboKey = request.url + (request.url.includes('?') ? '&' : '?') + '__turbo_partial=1';
-            const cachedPartial = await caches.match(turboKey);
-            if (cachedPartial) return cachedPartial;
+          const pageCache = await caches.open(PAGE_CACHE);
+
+          // 1st: If Turbo sub-frame request, check sub-frame cache first
+          if (isTurboFrame) {
+            const frameId = request.headers.get('Turbo-Frame') || 'frame';
+            const frameKey = request.url + (request.url.includes('?') ? '&' : '?') + '__turbo_frame=' + encodeURIComponent(frameId);
+            const cachedFrame = await pageCache.match(frameKey);
+            if (cachedFrame) return cachedFrame;
           }
 
-          // 2nd: Try exact cached page
-          const cachedPage = await caches.match(request);
+          // 2nd: Try exact cached page in PAGE_CACHE
+          const cachedPage = await pageCache.match(request);
           if (cachedPage) {
             return cachedPage;
           }
 
           // 3rd: Try normalized path without ?action=new_expense / ?action=new_income query params
           const cleanKey = getCleanRootOrPathRequest(url);
-          const cachedClean = await caches.match(cleanKey);
+          const cachedClean = await pageCache.match(cleanKey);
           if (cachedClean) {
             return cachedClean;
           }
 
           // 4th: Try pathname without query string (e.g. / or /wallets/)
           const pathnameOnly = url.origin + url.pathname;
-          const cachedPathname = await caches.match(pathnameOnly);
+          const cachedPathname = await pageCache.match(pathnameOnly);
           if (cachedPathname) {
             return cachedPathname;
           }
 
-          // 5th: Fallback to cached root dashboard '/' (which has the full app shell & add-transaction bottom sheet!)
-          const cachedRoot = await caches.match(url.origin + '/');
+          // 5th: Fallback to cached root dashboard '/' in PAGE_CACHE (has the full app shell & add-transaction bottom sheet!)
+          const cachedRoot = await pageCache.match(url.origin + '/');
           if (cachedRoot) {
             return cachedRoot;
           }
 
-          // 6th: Fallback to cute offline page
-          const offlinePage = await caches.match('/offline/');
+          // 6th: Fallback to cute offline page (from PAGE_CACHE or STATIC_CACHE)
+          const offlinePage = (await pageCache.match('/offline/')) || (await caches.match('/offline/'));
           if (offlinePage) {
             return offlinePage;
           }
@@ -238,6 +249,6 @@ self.addEventListener('fetch', (event) => {
 
   // 5. Default: Try network, fallback to cache
   event.respondWith(
-    fetch(request).catch(() => caches.match(request))
+    fetch(request).catch(() => caches.match(request, { ignoreSearch: true }))
   );
 });

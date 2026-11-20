@@ -34,6 +34,7 @@ import android.webkit.RenderProcessGoneDetail;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -71,6 +72,8 @@ public class MainActivity extends AppCompatActivity {
     public static final String KEY_BIOMETRIC_ENABLED = "biometric_enabled";
     public static final String KEY_HAPTICS_ENABLED = "haptics_enabled";
     public static final String KEY_OFFLINE_QUEUE = "offline_tx_queue_json";
+    public static final String KEY_CACHED_SHEET_ROOT = "cached_sheet_root_html";
+    public static final String KEY_CACHED_SVG_SPRITE = "cached_svg_sprite_html";
 
     private ConnectivityManager.NetworkCallback mNetworkCallback;
 
@@ -81,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
     private String mCameraPhotoPath;
     private Uri mCameraPhotoUri;
     private String mPendingCapturedPhotoBase64;
+    private String mPendingShortcutAction = null;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
     private ActivityResultLauncher<String> mNotificationPermissionLauncher;
     private int mPendingReminderHour = 20;
@@ -308,6 +312,34 @@ public class MainActivity extends AppCompatActivity {
         public String getOfflineQueueJson() {
             return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                     .getString(KEY_OFFLINE_QUEUE, "[]");
+        }
+
+        @JavascriptInterface
+        public void saveCachedSheetRootHtml(String html) {
+            if (html == null || html.length() < 100) return;
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString(KEY_CACHED_SHEET_ROOT, html)
+                    .apply();
+        }
+
+        @JavascriptInterface
+        public String getCachedSheetRootHtml() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getString(KEY_CACHED_SHEET_ROOT, "");
+        }
+
+        @JavascriptInterface
+        public void saveCachedSvgSpriteHtml(String html) {
+            if (html == null || html.length() < 50) return;
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString(KEY_CACHED_SVG_SPRITE, html)
+                    .apply();
+        }
+
+        @JavascriptInterface
+        public String getCachedSvgSpriteHtml() {
+            return getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getString(KEY_CACHED_SVG_SPRITE, "");
         }
 
         @JavascriptInterface
@@ -791,13 +823,15 @@ public class MainActivity extends AppCompatActivity {
             if (action != null) {
                 switch (action) {
                     case "new_expense":
-                        return base + "?action=new_expense";
                     case "new_income":
-                        return base + "?action=new_income";
+                        // Queue the quick action and load the clean base URL so offline WebView disk cache
+                        // always matches https://wang.raihan.dev/ without missing on uncached ?action=... URLs!
+                        mPendingShortcutAction = action;
+                        return base;
                     case "graphs":
-                        return base + "graphs/";
+                        return isNetworkConnected() ? (base + "graphs/") : base;
                     case "wallets":
-                        return base + "wallets/";
+                        return isNetworkConnected() ? (base + "wallets/") : base;
                 }
             }
             Uri data = intent.getData();
@@ -806,6 +840,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return base;
+    }
+
+    private void triggerQuickActionInWebView(String action) {
+        if (mWebView == null || action == null) return;
+        String kind = "new_income".equals(action) ? "income" : "expense";
+        String js = "(function() {" +
+                "  if (window.wangEnsurePermanentShell) { window.wangEnsurePermanentShell(); }" +
+                "  if (window.wangOpenQuickAction) { window.wangOpenQuickAction('" + kind + "'); }" +
+                "  else if (window.openSheet) { window.openSheet(); }" +
+                "})();";
+        mWebView.evaluateJavascript(js, null);
     }
 
     private void handleShortcutIntent(Intent intent) {
@@ -817,21 +862,18 @@ public class MainActivity extends AppCompatActivity {
         syncWebViewOfflineCacheMode();
 
         if ("new_expense".equals(action) || "new_income".equals(action)) {
-            String kind = "new_income".equals(action) ? "income" : "expense";
             String curUrl = mWebView.getUrl();
             if (curUrl != null && curUrl.startsWith(base)) {
                 // Directly open the bottom sheet via JS without a network roundtrip!
-                mWebView.evaluateJavascript(
-                        "if (window.wangOpenQuickAction) { window.wangOpenQuickAction('" + kind + "'); } else if (window.openSheet) { window.openSheet(); }",
-                        null
-                );
+                triggerQuickActionInWebView(action);
             } else {
-                mWebView.loadUrl(base + "?action=" + action);
+                mPendingShortcutAction = action;
+                mWebView.loadUrl(base);
             }
         } else if ("graphs".equals(action)) {
-            mWebView.loadUrl(base + "graphs/");
+            mWebView.loadUrl(isNetworkConnected() ? (base + "graphs/") : base);
         } else if ("wallets".equals(action)) {
-            mWebView.loadUrl(base + "wallets/");
+            mWebView.loadUrl(isNetworkConnected() ? (base + "wallets/") : base);
         } else if (intent.getData() != null && intent.getData().toString().startsWith("http")) {
             mWebView.loadUrl(intent.getData().toString());
         }
@@ -954,14 +996,34 @@ public class MainActivity extends AppCompatActivity {
                 mPageAllowsRefresh = isPullToRefreshAllowedForUrl(url);
                 syncSwipeRefreshState();
                 injectScrollHandler(view);
+                injectOfflineSheetFallback(view);
                 injectSafeAreaInsets(mLastTopInsetsDp, mLastBottomInsetsDp);
                 view.evaluateJavascript("document.documentElement.getAttribute('data-theme')", val -> {
                     if (val != null) {
                         updateSystemBarIcons(val.contains("dark"));
                     }
                 });
+                if (mPendingShortcutAction != null) {
+                    final String actionToRun = mPendingShortcutAction;
+                    mPendingShortcutAction = null;
+                    view.postDelayed(() -> triggerQuickActionInWebView(actionToRun), 220);
+                }
                 if (mPendingCapturedPhotoBase64 != null) {
                     view.postDelayed(() -> deliverPendingPhotoToWebView(), 400);
+                }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request != null && request.isForMainFrame() && !isNetworkConnected()) {
+                    view.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                    String base = getString(R.string.app_web_url);
+                    if (!base.endsWith("/")) base += "/";
+                    String failedUrl = request.getUrl() != null ? request.getUrl().toString() : "";
+                    if (!failedUrl.equals(base)) {
+                        view.loadUrl(base);
+                    }
                 }
             }
 
@@ -1082,6 +1144,85 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(), "Unable to download file", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    private void injectOfflineSheetFallback(WebView view) {
+        String script = "(function() {" +
+                "  try {" +
+                "    var svgHolder = document.getElementById('wang-svg-sprite-holder');" +
+                "    if (svgHolder) {" +
+                "      if (svgHolder.querySelector('svg symbol')) {" +
+                "        var svgHtml = svgHolder.innerHTML;" +
+                "        try { localStorage.setItem('wang-cached-svg-sprite-v2', svgHtml); } catch(e) {}" +
+                "        if (window.AndroidBridge && window.AndroidBridge.saveCachedSvgSpriteHtml) {" +
+                "          window.AndroidBridge.saveCachedSvgSpriteHtml(svgHtml);" +
+                "        }" +
+                "      } else {" +
+                "        var cachedSvg = '';" +
+                "        try { cachedSvg = localStorage.getItem('wang-cached-svg-sprite-v2') || ''; } catch(e) {}" +
+                "        if (!cachedSvg && window.AndroidBridge && window.AndroidBridge.getCachedSvgSpriteHtml) {" +
+                "          cachedSvg = window.AndroidBridge.getCachedSvgSpriteHtml() || '';" +
+                "        }" +
+                "        if (cachedSvg) svgHolder.innerHTML = cachedSvg;" +
+                "      }" +
+                "    }" +
+                "    var sheetRoot = document.getElementById('sheet-root-container');" +
+                "    if (sheetRoot) {" +
+                "      var hasAdd = !!sheetRoot.querySelector('#add-sheet');" +
+                "      var hasData = !!sheetRoot.querySelector('#grid-expense .cat-cell, #picker-sheet .picker-item[data-wallet]:not(#picker-item-none)');" +
+                "      if (hasAdd && hasData) {" +
+                "        if (!sheetRoot.querySelector('.open, .show')) {" +
+                "          var rootHtml = sheetRoot.innerHTML;" +
+                "          try { localStorage.setItem('wang-cached-sheet-root-v2', rootHtml); } catch(e) {}" +
+                "          if (window.AndroidBridge && window.AndroidBridge.saveCachedSheetRootHtml) {" +
+                "            window.AndroidBridge.saveCachedSheetRootHtml(rootHtml);" +
+                "          }" +
+                "        }" +
+                "      } else {" +
+                "        var cachedRoot = '';" +
+                "        try { cachedRoot = localStorage.getItem('wang-cached-sheet-root-v2') || ''; } catch(e) {}" +
+                "        if (!cachedRoot && window.AndroidBridge && window.AndroidBridge.getCachedSheetRootHtml) {" +
+                "          cachedRoot = window.AndroidBridge.getCachedSheetRootHtml() || '';" +
+                "        }" +
+                "        if (cachedRoot) {" +
+                "          sheetRoot.innerHTML = cachedRoot;" +
+                "          if (document.body) { delete document.body.wangSheetBound; }" +
+                "          var scripts = sheetRoot.querySelectorAll('script');" +
+                "          for (var i = 0; i < scripts.length; i++) {" +
+                "            var os = scripts[i];" +
+                "            var t = os.getAttribute('type');" +
+                "            if (t && t !== 'text/javascript' && t !== 'application/javascript') continue;" +
+                "            var ns = document.createElement('script');" +
+                "            for (var j = 0; j < os.attributes.length; j++) {" +
+                "              ns.setAttribute(os.attributes[j].name, os.attributes[j].value);" +
+                "            }" +
+                "            ns.textContent = os.textContent;" +
+                "            os.parentNode.replaceChild(ns, os);" +
+                "          }" +
+                "        }" +
+                "      }" +
+                "    }" +
+                "    if (!window.__wangNativeFabFallbackInstalled) {" +
+                "      window.__wangNativeFabFallbackInstalled = true;" +
+                "      document.addEventListener('click', function(e) {" +
+                "        var fab = e.target && e.target.closest ? e.target.closest('#bn-fab, .js-open-add-sheet') : null;" +
+                "        if (fab) {" +
+                "          e.preventDefault();" +
+                "          if (window.wangEnsurePermanentShell) window.wangEnsurePermanentShell();" +
+                "          if (window.wangResetSheet) window.wangResetSheet();" +
+                "          if (window.openSheet) {" +
+                "            window.openSheet();" +
+                "          } else {" +
+                "            var s = document.getElementById('add-sheet');" +
+                "            var o = document.getElementById('sheet-overlay');" +
+                "            if (s && o) { s.classList.add('open'); o.classList.add('show'); }" +
+                "          }" +
+                "        }" +
+                "      }, false);" +
+                "    }" +
+                "  } catch(err) {}" +
+                "})();";
+        view.evaluateJavascript(script, null);
     }
 
     private void injectScrollHandler(WebView view) {

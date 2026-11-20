@@ -5,12 +5,13 @@ from .models import UserProfile
 def wang_context(request):
     """
     Wang global context processor for template rendering.
-    Provides Cloudflare Turnstile keys, admin badge notifications, and Turbo request detection.
+    Provides Cloudflare Turnstile keys, admin badge notifications, and Turbo Frame request detection.
     """
-    is_turbo = bool(
-        getattr(request, "headers", {}).get("X-Turbo-Request") == "1"
-        or getattr(request, "headers", {}).get("Turbo-Frame") is not None
-    )
+    # Only strip #sheet-root-container and #wang-svg-sprite-holder on sub-frame (<turbo-frame>) requests,
+    # NEVER on full-URL page requests. If a full-URL response omits #sheet-root-container, the browser or
+    # Android WebView HTTP disk cache overwrites the cached HTML for that URL with an empty sheet container,
+    # breaking the Add Transaction bottom sheet on offline cold-start!
+    is_turbo_frame = bool(getattr(request, "headers", {}).get("Turbo-Frame"))
     ctx = {
         "TURNSTILE_SITE_KEY": getattr(
             settings,
@@ -19,7 +20,8 @@ def wang_context(request):
         ),
         "TURNSTILE_ENABLED": getattr(settings, "CLOUDFLARE_TURNSTILE_ENABLED", True),
         "pending_approvals_count": 0,
-        "is_turbo_request": is_turbo,
+        "is_turbo_request": is_turbo_frame,
+        "is_turbo_frame": is_turbo_frame,
         "APP_VERSION": getattr(settings, "APP_VERSION", "2.1.0"),
     }
 

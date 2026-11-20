@@ -15,18 +15,24 @@
     </p>
     <div class="offline-tips">
       <div class="offline-tip-item">
+        <svg class="icon"><use href="#icon-add_circle"></use></svg>
+        <span>You can still record new expenses, income, and transfers offline! They'll sync automatically when online.</span>
+      </div>
+      <div class="offline-tip-item">
         <svg class="icon"><use href="#icon-cloud_sync"></use></svg>
         <span>Reconnection will happen automatically once signal returns.</span>
       </div>
-      <div class="offline-tip-item">
-        <svg class="icon"><use href="#icon-history"></use></svg>
-        <span>You can still browse recently viewed pages and charts.</span>
-      </div>
     </div>
-    <button type="button" class="btn btn-primary offline-retry-btn" onclick="window.location.reload()">
-      <svg class="icon"><use href="#icon-refresh"></use></svg>
-      <span>Try Reconnecting</span>
-    </button>
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;">
+      <button type="button" class="btn btn-primary offline-retry-btn js-open-add-sheet">
+        <svg class="icon"><use href="#icon-add"></use></svg>
+        <span>Add Offline Transaction</span>
+      </button>
+      <button type="button" class="btn btn-ghost offline-retry-btn" onclick="window.location.reload()">
+        <svg class="icon"><use href="#icon-refresh"></use></svg>
+        <span>Try Reconnecting</span>
+      </button>
+    </div>
   </div>
 </div>
 {% endblock %}
